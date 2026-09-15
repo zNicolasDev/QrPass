@@ -803,3 +803,7 @@ if __name__ == "__main__":
 
     app = SistemaPagoQR()
     app.ejecutar()
+    
+
+    app = SistemaPagoQR()
+    app.ejecutar()
