@@ -1,0 +1,441 @@
+from collections.abc import Iterator
+from datetime import timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+import aplicacion.servicios as services
+from aplicacion.inicio import create_app
+
+
+def auth_headers(client: TestClient, username: str = "pasajero.demo") -> dict[str, str]:
+    password = {
+        "pasajero.demo": "QrPass-Pasajero-Demo-2026",
+        "conductor.demo": "QrPass-Conductor-Demo-2026",
+    }[username]
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def start_driver(client: TestClient, headers: dict[str, str]) -> None:
+    assignment = client.get("/api/v1/driver/demo/assignment", headers=headers)
+    assert assignment.status_code == 200
+    response = client.post(
+        "/api/v1/driver/shift/start",
+        params={"route_id": assignment.json()["route_id"]},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+
+@pytest.fixture()
+def client() -> Iterator[TestClient]:
+    application = create_app("sqlite://")
+    with TestClient(application) as test_client:
+        yield test_client
+
+
+def test_health_routes_and_demo_seed(client: TestClient) -> None:
+    assert client.get("/api/v1/health").json() == {
+        "status": "ok",
+        "service": "qrpass-api",
+        "mode": "demo",
+    }
+    routes = client.get("/api/v1/routes")
+    assert routes.status_code == 200
+    assert len(routes.json()) == 29
+    headers = auth_headers(client)
+    assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 50000
+
+
+def test_passenger_login_and_authenticated_identity(client: TestClient) -> None:
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "pasajero.demo", "password": "QrPass-Pasajero-Demo-2026"},
+    )
+
+    assert login.status_code == 200
+    assert login.json()["user"]["roles"] == ["PASSENGER"]
+    assert login.json()["expires_in"] == 3600
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    current_user = client.get("/api/v1/auth/me", headers=headers)
+    assert current_user.status_code == 200
+    assert current_user.json()["username"] == "pasajero.demo"
+    assert client.get("/api/v1/driver/demo/assignment", headers=headers).status_code == 403
+
+
+def test_driver_login_has_both_roles_and_can_read_assignment(client: TestClient) -> None:
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "conductor.demo", "password": "QrPass-Conductor-Demo-2026"},
+    )
+
+    assert login.status_code == 200
+    assert login.json()["user"]["roles"] == ["DRIVER", "PASSENGER"]
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assignment = client.get("/api/v1/driver/demo/assignment", headers=headers)
+    assert assignment.status_code == 200
+    assert assignment.json()["route_name"] == "24"
+    assert assignment.json()["vehicle_plate"] == "TUV-204"
+
+
+def test_authentication_rejects_bad_credentials_missing_and_tampered_tokens(client: TestClient) -> None:
+    failed_login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "conductor.demo", "password": "incorrecta"},
+    )
+    assert failed_login.status_code == 401
+    assert client.get("/api/v1/auth/me").status_code == 401
+    assert client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": "Bearer fake.payload"},
+    ).status_code == 401
+
+
+def test_passenger_registration_creates_only_passenger_role_and_isolated_wallet(client: TestClient) -> None:
+    registration = client.post(
+        "/api/v1/auth/register",
+        json={
+            "names": "  Ana   Torres ",
+            "email": "ANA.TORRES@example.com",
+            "password": "ContraseñaSegura-2026",
+            "privacy_consent": True,
+        },
+    )
+    assert registration.status_code == 201
+    assert registration.json()["email"] == "ana.torres@example.com"
+    assert registration.json()["roles"] == ["PASSENGER"]
+    assert client.post(
+        "/api/v1/auth/register",
+        json={
+            "names": "Ana Torres",
+            "email": "ana.torres@example.com",
+            "password": "ContraseñaSegura-2026",
+            "privacy_consent": True,
+        },
+    ).status_code == 409
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "ana.torres@example.com", "password": "ContraseñaSegura-2026"},
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 0
+    assert client.get("/api/v1/driver/demo/assignment", headers=headers).status_code == 403
+    assert client.get("/api/v1/demo/account").status_code == 401
+
+
+def test_authenticated_payment_is_idempotent(client: TestClient) -> None:
+    headers = auth_headers(client)
+    data = {"route_id": 1, "method": "wallet", "idempotency_key": "payment-retry-0001"}
+    first = client.post("/api/v1/demo/account/payments", json=data, headers=headers)
+    retry = client.post("/api/v1/demo/account/payments", json=data, headers=headers)
+
+    assert first.status_code == retry.status_code == 201
+    assert first.json()["payment_id"] == retry.json()["payment_id"]
+    assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 46700
+    assert len(client.get("/api/v1/demo/account/trips", headers=headers).json()) == 1
+
+
+def test_top_up_is_idempotent_and_credits_wallet_once(client: TestClient) -> None:
+    headers = auth_headers(client)
+    request = {"amount": 10000, "idempotency_key": "top-up-retry-0001"}
+    first = client.post("/api/v1/demo/account/top-ups", json=request, headers=headers)
+    retry = client.post("/api/v1/demo/account/top-ups", json=request, headers=headers)
+    changed_amount = client.post(
+        "/api/v1/demo/account/top-ups",
+        json={**request, "amount": 20000},
+        headers=headers,
+    )
+
+    assert first.status_code == retry.status_code == 201
+    assert first.json()["payment_id"] == retry.json()["payment_id"]
+    assert changed_amount.status_code == 409
+    assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 60000
+
+
+def test_driver_records_cash_and_closes_immutable_server_shift(client: TestClient) -> None:
+    headers = auth_headers(client, "conductor.demo")
+    start_driver(client, headers)
+    cash = client.post(
+        "/api/v1/driver/shift/payments",
+        json={"method": "cash", "idempotency_key": "driver-cash-0001"},
+        headers=headers,
+    )
+    shift = client.get("/api/v1/driver/shift", headers=headers)
+    closed = client.post("/api/v1/driver/shift/close", json={"cash_counted": 3300}, headers=headers)
+
+    assert cash.status_code == 201
+    assert shift.status_code == 200
+    assert shift.json()["cash_total"] == 3300
+    assert shift.json()["payment_count"] == 1
+    assert closed.status_code == 200
+    assert closed.json()["shift"]["cash_total"] == 3300
+    assert closed.json()["shift"]["cash_counted"] == 3300
+    assert closed.json()["shift"]["cash_difference"] == 0
+    assert closed.json()["closed"] is True
+    assert client.get("/api/v1/driver/shift", headers=headers).status_code == 404
+    history = client.get("/api/v1/driver/shifts/history", headers=headers)
+    assert history.status_code == 200
+    assert history.json()[0]["shift_id"] == closed.json()["shift"]["shift_id"]
+    assert history.json()[0]["cash_counted"] == 3300
+    assert client.get("/api/v1/driver/shifts/history").status_code == 401
+    assert client.post(
+        "/api/v1/driver/shift/payments",
+        json={"method": "cash", "idempotency_key": "driver-cash-0002"},
+        headers=headers,
+    ).status_code == 409
+
+
+def test_saturday_sunday_and_colombian_holiday_fares(client: TestClient) -> None:
+    weekday = client.get("/api/v1/fares/current", params={"route_id": 1, "on_date": "2026-10-08"})
+    saturday = client.get("/api/v1/fares/current", params={"route_id": 1, "on_date": "2026-10-10"})
+    sunday = client.get("/api/v1/fares/current", params={"route_id": 1, "on_date": "2026-10-11"})
+    holiday = client.get("/api/v1/fares/current", params={"route_id": 1, "on_date": "2026-10-12"})
+
+    assert weekday.status_code == 200
+    assert weekday.json()[0]["amount"] == 3300
+    assert weekday.json()[0]["day_type"] == "weekday"
+    assert saturday.json()[0]["amount"] == 3300
+    assert saturday.json()[0]["day_type"] == "weekday"
+    assert sunday.json()[0]["amount"] == 3400
+    assert sunday.json()[0]["day_type"] == "weekend"
+    assert holiday.json()[0]["amount"] == 3400
+    assert holiday.json()[0]["day_type"] == "weekend"
+
+
+def test_wallet_payment_updates_balance_and_trip_history(client: TestClient) -> None:
+    headers = auth_headers(client)
+    payment = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet"},
+        headers=headers,
+    )
+
+    assert payment.status_code == 201
+    assert payment.json()["amount"] == 3300
+    assert payment.json()["wallet_balance"] == 46700
+    history = client.get("/api/v1/demo/account/trips", headers=headers)
+    assert len(history.json()) == 1
+    assert history.json()[0]["route_name"] == "1"
+
+
+def test_cash_and_card_payments_do_not_change_wallet(client: TestClient) -> None:
+    headers = auth_headers(client)
+    cash = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "cash"},
+        headers=headers,
+    )
+    card = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 2, "method": "card", "card_type": "credit"},
+        headers=headers,
+    )
+
+    assert cash.status_code == 201
+    assert card.status_code == 201
+    assert card.json()["method"] == "card_credit"
+    assert cash.json()["wallet_balance"] == 50000
+    assert card.json()["wallet_balance"] == 50000
+
+
+def test_card_requires_a_supported_card_type(client: TestClient) -> None:
+    headers = auth_headers(client)
+    missing_type = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "card"},
+        headers=headers,
+    )
+    unsupported_type = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "card", "card_type": "prepaid"},
+        headers=headers,
+    )
+
+    assert missing_type.status_code == 422
+    assert unsupported_type.status_code == 422
+
+
+def test_insufficient_balance_does_not_create_a_trip(client: TestClient) -> None:
+    headers = auth_headers(client)
+    for _ in range(15):
+        successful_payment = client.post(
+            "/api/v1/demo/account/payments",
+            json={"route_id": 1, "method": "wallet"},
+            headers=headers,
+        )
+        assert successful_payment.status_code == 201
+
+    payment = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet"},
+        headers=headers,
+    )
+
+    assert payment.status_code == 409
+    assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 500
+    assert len(client.get("/api/v1/demo/account/trips", headers=headers).json()) == 15
+
+
+def test_top_up_limits_and_transfer_rules(client: TestClient) -> None:
+    headers = auth_headers(client)
+    invalid_top_up = client.post("/api/v1/demo/account/top-ups", json={"amount": 500001}, headers=headers)
+    assert invalid_top_up.status_code == 422
+
+    payment = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet"},
+        headers=headers,
+    )
+    trip_id = payment.json()["trip_id"]
+    transfer = client.post(
+        "/api/v1/demo/account/transfers",
+        json={"trip_id": trip_id, "destination_route_id": 2},
+        headers=headers,
+    )
+    repeated_transfer = client.post(
+        "/api/v1/demo/account/transfers",
+        json={"trip_id": trip_id, "destination_route_id": 3},
+        headers=headers,
+    )
+
+    assert transfer.status_code == 201
+    assert transfer.json()["origin_route"] == "1"
+    assert transfer.json()["destination_route"] == "2"
+    assert transfer.json()["additional_charge"] == 0
+    assert repeated_transfer.status_code == 409
+
+
+def test_transfer_rejects_same_or_unknown_route(client: TestClient) -> None:
+    headers = auth_headers(client)
+    payment = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet"},
+        headers=headers,
+    )
+    trip_id = payment.json()["trip_id"]
+    same_route = client.post(
+        "/api/v1/demo/account/transfers",
+        json={"trip_id": trip_id, "destination_route_id": 1},
+        headers=headers,
+    )
+    unknown_route = client.post(
+        "/api/v1/demo/account/transfers",
+        json={"trip_id": trip_id, "destination_route_id": 999},
+        headers=headers,
+    )
+
+    assert same_route.status_code == 422
+    assert unknown_route.status_code == 404
+
+
+def test_transfer_rejects_expired_twenty_minute_window(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    headers = auth_headers(client)
+    payment = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet"},
+        headers=headers,
+    )
+    created_at = services.service_now()
+    monkeypatch.setattr(services, "service_now", lambda: created_at + timedelta(minutes=21))
+
+    transfer = client.post(
+        "/api/v1/demo/account/transfers",
+        json={"trip_id": payment.json()["trip_id"], "destination_route_id": 2},
+        headers=headers,
+    )
+
+    assert transfer.status_code == 409
+    assert "20 minutos" in transfer.json()["detail"]
+
+
+def test_dynamic_qr_is_signed_renderable_and_charged_once(client: TestClient) -> None:
+    passenger = auth_headers(client)
+    driver = auth_headers(client, "conductor.demo")
+    start_driver(client, driver)
+    route_id = next(route["id"] for route in client.get("/api/v1/routes").json() if route["name"] == "24")
+    qr = client.post(
+        "/api/v1/demo/account/qr",
+        json={"route_id": route_id, "validity_minutes": 15},
+        headers=passenger,
+    )
+
+    assert qr.status_code == 201
+    assert qr.json()["status"] == "active"
+    assert qr.json()["scannable"] is True
+    assert qr.json()["image_data_uri"].startswith("data:image/svg+xml;base64,")
+    assert qr.json()["mode"] == "demo"
+    scan_data = {"token": qr.json()["token"], "idempotency_key": "scan-request-0001"}
+    scan = client.post("/api/v1/driver/qr/validate", json=scan_data, headers=driver)
+    retry = client.post("/api/v1/driver/qr/validate", json=scan_data, headers=driver)
+    duplicate = client.post(
+        "/api/v1/driver/qr/validate",
+        json={**scan_data, "idempotency_key": "scan-request-0002"},
+        headers=driver,
+    )
+    assert scan.status_code == 201
+    assert retry.status_code == 201
+    assert retry.json()["payment_id"] == scan.json()["payment_id"]
+    assert duplicate.status_code == 409
+    assert client.get("/api/v1/demo/account", headers=passenger).json()["wallet_balance"] == 46700
+    assert client.get("/api/v1/driver/shift", headers=driver).json()["qr_total"] == 3300
+
+
+def test_qr_rejects_invalid_signature_expiration_and_wrong_driver_route(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    passenger = auth_headers(client)
+    driver = auth_headers(client, "conductor.demo")
+    start_driver(client, driver)
+    routes = client.get("/api/v1/routes").json()
+    route_1 = next(route["id"] for route in routes if route["name"] == "1")
+    route_24 = next(route["id"] for route in routes if route["name"] == "24")
+
+    wrong_route_qr = client.post(
+        "/api/v1/demo/account/qr",
+        json={"route_id": route_1, "validity_minutes": 15},
+        headers=passenger,
+    ).json()
+    wrong_route = client.post(
+        "/api/v1/driver/qr/validate",
+        json={"token": wrong_route_qr["token"], "idempotency_key": "scan-wrong-route-001"},
+        headers=driver,
+    )
+    assert wrong_route.status_code == 409
+
+    signed_qr = client.post(
+        "/api/v1/demo/account/qr",
+        json={"route_id": route_24, "validity_minutes": 15},
+        headers=passenger,
+    ).json()
+    encoded, signature = signed_qr["token"].rsplit(".", 1)
+    altered_signature = signature[:-1] + ("0" if signature[-1] != "0" else "1")
+    invalid_signature = client.post(
+        "/api/v1/driver/qr/validate",
+        json={
+            "token": f"{encoded}.{altered_signature}",
+            "idempotency_key": "scan-invalid-sign-001",
+        },
+        headers=driver,
+    )
+    assert invalid_signature.status_code == 422
+
+    expiring_qr = client.post(
+        "/api/v1/demo/account/qr",
+        json={"route_id": route_24, "validity_minutes": 15},
+        headers=passenger,
+    ).json()
+    now = services.service_now()
+    monkeypatch.setattr(services, "service_now", lambda: now + timedelta(minutes=16))
+    expired = client.post(
+        "/api/v1/driver/qr/validate",
+        json={"token": expiring_qr["token"], "idempotency_key": "scan-expired-qr-001"},
+        headers=driver,
+    )
+
+    assert expired.status_code == 410

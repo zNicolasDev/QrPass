@@ -1,0 +1,32 @@
+{
+  "id": "./index.html",
+  "name": "QrPass · Tu ciudad, en movimiento",
+  "short_name": "QrPass",
+  "description": "Tu billetera y tus viajes en transporte público de Ibagué.",
+  "lang": "es-CO",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f8f6",
+  "theme_color": "#102a2a",
+  "icons": [
+    {
+      "src": "./iconos/qrpass-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./iconos/qrpass-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./iconos/qrpass-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
