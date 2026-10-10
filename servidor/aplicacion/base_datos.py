@@ -33,7 +33,7 @@ DEFAULT_DATABASE_URL = f"sqlite:///{DEFAULT_DATABASE_PATH.as_posix()}"
 DEMO_ROUTES = (
     "1", "2", "4/7", "6", "8/39", "9", "11", "14", "15", "17",
     "18", "19", "20", "21", "22", "23", "24", "28", "29", "31",
-    "33", "35", "37", "40", "43", "48", "50", "53", "82",
+    "33", "35", "37", "40", "43", "48", "50", "53", "82", "90", "ALIMENTADOR CHUCHUNI", "SAN BERNARDO-SALADO",
 )
 logger = logging.getLogger(__name__)
 DEMO_PASSENGER_USERNAME = "pasajero.demo"
