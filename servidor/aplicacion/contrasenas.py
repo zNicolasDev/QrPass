@@ -10,6 +10,8 @@ PASSWORD_HASH_ITERATIONS = 310_000
 
 
 def hash_password(password: str) -> str:
+    # Cada cuenta recibe su propio azar; guardar solo el resultado evita que
+    # una filtración de la base revele contraseñas listas para reutilizar.
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
         "sha256",

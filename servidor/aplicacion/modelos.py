@@ -15,6 +15,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
+# Estos modelos describen qué cosas recuerda el sistema y cómo se conectan;
+# las reglas que hacen avanzar esos registros viven en servicios.py.
 class Base(DeclarativeBase):
     pass
 
@@ -53,6 +55,8 @@ class Role(Base):
 
 
 class UserRole(Base):
+    # Ser pasajero o conductor describe lo que una cuenta puede hacer; no
+    # obliga a duplicar nombre, acceso y billetera en dos tipos de persona.
     __tablename__ = "user_roles"
     __table_args__ = (
         UniqueConstraint("user_id", "role_id", name="uq_user_roles_user_role"),
@@ -107,6 +111,8 @@ class Fare(Base):
 
 
 class Driver(Base):
+    # Solo las cuentas que también tienen ficha de conductor llegan aquí;
+    # así un registro público no se convierte en conductor por accidente.
     __tablename__ = "drivers"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -197,6 +203,8 @@ class Payment(Base):
         UniqueConstraint("user_id", "idempotency_key", name="uq_payments_user_idempotency_key"),
     )
 
+    # Pago responde "¿qué movimiento ocurrió?"; el viaje asociado responde
+    # "¿qué recorrido habilitó?". Mantenerlos separados conserva el historial.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(String(80))
@@ -220,6 +228,8 @@ class Trip(Base):
     __tablename__ = "trips"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Un pago crea como máximo un viaje; un traspaso cambia su ruta futura,
+    # pero no vuelve a cobrar ni borra el movimiento original.
     payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="RESTRICT"), unique=True, nullable=False)
     shift_id: Mapped[int | None] = mapped_column(ForeignKey("shifts.id", ondelete="RESTRICT"))
     fare_id: Mapped[int] = mapped_column(ForeignKey("fares.id", ondelete="RESTRICT"), nullable=False)

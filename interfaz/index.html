@@ -94,6 +94,8 @@
       </symbol>
     </svg>
 
+    <!-- La entrada y la app viven en la misma página; JavaScript muestra una
+         u otra según la sesión que el servidor reconoce. -->
     <main class="login-gate" id="login-gate">
       <section class="login-card" aria-labelledby="login-title">
         <a class="brand login-brand" href="#login" aria-label="QrPass">
@@ -131,6 +133,7 @@
       <footer class="login-footer">QrPass · Acceso según rol · API de demostración</footer>
     </main>
 
+    <!-- Este contenedor se mantiene oculto hasta validar la cuenta y sus roles. -->
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="#inicio" data-view="inicio" aria-label="QrPass, inicio">

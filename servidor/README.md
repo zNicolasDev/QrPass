@@ -33,6 +33,7 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | Método | Endpoint | Función |
 |---|---|---|
 | GET | `/health` | Estado del servicio |
+| GET | `/ready` | Disponibilidad del servicio con verificación `SELECT 1` sobre la base |
 | GET | `/routes` | Catálogo de rutas |
 | GET | `/fares/current` | Tarifa vigente |
 | POST | `/auth/register` | Registro de pasajero y consentimiento |
@@ -40,6 +41,9 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | GET | `/auth/me` | Identidad y roles de la sesión |
 | GET | `/demo/account` | Billetera de la cuenta autenticada |
 | GET | `/demo/account/trips` | Historial de viajes |
+| GET | `/payments/history` | Historial autenticado unificado de ingresos y egresos |
+| GET | `/trips` | Historial de viajes del usuario autenticado |
+| GET | `/trips/{trip_id}` | Detalle de un viaje propio |
 | POST | `/demo/account/qr` | QR firmado con vigencia máxima de 15 minutos |
 | POST | `/demo/account/payments` | Pago de demostración por saldo, efectivo o tarjeta |
 | POST | `/demo/account/top-ups` | Recarga ficticia e idempotente |
@@ -76,4 +80,6 @@ python -m pytest
 
 Esta API no mueve dinero real: los pagos con tarjeta y las recargas son ficticios, y no hay integración POS o bancaria. Los QR se verifican en línea mediante HMAC; no se debe distribuir esa clave a validadores sin conexión. Una modalidad offline requiere firma asimétrica, gestión de claves y controles contra el doble gasto.
 
-SQLite y la inicialización de desarrollo no sustituyen migraciones versionadas ni una base de producción compartida. TLS 1.3 depende del proxy o alojamiento. También hacen falta pruebas de carga, monitoreo y validación jurídica y operativa. No almacenes datos personales o financieros reales en este prototipo.
+`/health` es una señal de vida de la API; `/ready` prueba conectividad con la base de datos y responde 503 si no puede consultarla. En pagos, el débito/recarga y sus filas de pago/viaje se escriben dentro de la transacción SQLAlchemy de la solicitud. Las pruebas `test_failed_payment_commit_rolls_back_balance_payment_and_trip` y `test_failed_qr_redemption_commit_restores_qr_balance_payment_and_trip` inyectan un fallo antes del commit y confirman que no quedan débito, consumo de QR ni registros parciales.
+
+SQLite y la inicialización de desarrollo no sustituyen migraciones versionadas ni una base de producción compartida. La compatibilidad actual hace ajustes de esquema SQLite durante la inicialización, por lo que el proceso de migraciones debe formalizarse antes de evolucionar datos persistidos. TLS 1.3 depende del proxy o alojamiento. También hacen falta pruebas de concurrencia/carga, monitoreo y validación jurídica y operativa. No almacenes datos personales o financieros reales en este prototipo.

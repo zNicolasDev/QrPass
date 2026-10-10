@@ -28,6 +28,8 @@ CredentialsDependency = Annotated[
 
 
 def create_access_token(user_id: int, secret: bytes) -> str:
+    # La sesión no guarda una copia del perfil: el token solo identifica a la
+    # cuenta y su vencimiento; al usarlo volvemos a comprobarla en la base.
     payload = json.dumps(
         {"sub": user_id, "exp": int(time.time()) + ACCESS_TOKEN_SECONDS},
         separators=(",", ":"),
@@ -82,6 +84,8 @@ AuthenticatedUser = Annotated[User, Depends(get_authenticated_user)]
 
 def require_role(role_code: str) -> Callable[..., User]:
     def dependency(user: AuthenticatedUser) -> User:
+        # Ocultar una opción en pantalla mejora la experiencia, pero el permiso
+        # se decide aquí porque cualquier cliente puede llamar la API directamente.
         if not any(user_role.role.code == role_code for user_role in user.roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

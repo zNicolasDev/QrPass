@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from datetime import date
 import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from aplicacion.sesion import (
@@ -31,6 +33,7 @@ from aplicacion.esquemas import (
     LoginCreate,
     LoginRead,
     PaymentCreate,
+    PaymentHistoryRead,
     PaymentReceipt,
     PassengerRegistrationCreate,
     QrCreate,
@@ -43,7 +46,7 @@ from aplicacion.esquemas import (
     TransferRead,
     TripRead,
 )
-from aplicacion.modelos import Driver, Role, User, UserRole
+from aplicacion.modelos import Driver, Role, Trip, User, UserRole
 from aplicacion.servicios import (
     active_driver_shift,
     assigned_driver_shift,
@@ -56,6 +59,8 @@ from aplicacion.servicios import (
     driver_shift_summary,
     DriverShiftSummary,
     get_current_fare,
+    get_trip,
+    list_payments,
     list_routes,
     list_trips,
     qr_image_data_uri,
@@ -65,7 +70,10 @@ from aplicacion.servicios import (
 from aplicacion.contrasenas import hash_password
 
 
+# Las rutas son la recepción de la API: traducen lo que llega y delegan las
+# decisiones de negocio en servicios.py para que no haya reglas distintas por endpoint.
 SessionDependency = Annotated[Session, Depends(get_session)]
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1")
 demo_router = APIRouter(prefix="/demo/account", tags=["Demostración"])
 auth_router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -75,6 +83,20 @@ driver_router = APIRouter(prefix="/driver", tags=["Conductor"])
 @router.get("/health", response_model=HealthRead, tags=["Sistema"])
 def health() -> HealthRead:
     return HealthRead(status="ok", service="qrpass-api", mode="demo")
+
+
+@router.get("/ready", response_model=HealthRead, tags=["Sistema"], summary="Verificar disponibilidad de la base de datos")
+def readiness(request: Request) -> HealthRead:
+    try:
+        with request.app.state.database.engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as error:
+        logger.error("La comprobación de disponibilidad de la base de datos falló.", exc_info=error)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La base de datos no está disponible.",
+        ) from error
+    return HealthRead(status="ready", service="qrpass-api", mode="demo")
 
 
 @router.get("/routes", response_model=list[RouteRead], tags=["Rutas"])
@@ -128,6 +150,8 @@ def register_passenger(payload: PassengerRegistrationCreate, session: SessionDep
     )
     session.add(user)
     session.flush()
+    # Una cuenta recién llegada empieza como pasajera; el registro público no
+    # puede conceder por accidente permisos de conductor.
     user.roles.append(UserRole(role=passenger_role))
     session.commit()
     session.refresh(user)
@@ -212,6 +236,21 @@ def _driver_shift_dto(summary: DriverShiftSummary) -> DriverShiftRead:
             )
             for entry in summary["entries"]
         ],
+    )
+
+
+def _trip_read(trip: Trip) -> TripRead:
+    return TripRead(
+        trip_id=trip.id,
+        route_id=trip.route_id,
+        route_name=trip.route.name,
+        payment_id=trip.payment_id,
+        method=trip.payment.method,
+        movement_type=trip.payment.movement_type,
+        amount=trip.payment.amount,
+        status=trip.payment.status,
+        created_at=trip.created_at,
+        transferred_to=trip.origin_transfer.destination_route.name if trip.origin_transfer else None,
     )
 
 
@@ -337,24 +376,39 @@ def generate_demo_qr(
     )
 
 
-@demo_router.get("/trips", response_model=list[TripRead], summary="Consultar el historial de prueba")
-def trip_history(user: AuthenticatedUser, session: SessionDependency) -> list[TripRead]:
-    trips = list_trips(session, user)
+@router.get("/payments/history", response_model=list[PaymentHistoryRead], tags=["Pagos"], summary="Consultar el historial unificado de pagos")
+def payment_history(user: AuthenticatedUser, session: SessionDependency) -> list[PaymentHistoryRead]:
     return [
-        TripRead(
-            trip_id=trip.id,
-            route_id=trip.route_id,
-            route_name=trip.route.name,
-            payment_id=trip.payment_id,
-            method=trip.payment.method,
-            movement_type=trip.payment.movement_type,
-            amount=trip.payment.amount,
-            status=trip.payment.status,
-            created_at=trip.created_at,
-            transferred_to=trip.origin_transfer.destination_route.name if trip.origin_transfer else None,
+        PaymentHistoryRead(
+            payment_id=payment.id,
+            movement_type=payment.movement_type,
+            method=payment.method,
+            amount=payment.amount,
+            balance_before=payment.balance_before,
+            balance_after=payment.balance_after,
+            status=payment.status,
+            created_at=payment.created_at,
+            trip_id=payment.trip.id if payment.trip else None,
+            route_id=payment.trip.route_id if payment.trip else None,
+            route_name=payment.trip.route.name if payment.trip else None,
         )
-        for trip in trips
+        for payment in list_payments(session, user)
     ]
+
+
+@router.get("/trips", response_model=list[TripRead], tags=["Viajes"], summary="Consultar el historial de viajes")
+def trip_history(user: AuthenticatedUser, session: SessionDependency) -> list[TripRead]:
+    return [_trip_read(trip) for trip in list_trips(session, user)]
+
+
+@router.get("/trips/{trip_id}", response_model=TripRead, tags=["Viajes"], summary="Consultar el detalle de un viaje")
+def trip_detail(trip_id: int, user: AuthenticatedUser, session: SessionDependency) -> TripRead:
+    return _trip_read(get_trip(session, user, trip_id))
+
+
+@demo_router.get("/trips", response_model=list[TripRead], summary="Consultar el historial de prueba")
+def demo_trip_history(user: AuthenticatedUser, session: SessionDependency) -> list[TripRead]:
+    return [_trip_read(trip) for trip in list_trips(session, user)]
 
 
 @demo_router.post("/payments", response_model=PaymentReceipt, status_code=status.HTTP_201_CREATED)

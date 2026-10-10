@@ -1,3 +1,5 @@
+// La pantalla sigue el recorrido de la persona; el servidor conserva las
+// decisiones y el historial. Si algo cambia dinero o un viaje, se confirma allí.
 const ACCESS_TOKEN_KEY = "qrpass-access-token-v1";
 const SESSION_EXPIRY_KEY = "qrpass-session-expiry-v1";
 const API_BASE_URL = globalThis.QRPASS_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -27,6 +29,8 @@ let activeCameraStream = null;
 let scanLoopTimer = null;
 
 function createIdempotencyKey() {
+  // Una misma acción conserva su clave mientras se reintenta; al empezar otra
+  // acción se crea otra. Así un toque lento no se convierte en dos cobros.
   return globalThis.crypto?.randomUUID?.()
     ?? `qrpass-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -60,6 +64,8 @@ function hasProfileRole(profile) {
 }
 
 async function apiRequest(path, options = {}) {
+  // Todas las pantallas hablan con la API por aquí para que una caída de red
+  // o un rechazo se convierta en un mensaje entendible, no en una pantalla rota.
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (options.body) headers.set("Content-Type", "application/json");
@@ -109,6 +115,8 @@ function mapTripFromApi(trip) {
 }
 
 async function refreshPassengerData() {
+  // Al volver de una operación, reconstruimos saldo e historial desde el
+  // servidor: la memoria de esta pestaña no es el registro oficial.
   const [account, trips] = await Promise.all([
     apiRequest("/demo/account"),
     apiRequest("/demo/account/trips"),
@@ -199,6 +207,8 @@ async function activateSession(user, token) {
     : hasProfileRole("conductor") ? "conductor" : "pasajero";
 
   if (currentProfile === "conductor") {
+    // El rol habilita el espacio; la asignación indica si hay un turno que
+    // iniciar. La autorización de cada operación sigue estando en el servidor.
     try {
       driverAssignment = await apiRequest("/driver/demo/assignment");
     } catch (error) {
@@ -224,6 +234,8 @@ async function activateSession(user, token) {
 }
 
 function logout() {
+  // Cerrar sesión también limpia lo que quedó en pantalla; otra persona que
+  // use este dispositivo no debería heredar el saldo ni los datos anteriores.
   if (sessionExpiryTimer !== null) window.clearTimeout(sessionExpiryTimer);
   sessionExpiryTimer = null;
   accessToken = null;
@@ -513,6 +525,7 @@ function renderDriverDashboard() {
 }
 
 async function createQrCode(routeId) {
+  // El QR que sirve para abordar lo firma la API; la interfaz solo lo presenta.
   const qr = await apiRequest("/demo/account/qr", {
     method: "POST",
     body: JSON.stringify({ route_id: Number(routeId), validity_minutes: 15 }),
@@ -805,6 +818,8 @@ async function closeDriverShift(cashCounted) {
     });
     const closed = report.shift;
     const cashDifference = closed.cash_difference ?? 0;
+    // Una vez cerrado, el servidor es quien impide agregar movimientos a ese
+    // turno; aquí quitamos la vista activa y dejamos el resumen en el historial.
     driverState.completedShifts.unshift(mapShiftFromApi(closed));
     driverState.activeShift = null;
     driverAssignment = null;
@@ -895,6 +910,8 @@ function showToast(message, isError = false) {
 }
 
 function openReceipt(trip, isTransfer = false) {
+  // El recibo ayuda a entender qué acaba de pasar, pero siempre deja claro
+  // que este prototipo no es un comprobante financiero oficial.
   modalContent.innerHTML = `<div class="modal-body">
     <div class="receipt-mark">${icon("check")}</div><div class="modal-kicker">${isTransfer ? "TRASPASO REGISTRADO" : "MOVIMIENTO REGISTRADO"}</div>
     <h2 id="modal-title">${isTransfer ? "Tu pago fue transferido" : "¡Listo para seguir!"}</h2>
@@ -1017,6 +1034,8 @@ async function topUp(amount, trigger) {
 }
 
 document.addEventListener("click", async (event) => {
+  // La mayoría de las pantallas se vuelve a dibujar; escuchar en el documento
+  // permite que los botones recién creados sigan respondiendo.
   const target = event.target.closest("[data-profile], [data-view], [data-action]");
   if (!target) return;
 
@@ -1151,6 +1170,8 @@ document.querySelector("#registration-form").addEventListener("submit", async (e
 });
 
 document.addEventListener("submit", async (event) => {
+  // Los formularios de las ventanas aparecen y desaparecen según el recorrido;
+  // una sola entrada mantiene parecida la respuesta aunque cambie el contenido.
   if (event.target.id === "qr-generation-form") {
     event.preventDefault();
     const routeId = new FormData(event.target).get("routeId");
@@ -1228,6 +1249,8 @@ document.addEventListener("submit", async (event) => {
     const submit = event.target.querySelector('button[type="submit"]');
     submit.disabled = true;
     try {
+      // Si hay un corte justo después de confirmar, el mismo formulario guarda
+      // la misma clave para que el reintento no cree un segundo movimiento.
       const receipt = await apiRequest("/demo/account/payments", {
         method: "POST",
         body: JSON.stringify({

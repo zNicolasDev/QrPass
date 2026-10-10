@@ -3,6 +3,10 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 import aplicacion.servicios as services
 from aplicacion.inicio import create_app
@@ -34,8 +38,10 @@ def start_driver(client: TestClient, headers: dict[str, str]) -> None:
 
 @pytest.fixture()
 def client() -> Iterator[TestClient]:
+    # Cada escenario arranca con una base de datos de memoria propia; así un
+    # pago de una prueba no cambia el saldo con el que comienza la siguiente.
     application = create_app("sqlite://")
-    with TestClient(application) as test_client:
+    with TestClient(application, raise_server_exceptions=False) as test_client:
         yield test_client
 
 
@@ -50,6 +56,24 @@ def test_health_routes_and_demo_seed(client: TestClient) -> None:
     assert len(routes.json()) == 29
     headers = auth_headers(client)
     assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 50000
+
+
+def test_readiness_checks_database_and_reports_unavailability(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ready = client.get("/api/v1/ready")
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
+    def fail_connection(_: Engine):
+        raise OperationalError("SELECT 1", {}, RuntimeError("database unavailable"))
+
+    monkeypatch.setattr(Engine, "connect", fail_connection)
+    unavailable = client.get("/api/v1/ready")
+
+    assert unavailable.status_code == 503
+    assert unavailable.json()["detail"] == "La base de datos no está disponible."
 
 
 def test_passenger_login_and_authenticated_identity(client: TestClient) -> None:
@@ -138,6 +162,111 @@ def test_authenticated_payment_is_idempotent(client: TestClient) -> None:
     assert first.json()["payment_id"] == retry.json()["payment_id"]
     assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 46700
     assert len(client.get("/api/v1/demo/account/trips", headers=headers).json()) == 1
+
+
+def test_failed_payment_commit_rolls_back_balance_payment_and_trip(client: TestClient) -> None:
+    headers = auth_headers(client)
+
+    def fail_before_commit(_: Session) -> None:
+        raise RuntimeError("injected failure before commit")
+
+    event.listen(Session, "before_commit", fail_before_commit)
+    try:
+        failed_payment = client.post(
+            "/api/v1/demo/account/payments",
+            json={"route_id": 1, "method": "wallet", "idempotency_key": "atomic-failure-001"},
+            headers=headers,
+        )
+    finally:
+        event.remove(Session, "before_commit", fail_before_commit)
+
+    assert failed_payment.status_code == 500
+    assert client.get("/api/v1/demo/account", headers=headers).json()["wallet_balance"] == 50000
+    assert client.get("/api/v1/payments/history", headers=headers).json() == []
+    assert client.get("/api/v1/trips", headers=headers).json() == []
+
+
+def test_failed_qr_redemption_commit_restores_qr_balance_payment_and_trip(client: TestClient) -> None:
+    passenger = auth_headers(client)
+    driver = auth_headers(client, "conductor.demo")
+    assignment = client.get("/api/v1/driver/demo/assignment", headers=driver).json()
+    start_driver(client, driver)
+    qr = client.post(
+        "/api/v1/demo/account/qr",
+        json={"route_id": assignment["route_id"]},
+        headers=passenger,
+    ).json()
+    scan = {"token": qr["token"], "idempotency_key": "atomic-qr-failure-001"}
+
+    def fail_before_commit(_: Session) -> None:
+        raise RuntimeError("injected failure before commit")
+
+    event.listen(Session, "before_commit", fail_before_commit)
+    try:
+        failed_redemption = client.post(
+            "/api/v1/driver/qr/validate",
+            json=scan,
+            headers=driver,
+        )
+    finally:
+        event.remove(Session, "before_commit", fail_before_commit)
+
+    assert failed_redemption.status_code == 500
+    assert client.get("/api/v1/demo/account", headers=passenger).json()["wallet_balance"] == 50000
+    assert client.get("/api/v1/payments/history", headers=passenger).json() == []
+
+    retry = client.post("/api/v1/driver/qr/validate", json=scan, headers=driver)
+
+    assert retry.status_code == 201
+    assert client.get("/api/v1/demo/account", headers=passenger).json()["wallet_balance"] == 46700
+    assert len(client.get("/api/v1/payments/history", headers=passenger).json()) == 1
+    assert len(client.get("/api/v1/trips", headers=passenger).json()) == 1
+
+
+def test_payment_history_includes_top_ups_and_fare_payments(client: TestClient) -> None:
+    headers = auth_headers(client)
+    top_up = client.post(
+        "/api/v1/demo/account/top-ups",
+        json={"amount": 10000, "idempotency_key": "history-top-up-001"},
+        headers=headers,
+    )
+    fare = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet", "idempotency_key": "history-fare-0001"},
+        headers=headers,
+    )
+
+    history = client.get("/api/v1/payments/history", headers=headers)
+
+    assert top_up.status_code == fare.status_code == 201
+    assert history.status_code == 200
+    assert [item["movement_type"] for item in history.json()] == ["fare_payment", "top_up"]
+    assert history.json()[0]["trip_id"] == fare.json()["trip_id"]
+    assert history.json()[0]["balance_before"] == 60000
+    assert history.json()[0]["balance_after"] == 56700
+    assert history.json()[1]["trip_id"] is None
+    assert history.json()[1]["balance_after"] == 60000
+    assert client.get("/api/v1/payments/history").status_code == 401
+
+
+def test_trip_resource_lists_and_returns_only_the_owners_trip(client: TestClient) -> None:
+    headers = auth_headers(client)
+    payment = client.post(
+        "/api/v1/demo/account/payments",
+        json={"route_id": 1, "method": "wallet"},
+        headers=headers,
+    )
+    trip_id = payment.json()["trip_id"]
+
+    trips = client.get("/api/v1/trips", headers=headers)
+    detail = client.get(f"/api/v1/trips/{trip_id}", headers=headers)
+    missing = client.get("/api/v1/trips/999999", headers=headers)
+
+    assert trips.status_code == detail.status_code == 200
+    assert len(trips.json()) == 1
+    assert detail.json() == trips.json()[0]
+    assert missing.status_code == 404
+    assert client.get(f"/api/v1/trips/{trip_id}").status_code == 401
 
 
 def test_top_up_is_idempotent_and_credits_wallet_once(client: TestClient) -> None:

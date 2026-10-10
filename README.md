@@ -9,6 +9,7 @@ Prototipo web y API para consultar viajes y explorar el recaudo del transporte p
 - [`datos/entidades/`](./datos/entidades/): bocetos académicos de entidades; no son los modelos activos de la API.
 - [`prototipo.py`](./prototipo.py): aplicación de escritorio original, conservada como referencia.
 - [`requisitos.pdf`](./requisitos.pdf): documento de requisitos del proyecto.
+- [`Especificación de Requerimientos, Modelado de Datos y Arquitectura de API REST para el Sistema QRPASS.pdf`](./Especificación de Requerimientos, Modelado de Datos y Arquitectura de API REST para el Sistema QRPASS.pdf): especificación formal que orienta la arquitectura, requisitos funcionales y flujo de dominio.
 
 ## Iniciar la API
 
@@ -37,5 +38,7 @@ Abre `http://127.0.0.1:5500`. La interfaz se comunica con la API local. Las cuen
 ## Alcance y límites
 
 Los roles y permisos se validan en la API: las cuentas de pasajero no pueden usar las funciones protegidas del conductor. Una cuenta autorizada como conductor también tiene acceso independiente al espacio de pasajero. Para instalar la PWA en un dispositivo, publica la interfaz mediante HTTPS.
+
+El esquema de dominio aún está en revisión y la referencia actual se documenta en [servidor/documentacion/arquitectura.md](./servidor/documentacion/arquitectura.md). La intención es mantener el modelo cercano a la estructura de usuarios, rutas, pagos, QR, turnos y transbordos que aparece en el boceto de base de datos.
 
 La matriz de [trazabilidad de requisitos](./servidor/documentacion/trazabilidad.md) distingue lo implementado en esta demostración de lo que requiere servicios externos, pruebas en dispositivos o validación del operador y de la autoridad.

@@ -20,6 +20,8 @@ from aplicacion.esquemas import PaymentCreate, PaymentMethod, TopUpCreate, Trans
 from aplicacion.modelos import Fare, Payment, QrCode, Route, Shift, Transfer, Trip, User
 
 
+# Aquí están las decisiones que una persona esperaría que siempre se cumplan,
+# use la pantalla actual o un cliente futuro distinto.
 IBAGUE_TIMEZONE = ZoneInfo("America/Bogota")
 
 
@@ -56,6 +58,8 @@ def service_date() -> date:
 
 
 def day_type_for(day: date) -> str:
+    # El día del servicio se entiende según Ibagué; no según la zona horaria
+    # del servidor o del celular que hizo la solicitud.
     return "weekend" if day.weekday() == 6 or day in holidays.country_holidays("CO", years=day.year) else "weekday"
 
 
@@ -186,6 +190,8 @@ def _fare_for_route(session: Session, route_id: int) -> Fare:
 
 def create_payment(session: Session, user: User, request: PaymentCreate) -> tuple[Payment, Trip, int]:
     if request.idempotency_key:
+        # Si la conexión se corta y la pantalla reintenta, la persona no debe
+        # pagar dos veces por haber pulsado una sola vez.
         prior = session.scalar(select(Payment).where(
             Payment.user_id == user.id,
             Payment.idempotency_key == request.idempotency_key,
@@ -208,6 +214,8 @@ def create_payment(session: Session, user: User, request: PaymentCreate) -> tupl
     balance_after = balance_before
 
     if is_wallet_payment:
+        # El saldo se descuenta con una condición en la misma operación: dos
+        # solicitudes simultáneas no pueden gastar el mismo saldo disponible.
         new_balance = session.scalar(
             update(User)
             .where(User.id == user.id, User.status == "active", User.wallet_balance >= fare.amount)
@@ -246,6 +254,8 @@ def create_payment(session: Session, user: User, request: PaymentCreate) -> tupl
         created_at=now,
     )
     session.add(trip)
+    # El pago y el viaje son una sola promesa: o quedan guardados ambos o no
+    # queda ninguno, para no mostrar un cobro sin un viaje (ni al revés).
     session.commit()
     session.refresh(payment)
     session.refresh(trip)
@@ -300,7 +310,35 @@ def list_trips(session: Session, user: User) -> list[Trip]:
     return list(session.scalars(statement))
 
 
+def get_trip(session: Session, user: User, trip_id: int) -> Trip:
+    trip = session.scalar(
+        select(Trip)
+        .join(Trip.payment)
+        .options(
+            joinedload(Trip.route),
+            joinedload(Trip.payment),
+            joinedload(Trip.origin_transfer).joinedload(Transfer.destination_route),
+        )
+        .where(Trip.id == trip_id, Payment.user_id == user.id)
+    )
+    if trip is None:
+        raise DomainError(404, "No se encontró el viaje solicitado.")
+    return trip
+
+
+def list_payments(session: Session, user: User) -> list[Payment]:
+    statement = (
+        select(Payment)
+        .options(joinedload(Payment.trip).joinedload(Trip.route))
+        .where(Payment.user_id == user.id)
+        .order_by(Payment.created_at.desc(), Payment.id.desc())
+    )
+    return list(session.scalars(statement))
+
+
 def create_transfer(session: Session, user: User, request: TransferCreate) -> Transfer:
+    # El traspaso no crea otro pago: enlaza el viaje ya pagado con otra ruta
+    # y deja intacto el registro que la persona puede consultar después.
     origin_trip = session.scalar(
         select(Trip)
         .join(Trip.payment)
@@ -369,6 +407,8 @@ def redeem_qr(
     signing_secret: bytes,
     idempotency_key: str,
 ) -> tuple[Payment, Trip, int]:
+    # Primero comprobamos que el código sea auténtico; el texto de un QR puede
+    # copiarse, así que nunca se confía en lo que afirma la imagen por sí sola.
     try:
         prefix, encoded_payload, signature = token.split(".")
         if prefix != "QRP1":
@@ -466,6 +506,8 @@ def redeem_qr(
         created_at=now,
     )
     session.add(trip)
+    # Consumir QR, descontar saldo y registrar el viaje forman una sola
+    # experiencia para el pasajero; un fallo debe dejar el código utilizable.
     session.commit()
     session.refresh(payment)
     session.refresh(trip)
@@ -479,6 +521,8 @@ def record_driver_payment(
     card_type: str | None,
     idempotency_key: str,
 ) -> tuple[Payment, Trip, int]:
+    # El recaudo de efectivo/tarjeta se atribuye al turno activo, no a un
+    # turno elegido por la interfaz ni a un historial separado del cierre.
     shift = active_driver_shift(session, driver)
     if shift is None:
         raise DomainError(409, "No hay un turno de conductor activo.")
@@ -596,6 +640,8 @@ def close_driver_shift(session: Session, driver: User, cash_counted: int) -> Dri
     shift.ends_at = service_now()
     shift.status = "closed"
     shift.cash_counted = cash_counted
+    # La diferencia compara lo que el sistema esperaba con lo que el conductor
+    # contó; no intenta afirmar que el dinero físico fue verificado.
     shift.cash_difference = cash_counted - int(summary["cash"])
     session.commit()
     session.refresh(shift)

@@ -7,6 +7,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
+# Estos esquemas marcan el acuerdo entre la persona que usa la app y el
+# servidor: lo que aceptamos y lo que devolvemos, no cómo se guarda por dentro.
 class PaymentMethod(str, Enum):
     WALLET = "wallet"
     CASH = "cash"
@@ -114,6 +116,8 @@ class DriverPaymentCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_driver_payment(self) -> DriverPaymentCreate:
+        # Un QR no se registra como cobro manual: necesita su propio recorrido
+        # de validación para comprobarlo y marcarlo como usado.
         if self.method == PaymentMethod.WALLET:
             raise ValueError("Los pagos wallet/QR deben validarse escaneando un código.")
         if self.method == PaymentMethod.CARD and self.card_type is None:
@@ -212,6 +216,21 @@ class TripRead(BaseModel):
     status: str
     created_at: datetime
     transferred_to: str | None = None
+
+
+class PaymentHistoryRead(BaseModel):
+    payment_id: int
+    movement_type: str
+    method: str
+    amount: int
+    currency: str = "COP"
+    balance_before: int
+    balance_after: int
+    status: str
+    created_at: datetime
+    trip_id: int | None = None
+    route_id: int | None = None
+    route_name: str | None = None
 
 
 class TransferCreate(BaseModel):

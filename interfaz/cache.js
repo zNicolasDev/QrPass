@@ -10,6 +10,8 @@ const APP_FILES = [
   "./iconos/apple-touch-icon.png",
 ];
 
+// La caché mantiene abierta la carcasa de la app si falta internet; no guarda
+// pagos ni autoriza viajes. Para eso siempre hace falta una respuesta del servidor.
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -38,6 +40,8 @@ self.addEventListener("fetch", (event) => {
   if (requestUrl.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
+    // Primero intentamos mostrar la versión nueva; si no hay conexión,
+    // ofrecemos la última pantalla descargada en vez de una página vacía.
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -53,6 +57,9 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
+    // En el desarrollo actual la API vive en otro origen y no pasa por aquí.
+    // Si interfaz y API comparten origen más adelante, excluye sus respuestas
+    // antes de guardar recursos para no conservar datos de una persona.
     caches.match(request)
       .then((cachedResponse) => cachedResponse || fetch(request).then((response) => {
         if (!response.ok) return response;

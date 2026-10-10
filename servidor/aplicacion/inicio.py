@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_app(database_url: str | None = None, auth_secret: str | bytes | None = None) -> FastAPI:
+    # Este es el punto de entrada de cada entorno: reúne configuración,
+    # conexión y rutas para que las pruebas también puedan crear una app aislada.
     database = Database(database_url)
     configured_secret = auth_secret or os.getenv("QR_PASS_AUTH_SECRET")
     is_production = os.getenv("QR_PASS_ENV", "").lower() == "production"
@@ -37,6 +39,8 @@ def create_app(database_url: str | None = None, auth_secret: str | bytes | None 
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+        # La base debe estar lista antes de atender a la primera persona y se
+        # cierra al apagar la API, no después de cada petición.
         database.initialize()
         yield
         database.close()
@@ -72,6 +76,8 @@ def create_app(database_url: str | None = None, auth_secret: str | bytes | None 
 
     @application.exception_handler(DomainError)
     async def domain_error_handler(_: Request, error: DomainError) -> JSONResponse:
+        # Una regla del negocio no debería conocer HTTP; aquí convertimos su
+        # explicación en una respuesta que la interfaz pueda mostrar.
         return JSONResponse(
             status_code=error.status_code,
             content={"detail": error.detail},
