@@ -1,0 +1,69 @@
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import Field, model_validator
+
+from app.dtos.enumeraciones import TipoTarjeta, MedioPago
+from app.dtos.base import EsquemaBase
+
+
+class CrearPagoSolicitud(EsquemaBase):
+    ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
+    medio: MedioPago = Field(validation_alias="method", serialization_alias="method")
+    tipo_tarjeta: TipoTarjeta | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
+    clave_idempotencia: Annotated[str | None, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")] = None
+
+    @model_validator(mode="after")
+    def validar_tipo_tarjeta(self) -> 'CrearPagoSolicitud':
+        if self.medio == MedioPago.CARD and self.tipo_tarjeta is None:
+            raise ValueError("card_type es obligatorio para pagos con tarjeta.")
+        if self.medio != MedioPago.CARD and self.tipo_tarjeta is not None:
+            raise ValueError("card_type solo se admite para pagos con tarjeta.")
+        return self
+
+
+class ReciboPago(EsquemaBase):
+    pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
+    viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
+    ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
+    nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
+    medio: str = Field(validation_alias="method", serialization_alias="method")
+    tipo_tarjeta: str | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
+    tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    saldo_billetera: int = Field(validation_alias="wallet_balance", serialization_alias="wallet_balance")
+    estado: str = Field(validation_alias="status", serialization_alias="status")
+    creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
+    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
+
+
+class HistorialPagosRespuesta(EsquemaBase):
+    pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
+    tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
+    medio: str = Field(validation_alias="method", serialization_alias="method")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    saldo_anterior: int = Field(validation_alias="balance_before", serialization_alias="balance_before")
+    saldo_posterior: int = Field(validation_alias="balance_after", serialization_alias="balance_after")
+    estado: str = Field(validation_alias="status", serialization_alias="status")
+    creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
+    viaje_id: int | None = Field(default=None, validation_alias="trip_id", serialization_alias="trip_id")
+    ruta_id: int | None = Field(default=None, validation_alias="route_id", serialization_alias="route_id")
+    nombre_ruta: str | None = Field(default=None, validation_alias="route_name", serialization_alias="route_name")
+
+
+class CrearRecargaSolicitud(EsquemaBase):
+    monto: Annotated[int, Field(gt=0, le=500000, validation_alias="amount", serialization_alias="amount")]
+    clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
+
+
+class ReciboRecarga(EsquemaBase):
+    pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
+    tipo_movimiento: str = Field(default="top_up", validation_alias="movement_type", serialization_alias="movement_type")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    saldo_billetera: int = Field(validation_alias="wallet_balance", serialization_alias="wallet_balance")
+    estado: str = Field(validation_alias="status", serialization_alias="status")
+    creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
+    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
