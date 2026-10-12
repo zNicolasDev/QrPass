@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 
 class Rol(Base):
+    # Catálogo de permisos; el código (PASSENGER, DRIVER) se usa en verificaciones.
     __tablename__ = "roles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 
 class EmpresaTransporte(Base):
+    # Empresa operadora que agrupa sus vehículos.
     __tablename__ = "transport_companies"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

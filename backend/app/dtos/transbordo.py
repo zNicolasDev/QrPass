@@ -7,11 +7,13 @@ from app.dtos.base import EsquemaBase
 
 
 class CrearTransbordoSolicitud(EsquemaBase):
+    # Identifica el viaje previo y la ruta a la que se solicita transferir.
     viaje_id: Annotated[int, Field(gt=0, validation_alias="trip_id", serialization_alias="trip_id")]
     ruta_destino_id: Annotated[int, Field(gt=0, validation_alias="destination_route_id", serialization_alias="destination_route_id")]
 
 
 class TransbordoRespuesta(EsquemaBase):
+    # Confirma el origen/destino y el posible cobro adicional (cero en el demo).
     transbordo_id: int = Field(validation_alias="transfer_id", serialization_alias="transfer_id")
     viaje_origen_id: int = Field(validation_alias="origin_trip_id", serialization_alias="origin_trip_id")
     ruta_origen: str = Field(validation_alias="origin_route", serialization_alias="origin_route")

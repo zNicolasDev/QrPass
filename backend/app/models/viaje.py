@@ -17,10 +17,12 @@ if TYPE_CHECKING:
 
 
 class Viaje(Base):
+    # Viaje realizado: relaciona el pago con la ruta, tarifa y turno aplicados.
     __tablename__ = "trips"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     pago_id: Mapped[int] = mapped_column(
+        # unique=True impone como máximo un viaje asociado a cada pago.
         "payment_id", ForeignKey("payments.id", ondelete="RESTRICT"), unique=True, nullable=False
     )
     turno_id: Mapped[int | None] = mapped_column("shift_id", ForeignKey("shifts.id", ondelete="RESTRICT"))

@@ -14,10 +14,12 @@ if TYPE_CHECKING:
 
 
 class Transbordo(Base):
+    # Registra la ruta destino solicitada a partir de un viaje previo.
     __tablename__ = "transfers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     viaje_origen_id: Mapped[int] = mapped_column(
+        # unique=True limita a un solo transbordo de origen por viaje.
         "origin_trip_id", ForeignKey("trips.id", ondelete="RESTRICT"), unique=True, nullable=False
     )
     ruta_destino_id: Mapped[int] = mapped_column(

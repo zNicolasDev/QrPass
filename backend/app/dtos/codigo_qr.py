@@ -7,11 +7,13 @@ from app.dtos.base import EsquemaBase
 
 
 class CrearCodigoQrSolicitud(EsquemaBase):
+    # Solicitud para generar un QR; la vigencia está limitada a 15 minutos.
     ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
     vigencia_minutos: Annotated[int, Field(default=15, ge=1, le=15, validation_alias="validity_minutes", serialization_alias="validity_minutes")]
 
 
 class CodigoQrRespuesta(EsquemaBase):
+    # Respuesta con el token y la imagen que la interfaz puede mostrar y escanear.
     codigo_qr_id: int = Field(validation_alias="qr_id", serialization_alias="qr_id")
     token: str
     estado: str = Field(validation_alias="status", serialization_alias="status")

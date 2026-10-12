@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 
 class DispositivoAbordo(Base):
+    # Identifica un equipo instalado en un vehículo para registrar actividad a bordo.
     __tablename__ = "boarding_devices"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

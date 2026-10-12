@@ -11,8 +11,10 @@ if TYPE_CHECKING:
 
 
 class Tarifa(Base):
+    # Precio de una ruta según tipo de día; cada viaje guarda qué tarifa usó.
     __tablename__ = "fares"
     __table_args__ = (
+        # Validaciones y unicidad se hacen cumplir en la propia base de datos.
         CheckConstraint("amount > 0", name="ck_fares_amount_positive"),
         CheckConstraint("day_type IN ('weekday', 'weekend')", name="ck_fares_day_type"),
         UniqueConstraint("route_id", "day_type", name="uq_fares_route_day_type"),

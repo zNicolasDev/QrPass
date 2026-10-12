@@ -16,8 +16,10 @@ if TYPE_CHECKING:
 
 
 class Turno(Base):
+    # Jornada de un conductor en un vehículo y una ruta.
     __tablename__ = "shifts"
     __table_args__ = (
+        # Permite turno abierto (sin fin); si termina, no puede acabar antes de iniciar.
         CheckConstraint("ends_at IS NULL OR ends_at >= starts_at", name="ck_shifts_valid_dates"),
     )
 

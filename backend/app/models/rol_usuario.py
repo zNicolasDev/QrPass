@@ -11,8 +11,10 @@ if TYPE_CHECKING:
 
 
 class RolUsuario(Base):
+    # Tabla de asociación: permite varios roles por usuario y varios usuarios por rol.
     __tablename__ = "user_roles"
     __table_args__ = (
+        # Evita asignar el mismo rol dos veces a la misma cuenta.
         UniqueConstraint("user_id", "role_id", name="uq_user_roles_user_role"),
     )
 

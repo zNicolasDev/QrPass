@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 
 class Vehiculo(Base):
+    # Vehículo de una empresa; puede tener varios turnos y dispositivos a bordo.
     __tablename__ = "vehicles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

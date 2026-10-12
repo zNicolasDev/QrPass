@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 
 class Tarjeta(Base):
+    # Medio de pago registrado para un usuario; no almacena aquí el número completo.
     __tablename__ = "cards"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

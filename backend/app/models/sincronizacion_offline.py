@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 
 class SincronizacionOffline(Base):
+    # Registro de sincronización asociado a un dispositivo (soporte de datos offline).
     __tablename__ = "offline_syncs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

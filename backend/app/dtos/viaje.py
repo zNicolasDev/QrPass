@@ -6,6 +6,7 @@ from app.dtos.base import EsquemaBase
 
 
 class ViajeRespuesta(EsquemaBase):
+    # Vista de un viaje; combina datos que internamente pertenecen a pago y ruta.
     viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")

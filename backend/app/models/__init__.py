@@ -1,5 +1,7 @@
 """Entidades SQLAlchemy que representan los datos persistidos de QrPass."""
 
+# Reexporta modelos desde app.models y los importa para registrar sus tablas
+# antes de que Base.metadata.create_all construya el esquema.
 from app.models.base import Base
 from app.models.dispositivo_abordo import DispositivoAbordo
 from app.models.tarjeta import Tarjeta

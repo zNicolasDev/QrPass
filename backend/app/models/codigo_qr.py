@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 
 class CodigoQr(Base):
+    # QR asociado a una cuenta; estado y vencimiento controlan su uso.
     __tablename__ = "qr_codes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

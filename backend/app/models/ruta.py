@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 
 class Ruta(Base):
+    # Catálogo de recorridos; sus relaciones permiten llegar a tarifas y viajes.
     __tablename__ = "routes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

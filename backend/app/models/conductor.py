@@ -11,9 +11,11 @@ if TYPE_CHECKING:
 
 
 class Conductor(Base):
+    # Perfil operativo adicional: comparte su ID con la cuenta Usuario.
     __tablename__ = "drivers"
 
     usuario_id: Mapped[int] = mapped_column(
+        # Es clave primaria y foránea: cada conductor corresponde a un usuario.
         "user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     numero_licencia: Mapped[str] = mapped_column("license_number", String(50), unique=True, nullable=False)

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
+# Estas importaciones solo ayudan al análisis de tipos; evitan ciclos en ejecución.
 if TYPE_CHECKING:
     from app.models.tarjeta import Tarjeta
     from app.models.conductor import Conductor
@@ -17,11 +18,14 @@ if TYPE_CHECKING:
 
 
 class Usuario(Base):
+    # Cuenta principal; una persona puede tener pagos, QR, tarjetas y roles.
     __tablename__ = "users"
     __table_args__ = (
+        # Regla también aplicada por la base: el saldo nunca puede ser negativo.
         CheckConstraint("wallet_balance >= 0", name="ck_users_wallet_nonnegative"),
     )
 
+    # Mapped expresa el tipo Python; mapped_column define la columna SQL.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nombres: Mapped[str] = mapped_column("names", String(120), nullable=False)
     nombre_usuario: Mapped[str | None] = mapped_column("username", String(80), unique=True)
@@ -36,8 +40,10 @@ class Usuario(Base):
     saldo_billetera: Mapped[int] = mapped_column("wallet_balance", Integer, nullable=False, default=0)
     estado: Mapped[str] = mapped_column("status", String(20), nullable=False, default="active")
 
+    # relationship crea navegación entre objetos; back_populates conecta ambos lados.
     pagos: Mapped[list['Pago']] = relationship(back_populates="usuario")
     codigos_qr: Mapped[list['CodigoQr']] = relationship(back_populates="usuario")
     tarjetas: Mapped[list['Tarjeta']] = relationship(back_populates="usuario")
     roles: Mapped[list['RolUsuario']] = relationship(back_populates="usuario")
+    # uselist=False marca la relación opcional uno a uno con el perfil conductor.
     conductor: Mapped["Conductor | None"] = relationship(back_populates="usuario", uselist=False)

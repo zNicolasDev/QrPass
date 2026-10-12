@@ -1,5 +1,6 @@
 """DTOs Pydantic para validar solicitudes y definir respuestas de la API."""
 
+# Reexporta los DTOs por tema para que las rutas los importen desde app.dtos.
 from app.dtos.cuenta import CuentaRespuesta
 from app.dtos.autenticacion import UsuarioAutenticadoRespuesta, InicioSesionSolicitud, InicioSesionRespuesta, RegistroPasajeroSolicitud
 from app.dtos.conductor import (

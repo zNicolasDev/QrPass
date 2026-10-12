@@ -8,6 +8,8 @@ from app.dtos.base import EsquemaBase
 
 
 class CrearPagoSolicitud(EsquemaBase):
+    # Datos que el cliente necesita para solicitar un viaje pagado.
+    # Annotated combina el tipo int con restricciones extra definidas por Field.
     ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
     medio: MedioPago = Field(validation_alias="method", serialization_alias="method")
     tipo_tarjeta: TipoTarjeta | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
@@ -15,6 +17,7 @@ class CrearPagoSolicitud(EsquemaBase):
 
     @model_validator(mode="after")
     def validar_tipo_tarjeta(self) -> 'CrearPagoSolicitud':
+        # Valida la combinación entre medio y tipo de tarjeta, no cada campo aislado.
         if self.medio == MedioPago.CARD and self.tipo_tarjeta is None:
             raise ValueError("card_type es obligatorio para pagos con tarjeta.")
         if self.medio != MedioPago.CARD and self.tipo_tarjeta is not None:
@@ -23,6 +26,7 @@ class CrearPagoSolicitud(EsquemaBase):
 
 
 class ReciboPago(EsquemaBase):
+    # Comprobante de un pago y del viaje que produjo.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
     viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
@@ -39,6 +43,7 @@ class ReciboPago(EsquemaBase):
 
 
 class HistorialPagosRespuesta(EsquemaBase):
+    # Elemento del historial; ruta/viaje pueden faltar en movimientos de recarga.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
     tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
     medio: str = Field(validation_alias="method", serialization_alias="method")
@@ -54,11 +59,13 @@ class HistorialPagosRespuesta(EsquemaBase):
 
 
 class CrearRecargaSolicitud(EsquemaBase):
+    # Solicitud de recarga con monto acotado y clave para evitar duplicados.
     monto: Annotated[int, Field(gt=0, le=500000, validation_alias="amount", serialization_alias="amount")]
     clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
 
 
 class ReciboRecarga(EsquemaBase):
+    # Comprobante de recarga con el saldo resultante.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
     tipo_movimiento: str = Field(default="top_up", validation_alias="movement_type", serialization_alias="movement_type")
     monto: int = Field(validation_alias="amount", serialization_alias="amount")
