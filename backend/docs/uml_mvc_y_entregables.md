@@ -1,5 +1,18 @@
 # MVC y entregables UML de QrPass
 
+## Programas independientes para la entrega
+
+Cada diagrama tiene un ejemplo Python propio, independiente de la API y de la base de datos de QrPass. Los programas usan datos en memoria, muestran el orden de operaciones y ejecutan un escenario correcto y uno rechazado. Desde la raiz del repositorio, ejecuta:
+
+| Diagrama | Archivo Python | Comando |
+|---|---|---|
+| Secuencia 1: pago manual | `backend/docs/secuencia_pago_manual.py` | `python backend/docs/secuencia_pago_manual.py` |
+| Secuencia 2: QR del bus | `backend/docs/secuencia_qr_bus.py` | `python backend/docs/secuencia_qr_bus.py` |
+| Actividad 1: pago con QR | `backend/docs/actividad_pago_qr.py` | `python backend/docs/actividad_pago_qr.py` |
+| Actividad 2: transbordo | `backend/docs/actividad_transbordo.py` | `python backend/docs/actividad_transbordo.py` |
+
+Estos archivos son implementaciones didacticas para la asignatura. No reemplazan el backend real, que conserva sus controladores, servicios, modelos, autenticacion y persistencia.
+
 Este documento muestra dos procesos de QrPass: pagar al abordar escaneando el QR del bus y corregir un abordaje en la ruta equivocada mediante un transbordo. Los diagramas explican el recorrido con palabras sencillas y se relacionan con funciones reales del proyecto. Están escritos en Mermaid para poder revisarlos en GitHub o copiarlos a una herramienta UML.
 
 ## Decisión de arquitectura
@@ -29,21 +42,28 @@ sequenceDiagram
     participant Datos as Ruta, tarifa, pago y viaje
     Pasajero->>Aplicacion: Elige ruta y efectivo o tarjeta
     Aplicacion->>Controlador: Solicita registrar el pago
-    Controlador->>Solicitud: Valida ruta y medio de pago
-    Solicitud-->>Controlador: Confirma datos correctos
-    Controlador->>Servicio: Envia los datos del pago
-    Servicio->>Datos: Busca ruta y tarifa vigente
-    Datos-->>Servicio: Devuelve la ruta y el valor
-    Servicio->>Datos: Registra el pago y el viaje
-    alt Ruta inexistente o tarjeta sin tipo
-        Servicio-->>Controlador: Rechaza la solicitud
+    Controlador->>Solicitud: Valida medio y tipo de tarjeta
+    alt Medio o tipo de tarjeta incorrectos
+        Solicitud-->>Controlador: Rechaza los datos
         Controlador-->>Aplicacion: Devuelve el motivo
         Aplicacion-->>Pasajero: Muestra el error
     else Datos validos
-        Datos-->>Servicio: Confirma la operacion
-        Servicio-->>Controlador: Devuelve el recibo
-        Controlador-->>Aplicacion: Presenta el resultado
-        Aplicacion-->>Pasajero: Muestra el viaje registrado
+        Solicitud-->>Controlador: Confirma los datos
+        Controlador->>Servicio: Envia los datos del pago
+        Servicio->>Datos: Busca ruta y tarifa vigente
+        alt Ruta inexistente
+            Datos-->>Servicio: No encuentra la ruta
+            Servicio-->>Controlador: Rechaza la solicitud
+            Controlador-->>Aplicacion: Devuelve el motivo
+            Aplicacion-->>Pasajero: Muestra el error
+        else Ruta encontrada
+            Datos-->>Servicio: Devuelve ruta y valor
+            Servicio->>Datos: Registra el pago y el viaje
+            Datos-->>Servicio: Confirma la operacion
+            Servicio-->>Controlador: Devuelve el recibo
+            Controlador-->>Aplicacion: Presenta el resultado
+            Aplicacion-->>Pasajero: Muestra el viaje registrado
+        end
     end
 ```
 
@@ -122,13 +142,13 @@ flowchart TD
     D -- No --> E{¿Está dentro del tiempo permitido?}
     E -- No --> Z[Rechazar por tiempo vencido]
     E -- Sí --> F{¿La ruta destino es diferente y activa?}
-    F -- No --> W[Solicitar otra ruta]
+    F -- No --> W[Rechazar porque la ruta destino no es valida]
     F -- Sí --> G[Registrar la ruta destino sin otro cobro]
     G --> H[Mostrar el viaje corregido]
     X --> I([Fin])
     Y --> I
     Z --> I
-    W --> B
+    W --> I
     H --> I
 ```
 
@@ -137,10 +157,10 @@ flowchart TD
 | Elemento UML | Funcionalidad del proyecto | Implementación en Python | Evidencia |
 |---|---|---|---|
 | Clase | Representar pasajero, ruta, tarifa, pago y viaje | `Usuario`, `Ruta`, `Tarifa`, `Pago`, `Viaje` en `app/models/` | `tests/test_models_dtos.py` verifica entidades, relaciones y persistencia |
-| Secuencia de pago | Registrar un pago en efectivo o tarjeta | `controllers/pasajero.py` llama `services.crear_pago`; el servicio consulta y guarda modelos | `tests/test_api.py`: pago en efectivo/tarjeta y errores de ruta/tipo de tarjeta |
-| Secuencia QR | Pasajero paga escaneando el QR del bus | `controllers/conductor.py` genera el QR; `controllers/pasajero.py` llama `services.validar_qr_de_abordaje` | `tests/test_api.py`: abordaje válido, QR alterado/vencido, saldo insuficiente |
-| Actividad QR | Validar turno/ruta, firma, vigencia y saldo antes del abordaje | `validar_qr_de_abordaje` aplica las reglas y registra pago/viaje dentro de una transaccion | `tests/test_api.py`: QR valido, firma alterada, vencimiento, ruta incorrecta y saldo insuficiente |
-| Actividad transbordo | Corregir el abordaje si se eligio un bus equivocado | `crear_transbordo` valida propiedad, tiempo, ruta distinta y unicidad | `tests/test_api.py`: transbordo permitido y condiciones rechazadas |
+| Secuencia de pago | Registrar un pago en efectivo o tarjeta | Ejemplo independiente: `secuencia_pago_manual.py`. Backend real: `controllers/pasajero.py` llama `services.crear_pago` | Ejemplo ejecutable y `tests/test_api.py`: pago y validación de tarjeta |
+| Secuencia QR | Pasajero paga escaneando el QR del bus | Ejemplo independiente: `secuencia_qr_bus.py`. Backend real: `controllers/conductor.py` genera el QR y `controllers/pasajero.py` llama el servicio | Ejemplo ejecutable y `tests/test_api.py`: abordaje válido y QR rechazado |
+| Actividad QR | Validar turno/ruta, firma, vigencia y saldo antes del abordaje | Ejemplo independiente: `actividad_pago_qr.py`. Backend real: `validar_qr_de_abordaje` registra pago/viaje | Ejemplo ejecutable y `tests/test_api.py`: QR inválido, ruta incorrecta y saldo insuficiente |
+| Actividad transbordo | Corregir el abordaje si se eligió un bus equivocado | Ejemplo independiente: `actividad_transbordo.py`. Backend real: `crear_transbordo` valida propiedad, tiempo, ruta y unicidad | Ejemplo ejecutable y `tests/test_api.py`: transbordo permitido y condiciones rechazadas |
 
 ## Análisis
 
