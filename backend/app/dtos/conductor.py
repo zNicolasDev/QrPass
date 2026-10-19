@@ -76,13 +76,6 @@ class PagoConductorSolicitud(EsquemaBase):
         return self
 
 
-# Token QR que el conductor envía para validar un viaje.
-class ValidacionQrConductorSolicitud(EsquemaBase):
-    # El conductor envía el token escaneado y una clave para reconocer reintentos.
-    token: Annotated[str, Field(min_length=20, max_length=512)]
-    clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
-
-
 # Efectivo contado que se compara con el recaudo registrado.
 class CierreTurnoSolicitud(EsquemaBase):
     # Efectivo contado por el conductor; no puede ser negativo.

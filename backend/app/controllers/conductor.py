@@ -14,7 +14,7 @@ from app.dtos import AsignacionConductorRespuesta
 from app.dtos import MovimientoTurnoRespuesta
 from app.dtos import CierreTurnoSolicitud
 from app.dtos import PagoConductorSolicitud
-from app.dtos import ValidacionQrConductorSolicitud
+from app.dtos import CodigoQrRespuesta
 from app.dtos import TurnoConductorRespuesta
 from app.dtos import ReciboPago
 from app.dtos import CierreTurnoRespuesta
@@ -24,7 +24,8 @@ from app.services import consultar_historial_turnos
 from app.services import resumir_turno_conductor
 from app.services import ResumenTurnoConductor
 from app.services import registrar_pago_conductor
-from app.services import validar_y_canjear_qr
+from app.services import crear_qr_turno_conductor
+from app.services import crear_imagen_qr
 from app.services import obtener_datos_asignacion_conductor
 from app.services import iniciar_turno_conductor
 
@@ -105,6 +106,25 @@ def endpoint_turno_conductor(
         raise HTTPException(status_code=404, detail="No hay un turno activo asignado.")
     return _representar_turno(summary)
 
+
+# Presenta el QR que el bus muestra para que los pasajeros lo escaneen.
+@driver_router.post("/shift/qr", response_model=CodigoQrRespuesta, status_code=status.HTTP_201_CREATED, summary="Generar el QR de abordaje del bus")
+def endpoint_qr_turno_conductor(
+    user: Annotated[Usuario, Depends(requerir_rol("DRIVER"))],
+    session: SessionDependency,
+    request: Request,
+    renovar: Annotated[bool, Query(alias="renew")] = False,
+) -> CodigoQrRespuesta:
+    qr_code = crear_qr_turno_conductor(session, user, request.app.state.auth_secret, renovar)
+    return CodigoQrRespuesta(
+        codigo_qr_id=qr_code.id,
+        token=qr_code.token,
+        estado=qr_code.estado,
+        creado_en=qr_code.creado_en,
+        vence_en=qr_code.vence_en,
+        imagen_data_uri=crear_imagen_qr(qr_code.token),
+    )
+
 # Devuelve los últimos cierres del conductor.
 @driver_router.get(
     "/shifts/history",
@@ -160,23 +180,3 @@ def endpoint_cerrar_turno(
     # El servicio marca el turno como cerrado y calcula la diferencia de efectivo.
     summary = cerrar_turno_conductor(session, user, payload.efectivo_contado)
     return CierreTurnoRespuesta(turno=_representar_turno(summary), cerrado=True)
-
-# Valida el QR y solicita al servicio registrar el viaje.
-@driver_router.post("/qr/validate", response_model=ReciboPago, status_code=status.HTTP_201_CREATED)
-def endpoint_validar_qr_pasajero(
-    payload: ValidacionQrConductorSolicitud,
-    request: Request,
-    user: Annotated[Usuario, Depends(requerir_rol("DRIVER"))],
-    session: SessionDependency,
-) -> ReciboPago:
-    # El secreto de firma se pasa al servicio para revisar el QR. El servicio
-    # valida el código y registra de forma conjunta el cobro y el viaje.
-    payment, trip, balance = validar_y_canjear_qr(
-        session, user, payload.token, request.app.state.auth_secret, payload.clave_idempotencia,
-    )
-    return ReciboPago(
-        pago_id=payment.id, viaje_id=trip.id, ruta_id=trip.ruta_id,
-        nombre_ruta=trip.ruta.nombre, medio=payment.medio, tipo_movimiento=payment.tipo_movimiento,
-        monto=payment.monto, saldo_billetera=balance, estado=payment.estado,
-        creado_en=payment.creado_en,
-    )

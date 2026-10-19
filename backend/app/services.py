@@ -203,43 +203,62 @@ def crear_imagen_qr(token: str) -> str:
     return f"data:image/svg+xml;base64,{encoded_image}"
 
 
-# Revisa ruta, tarifa y saldo; luego guarda y firma un QR temporal.
-def crear_codigo_qr(
-    session: Session,
-    user: Usuario,
-    route_id: int,
-    validity_minutes: int,
-    signing_secret: bytes,
+def crear_qr_turno_conductor(
+    session: Session, driver: Usuario, signing_secret: bytes, renovar: bool = False,
 ) -> CodigoQr:
-    # Antes de emitir el QR se confirma que la ruta exista y que el saldo cubra
-    # al menos una tarifa. El QR no debita el saldo todavía.
-    route = _obtener_ruta_activa(session, route_id)
-    fare = _obtener_tarifa_ruta(session, route.id)
-    if user.saldo_billetera < fare.monto:
-        raise ErrorDominio(409, "Saldo insuficiente para generar un código de viaje.")
+    # El bus solo puede mostrar un QR cuando el conductor inició su turno.
+    shift = obtener_turno_activo_conductor(session, driver)
+    if shift is None:
+        raise ErrorDominio(409, "Inicia el turno antes de mostrar el QR del bus.")
+
     now = ahora_servicio()
-    # Solo se permite un QR activo por cuenta: se revocan los anteriores.
+    current_qr = session.scalar(
+        select(CodigoQr)
+        .where(
+            CodigoQr.usuario_id == driver.id,
+            CodigoQr.estado == "active",
+            CodigoQr.vence_en > now,
+        )
+        .order_by(CodigoQr.creado_en.desc())
+        .limit(1)
+    )
+    if current_qr is not None and not renovar:
+        try:
+            prefix, encoded_payload, _ = current_qr.token.split(".")
+            claims = _decode_qr_payload(encoded_payload)
+            if (
+                prefix == "QRP1"
+                and claims.get("kind") == "bus_boarding"
+                and claims.get("shift_id") == shift.id
+                and claims.get("route_id") == shift.ruta_id
+            ):
+                return current_qr
+        except (ValueError, TypeError, IndexError, json.JSONDecodeError):
+            pass
+
+    # Un turno tiene un código vigente. Al renovarlo, el código anterior deja
+    # de aceptarse, por ejemplo si la pantalla del bus se vuelve a cargar.
     session.execute(
         update(CodigoQr)
-        .where(CodigoQr.usuario_id == user.id, CodigoQr.estado == "active")
+        .where(CodigoQr.usuario_id == driver.id, CodigoQr.estado == "active")
         .values(estado="revoked")
     )
     qr_code = CodigoQr(
-        usuario_id=user.id,
+        usuario_id=driver.id,
         token=secrets.token_urlsafe(48),
         estado="active",
         creado_en=now,
-        vence_en=now + timedelta(minutes=validity_minutes),
+        vence_en=now + timedelta(minutes=15),
     )
     session.add(qr_code)
     session.flush()
-    # El token lleva identificadores y vencimiento; la firma permite detectar
-    # cambios hechos al contenido después de generar el QR.
     payload = {
         "v": 1,
+        "kind": "bus_boarding",
         "qr_id": qr_code.id,
-        "sub": user.id,
-        "route_id": route.id,
+        "sub": driver.id,
+        "route_id": shift.ruta_id,
+        "shift_id": shift.id,
         "exp": int(qr_code.vence_en.timestamp()),
         "jti": secrets.token_urlsafe(18),
     }
@@ -251,6 +270,116 @@ def crear_codigo_qr(
     return qr_code
 
 
+def validar_qr_de_abordaje(
+    session: Session,
+    passenger: Usuario,
+    token: str,
+    signing_secret: bytes,
+    idempotency_key: str,
+) -> tuple[Pago, Viaje, int]:
+    # El token identifica un turno y una ruta; no identifica al pasajero.
+    try:
+        prefix, encoded_payload, signature = token.split(".")
+        expected = hmac.new(signing_secret, encoded_payload.encode("ascii"), hashlib.sha256).hexdigest()
+        if prefix != "QRP1" or not hmac.compare_digest(signature, expected):
+            raise ValueError("Invalid signature")
+        payload = _decode_qr_payload(encoded_payload)
+        qr_id = payload.get("qr_id")
+        driver_id = payload.get("sub")
+        route_id = payload.get("route_id")
+        shift_id = payload.get("shift_id")
+        expires_at = payload.get("exp")
+        if payload.get("kind") != "bus_boarding" or not all(
+            isinstance(value, int) and not isinstance(value, bool)
+            for value in (qr_id, driver_id, route_id, shift_id, expires_at)
+        ):
+            raise ValueError("Invalid claims")
+    except (ValueError, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        raise ErrorDominio(422, "El QR del bus no es válido.") from None
+
+    # El mismo pasajero puede reintentar su solicitud sin recibir otro cobro.
+    prior = session.scalar(select(Pago).where(
+        Pago.usuario_id == passenger.id,
+        Pago.clave_idempotencia == idempotency_key,
+    ))
+    if prior is not None:
+        if prior.codigo_qr_id != qr_id or prior.viaje is None:
+            raise ErrorDominio(409, "La clave de idempotencia ya se usó para otra operación.")
+        return prior, prior.viaje, prior.saldo_posterior
+
+    # El QR es compartido por el bus, pero el mismo pasajero no puede volver
+    # a cobrar el mismo abordaje usando otra clave de idempotencia.
+    prior_boarding = session.scalar(select(Pago).where(
+        Pago.usuario_id == passenger.id,
+        Pago.codigo_qr_id == qr_id,
+        Pago.tipo_movimiento == "fare_payment",
+    ))
+    if prior_boarding is not None:
+        raise ErrorDominio(409, "Este abordaje ya fue pagado con el QR actual del bus.")
+
+    now = ahora_servicio()
+    if expires_at <= int(now.timestamp()):
+        raise ErrorDominio(410, "El QR del bus expiró. Pide que lo actualicen en la pantalla del bus.")
+    qr_code = session.scalar(select(CodigoQr).where(
+        CodigoQr.id == qr_id,
+        CodigoQr.usuario_id == driver_id,
+        CodigoQr.token == token,
+        CodigoQr.estado == "active",
+        CodigoQr.vence_en > now,
+    ))
+    shift = session.scalar(select(Turno).where(
+        Turno.id == shift_id,
+        Turno.conductor_id == driver_id,
+        Turno.estado == "active",
+        Turno.ruta_id == route_id,
+    ))
+    driver = session.get(Usuario, driver_id)
+    if qr_code is None or shift is None or driver is None or driver.estado != "active":
+        raise ErrorDominio(409, "El QR ya no corresponde a un turno activo del bus.")
+
+    _obtener_ruta_activa(session, route_id)
+    fare = _obtener_tarifa_ruta(session, route_id)
+    balance_before = passenger.saldo_billetera
+    balance_after = session.scalar(
+        update(Usuario)
+        .where(Usuario.id == passenger.id, Usuario.estado == "active", Usuario.saldo_billetera >= fare.monto)
+        .values(saldo_billetera=Usuario.saldo_billetera - fare.monto)
+        .returning(Usuario.saldo_billetera)
+    )
+    if balance_after is None:
+        session.rollback()
+        raise ErrorDominio(409, "Saldo insuficiente para pagar el viaje.")
+    payment = Pago(
+        usuario_id=passenger.id,
+        codigo_qr_id=qr_code.id,
+        clave_idempotencia=idempotency_key,
+        medio="wallet",
+        tipo_movimiento="fare_payment",
+        monto=fare.monto,
+        saldo_anterior=balance_before,
+        saldo_posterior=balance_after,
+        estado="completed_demo",
+        creado_en=now,
+    )
+    session.add(payment)
+    session.flush()
+    trip = Viaje(
+        pago_id=payment.id,
+        turno_id=shift.id,
+        tarifa_id=fare.id,
+        ruta_id=route_id,
+        creado_en=now,
+    )
+    session.add(trip)
+    # El mismo QR se puede presentar a varios pasajeros; cada pago tiene su
+    # propia clave y queda enlazado al pasajero y al turno correspondiente.
+    session.commit()
+    session.refresh(payment)
+    session.refresh(trip)
+    return payment, trip, balance_after
+
+
+# Revisa ruta, tarifa y saldo; luego guarda y firma un QR temporal.
 def _obtener_ruta_activa(session: Session, route_id: int) -> Ruta:
     # Esta consulta compartida evita usar una ruta inexistente o desactivada.
     route = session.scalar(select(Ruta).where(Ruta.id == route_id, Ruta.activa.is_(True)))
@@ -273,10 +402,13 @@ def _obtener_tarifa_ruta(session: Session, route_id: int) -> Tarifa:
     return fare
 
 
-# Valida el pago, actualiza el saldo si corresponde y guarda el pago y el viaje.
+# Registra efectivo o tarjeta; los pagos con saldo entran por el QR del bus.
 def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> tuple[Pago, Viaje, int]:
     # Flujo general: evitar un cobro duplicado, validar ruta y tarifa, aplicar
     # el medio de pago y guardar juntos el pago y el viaje.
+    if request.medio == MedioPago.WALLET:
+        raise ErrorDominio(422, "Para pagar con saldo, escanea el QR que muestra el bus.")
+
     if request.clave_idempotencia:
         # Si la conexión se corta y la pantalla reintenta, la persona no debe
         # pagar dos veces por haber pulsado una sola vez.
@@ -297,25 +429,10 @@ def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> 
     route = _obtener_ruta_activa(session, request.ruta_id)
     fare = _obtener_tarifa_ruta(session, route.id)
     now = ahora_servicio()
-    is_wallet_payment = request.medio == MedioPago.WALLET
     balance_before = user.saldo_billetera
     balance_after = balance_before
 
-    if is_wallet_payment:
-        # El saldo se descuenta con una condición en la misma operación: dos
-        # solicitudes simultáneas no pueden gastar el mismo saldo disponible.
-        new_balance = session.scalar(
-            update(Usuario)
-            .where(Usuario.id == user.id, Usuario.estado == "active", Usuario.saldo_billetera >= fare.monto)
-            .values(saldo_billetera=Usuario.saldo_billetera - fare.monto)
-            .returning(Usuario.saldo_billetera)
-        )
-        if new_balance is None:
-            session.rollback()
-            raise ErrorDominio(409, "Saldo insuficiente para realizar el viaje.")
-        balance_after = new_balance
-        payment_method = "wallet"
-    elif request.medio == MedioPago.CASH:
+    if request.medio == MedioPago.CASH:
         payment_method = "cash"
     else:
         if request.tipo_tarjeta is None:
@@ -521,131 +638,6 @@ def iniciar_turno_conductor(session: Session, driver: Usuario, route_id: int) ->
     return summary
 
 
-def _validar_ruta_conductor(shift: Turno, route_id: int) -> None:
-    # El conductor solo puede cobrar en la ruta asociada a su turno actual.
-    if shift.ruta_id != route_id:
-        raise ErrorDominio(409, "El código o pago no corresponde a la ruta asignada al turno.")
-
-
-# Verifica turno, firma, vigencia y saldo; consume el QR y registra el viaje.
-def validar_y_canjear_qr(
-    session: Session,
-    driver: Usuario,
-    token: str,
-    signing_secret: bytes,
-    idempotency_key: str,
-) -> tuple[Pago, Viaje, int]:
-    # Primero comprobamos que el código sea auténtico; el texto de un QR puede
-    # copiarse, así que nunca se confía en lo que afirma la imagen por sí sola.
-    try:
-        prefix, encoded_payload, signature = token.split(".")
-        if prefix != "QRP1":
-            raise ValueError("Unsupported QR token version")
-        expected = hmac.new(signing_secret, encoded_payload.encode("ascii"), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(signature, expected):
-            raise ValueError("Invalid QR signature")
-        payload = _decode_qr_payload(encoded_payload)
-        qr_id = payload.get("qr_id")
-        user_id = payload.get("sub")
-        route_id = payload.get("route_id")
-        expires_at = payload.get("exp")
-        if (
-            not isinstance(qr_id, int) or isinstance(qr_id, bool)
-            or not isinstance(user_id, int) or isinstance(user_id, bool)
-            or not isinstance(route_id, int) or isinstance(route_id, bool)
-            or not isinstance(expires_at, int) or isinstance(expires_at, bool)
-        ):
-            raise ValueError("Invalid QR claims")
-    except (ValueError, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
-        raise ErrorDominio(422, "El código QR no es válido.") from None
-
-    # Un reintento de la misma solicitud devuelve el recibo anterior.
-    prior = session.scalar(select(Pago).where(
-        Pago.usuario_id == user_id,
-        Pago.clave_idempotencia == idempotency_key,
-    ))
-    if prior is not None:
-        if prior.codigo_qr_id != qr_id or prior.viaje is None:
-            raise ErrorDominio(409, "La clave de idempotencia ya se usó para otra operación.")
-        return prior, prior.viaje, prior.saldo_posterior
-
-    if expires_at <= int(ahora_servicio().timestamp()):
-        raise ErrorDominio(410, "El código QR expiró.")
-    shift = obtener_turno_activo_conductor(session, driver)
-    if shift is None:
-        raise ErrorDominio(409, "No hay un turno de conductor activo.")
-    _validar_ruta_conductor(shift, route_id)
-
-    qr_code = session.scalar(
-        select(CodigoQr).where(
-            CodigoQr.id == qr_id,
-            CodigoQr.usuario_id == user_id,
-            CodigoQr.token == token,
-            CodigoQr.estado == "active",
-            CodigoQr.vence_en > ahora_servicio(),
-        )
-    )
-    if qr_code is None:
-        raise ErrorDominio(409, "El código ya fue usado, revocado o no existe.")
-    passenger = session.get(Usuario, user_id)
-    if passenger is None or passenger.estado != "active":
-        raise ErrorDominio(401, "La cuenta asociada al código no está activa.")
-
-    fare = _obtener_tarifa_ruta(session, route_id)
-    now = ahora_servicio()
-    balance_before = passenger.saldo_billetera
-    # El UPDATE condicional consume el QR una sola vez, incluso si llegan dos
-    # validaciones casi al mismo tiempo.
-    consumed = session.scalar(
-        update(CodigoQr)
-        .where(CodigoQr.id == qr_code.id, CodigoQr.estado == "active", CodigoQr.vence_en > now)
-        .values(estado="consumed")
-        .returning(CodigoQr.id)
-        .execution_options(synchronize_session=False)
-    )
-    if consumed is None:
-        session.rollback()
-        raise ErrorDominio(409, "El código ya fue utilizado.")
-    balance_after = session.scalar(
-        update(Usuario)
-        .where(Usuario.id == passenger.id, Usuario.estado == "active", Usuario.saldo_billetera >= fare.monto)
-        .values(saldo_billetera=Usuario.saldo_billetera - fare.monto)
-        .returning(Usuario.saldo_billetera)
-    )
-    if balance_after is None:
-        session.rollback()
-        raise ErrorDominio(409, "Saldo insuficiente para validar el código QR.")
-    payment = Pago(
-        usuario_id=passenger.id,
-        codigo_qr_id=qr_code.id,
-        clave_idempotencia=idempotency_key,
-        medio="wallet",
-        tipo_movimiento="fare_payment",
-        monto=fare.monto,
-        saldo_anterior=balance_before,
-        saldo_posterior=balance_after,
-        estado="completed_demo",
-        creado_en=now,
-    )
-    session.add(payment)
-    session.flush()
-    trip = Viaje(
-        pago_id=payment.id,
-        turno_id=shift.id,
-        tarifa_id=fare.id,
-        ruta_id=route_id,
-        creado_en=now,
-    )
-    session.add(trip)
-    # Consumir QR, descontar saldo y registrar el viaje forman una sola
-    # experiencia para el pasajero; un fallo debe dejar el código utilizable.
-    session.commit()
-    session.refresh(payment)
-    session.refresh(trip)
-    return payment, trip, balance_after
-
-
-# Guarda un recaudo manual asociado al turno activo.
 def registrar_pago_conductor(
     session: Session,
     driver: Usuario,

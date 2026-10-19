@@ -2016,6 +2016,13 @@ h1 {
   padding: 20px;
 }
 
+.bus-qr-card .qr-real-image {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  margin: 14px auto;
+}
+
 .detail-card h2 {
   margin: 0 0 5px;
   font-size: 14px;
@@ -2731,10 +2738,6 @@ h1 {
 .method-radio:focus-visible + .method-tile {
   outline: 3px solid rgb(39 121 109 / 30%);
   outline-offset: 3px;
-}
-
-#payment-insufficient[hidden] {
-  display: none;
 }
 
 .modal-total {

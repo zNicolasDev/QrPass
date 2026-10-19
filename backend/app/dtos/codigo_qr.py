@@ -6,21 +6,19 @@ from pydantic import Field
 from app.dtos.base import EsquemaBase
 
 
-# Ruta y tiempo de vigencia solicitados para generar un QR.
-class CrearCodigoQrSolicitud(EsquemaBase):
-    # Solicitud para generar un QR; la vigencia está limitada a 15 minutos.
-    # route_id indica para qué ruta se genera; validity_minutes pide una vigencia de 1 a 15.
-    ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
-    vigencia_minutos: Annotated[int, Field(default=15, ge=1, le=15, validation_alias="validity_minutes", serialization_alias="validity_minutes")]
+class ValidacionQrPasajeroSolicitud(EsquemaBase):
+    # El pasajero envía el contenido leído del QR que muestra el bus.
+    token: Annotated[str, Field(min_length=20, max_length=512)]
+    # Si la respuesta tarda, la misma clave evita cobrar dos veces.
+    clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
 
 
-# Token QR, estado, vigencia e imagen que recibe el pasajero.
+# QR temporal que presenta el bus durante su turno activo.
 class CodigoQrRespuesta(EsquemaBase):
-    # Respuesta con el token y la imagen que la interfaz puede mostrar y escanear.
-    # qr_id identifica el registro; token es el contenido que leerá el conductor.
+    # La pantalla del bus muestra esta imagen para que el pasajero la escanee.
     codigo_qr_id: int = Field(validation_alias="qr_id", serialization_alias="qr_id")
     token: str
-    # Estado y fechas indican si el código todavía puede usarse.
+    # Estado y fechas indican si el código del turno todavía puede usarse.
     estado: str = Field(validation_alias="status", serialization_alias="status")
     creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
     vence_en: datetime = Field(validation_alias="expires_at", serialization_alias="expires_at")

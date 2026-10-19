@@ -13,8 +13,7 @@ from app.dtos import CuentaRespuesta
 from app.dtos import CrearPagoSolicitud
 from app.dtos import HistorialPagosRespuesta
 from app.dtos import ReciboPago
-from app.dtos import CrearCodigoQrSolicitud
-from app.dtos import CodigoQrRespuesta
+from app.dtos import ValidacionQrPasajeroSolicitud
 from app.dtos import CrearRecargaSolicitud
 from app.dtos import ReciboRecarga
 from app.dtos import CrearTransbordoSolicitud
@@ -22,13 +21,12 @@ from app.dtos import TransbordoRespuesta
 from app.dtos import ViajeRespuesta
 from app.models import Viaje
 from app.services import crear_pago
-from app.services import crear_codigo_qr
+from app.services import validar_qr_de_abordaje
 from app.services import crear_recarga
 from app.services import crear_transbordo
 from app.services import obtener_viaje
 from app.services import listar_pagos
 from app.services import listar_viajes
-from app.services import crear_imagen_qr
 
 
 
@@ -60,26 +58,30 @@ def endpoint_cuenta_demo(user: UsuarioAutenticado) -> CuentaRespuesta:
     # El usuario ya fue autenticado por la dependencia; solo se muestra su saldo.
     return CuentaRespuesta(usuario_id=user.id, nombres=user.nombres, saldo_billetera=user.saldo_billetera)
 
-# Solicita un QR firmado y prepara su imagen para mostrarla.
-@demo_router.post("/qr", response_model=CodigoQrRespuesta, status_code=status.HTTP_201_CREATED)
-def endpoint_generar_qr_demo(
-    payload: CrearCodigoQrSolicitud,
+@demo_router.post("/qr/validate", response_model=ReciboPago, status_code=status.HTTP_201_CREATED)
+def endpoint_pagar_con_qr_del_bus(
+    payload: ValidacionQrPasajeroSolicitud,
     request: Request,
     user: UsuarioAutenticado,
     session: SessionDependency,
-) -> CodigoQrRespuesta:
-    # El servicio valida saldo, ruta y tarifa, y guarda un QR temporal.
-    qr_code = crear_codigo_qr(
-        session, user, payload.ruta_id, payload.vigencia_minutos, request.app.state.auth_secret,
+) -> ReciboPago:
+    # El pasajero envía el QR del bus. El servicio valida el turno y debita
+    # la billetera antes de registrar el viaje asociado a esa ruta.
+    payment, trip, balance = validar_qr_de_abordaje(
+        session, user, payload.token, request.app.state.auth_secret,
+        payload.clave_idempotencia,
     )
-    # La imagen SVG se genera desde el token guardado para facilitar el escaneo.
-    return CodigoQrRespuesta(
-        codigo_qr_id=qr_code.id,
-        token=qr_code.token,
-        estado=qr_code.estado,
-        creado_en=qr_code.creado_en,
-        vence_en=qr_code.vence_en,
-        imagen_data_uri=crear_imagen_qr(qr_code.token),
+    return ReciboPago(
+        pago_id=payment.id,
+        viaje_id=trip.id,
+        ruta_id=trip.ruta_id,
+        nombre_ruta=trip.ruta.nombre,
+        medio=payment.medio,
+        tipo_movimiento=payment.tipo_movimiento,
+        monto=payment.monto,
+        saldo_billetera=balance,
+        estado=payment.estado,
+        creado_en=payment.creado_en,
     )
 
 # Presenta pagos y recargas de la cuenta autenticada.

@@ -12,7 +12,7 @@ from app.dtos import (
     CrearPagoSolicitud,
     MedioPago,
     RegistroPasajeroSolicitud,
-    CrearCodigoQrSolicitud,
+    ValidacionQrPasajeroSolicitud,
     RutaRespuesta,
 )
 from app.models import Base, Pago, Tarifa, Ruta, Usuario
@@ -122,11 +122,13 @@ def test_dto_validates_requests_and_serializes_model_output() -> None:
     with pytest.raises(ValidationError):
         CrearPagoSolicitud.model_validate({"ruta_id": 7, "medio": MedioPago.CARD})
     with pytest.raises(ValidationError):
+        CrearPagoSolicitud.model_validate({"ruta_id": 7, "medio": MedioPago.WALLET})
+    with pytest.raises(ValidationError):
         CrearPagoSolicitud.model_validate(
             {"ruta_id": 7, "medio": MedioPago.CASH, "tipo_tarjeta": TipoTarjeta.CREDIT}
         )
     with pytest.raises(ValidationError):
-        CrearCodigoQrSolicitud.model_validate({"ruta_id": 7, "vigencia_minutos": 16})
+        ValidacionQrPasajeroSolicitud.model_validate({"token": "muy-corto", "idempotency_key": "intento-qr-01"})
     with pytest.raises(ValidationError):
         RegistroPasajeroSolicitud.model_validate(
             {

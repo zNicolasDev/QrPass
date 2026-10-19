@@ -20,7 +20,7 @@ let authenticatedUser = null;
 let accessToken = null;
 let sessionExpiryTimer = null;
 let activeFilter = "todos";
-let activeQr = null;
+let activeBusQr = null;
 let selectedPaymentMethod = "saldo";
 let deferredInstallPrompt = null;
 let routeCatalog = [];
@@ -173,6 +173,8 @@ function mapShiftFromApi(shift) {
 async function refreshDriverShift() {
   const shift = await apiRequest("/driver/shift");
   driverState.activeShift = mapShiftFromApi(shift);
+  const qr = await apiRequest("/driver/shift/qr", { method: "POST" });
+  activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at) };
 }
 
 async function refreshDriverShiftHistory() {
@@ -230,6 +232,7 @@ async function activateSession(user, token) {
     } catch (error) {
       if (error.status !== 404) throw error;
       driverState.activeShift = null;
+      activeBusQr = null;
     }
     await refreshDriverShiftHistory();
   }
@@ -239,19 +242,20 @@ async function activateSession(user, token) {
   document.querySelector(".app-shell").hidden = false;
   currentView = "inicio";
   activeFilter = "todos";
-  activeQr = null;
   renderCurrentView();
 }
 
 function logout() {
   // Cerrar sesión también limpia lo que quedó en pantalla; otra persona que
   // use este dispositivo no debería heredar el saldo ni los datos anteriores.
+  stopQrCamera();
   if (sessionExpiryTimer !== null) window.clearTimeout(sessionExpiryTimer);
   sessionExpiryTimer = null;
   accessToken = null;
   authenticatedUser = null;
   currentProfile = "pasajero";
   driverAssignment = null;
+  activeBusQr = null;
   routeCatalog = [];
   state = { balance: 0, trips: [] };
   driverState = { activeShift: null, completedShifts: [] };
@@ -420,8 +424,8 @@ function renderDashboard() {
     <div class="welcome-copy">
       <div class="eyebrow">${icon("spark")} MENOS VUELTAS, MÁS CIUDAD</div>
       <h2>Tu próximo viaje empieza aquí.</h2>
-      <p>Genera tu código y sigue con lo que importa.</p>
-      <button class="button button-mint" data-view="qr">Ver mi código QR ${icon("arrow")}</button>
+      <p>Escanea el código del bus para pagar tu abordaje.</p>
+      <button class="button button-mint" data-view="qr">Escanear QR del bus ${icon("arrow")}</button>
     </div>
     <div class="welcome-orbit" aria-hidden="true"></div>
     <div class="welcome-illustration" aria-hidden="true">
@@ -442,7 +446,7 @@ function renderDashboard() {
     <div class="side-stack">
       <article class="fare-card"><div class="fare-heading"><span>Tarifa vigente</span>${icon("route")}</div><div class="fare-amount">${money(fare)}</div><div class="fare-foot"><span>${fare === 3400 ? "Domingo o festivo" : "Lunes a sábado"}</span><strong>Por viaje</strong></div></article>
       <article class="quick-card"><h2 class="quick-card-heading">¿Qué necesitas hoy?</h2><p class="quick-card-copy">Elige cómo quieres continuar tu viaje.</p><div class="quick-actions">
-        <button class="quick-action" data-action="payment" data-method="saldo">${icon("wallet")}<span>Pagar con saldo</span>${icon("arrow", "icon quick-arrow")}</button>
+        <button class="quick-action" data-view="qr">${icon("qr")}<span>Pagar con saldo: escanea el QR del bus</span>${icon("arrow", "icon quick-arrow")}</button>
         <button class="quick-action" data-action="payment" data-method="efectivo">${icon("bus")}<span>Registrar pago en efectivo</span>${icon("arrow", "icon quick-arrow")}</button>
         <button class="quick-action" data-view="recarga">${icon("plus")}<span>Recargar mi saldo</span>${icon("arrow", "icon quick-arrow")}</button>
       </div></article>
@@ -461,6 +465,7 @@ function renderDriverDashboard() {
   );
 
   if (!shift) {
+    activeBusQr = null;
     const latestSummary = latestShift
       ? `<article class="shift-summary-card${latestShift.cashDifference ? " has-difference" : ""}">
           <div class="shift-summary-heading">${icon(latestShift.cashDifference ? "clock" : "check")}<strong>Último turno de demostración</strong></div>
@@ -499,6 +504,12 @@ function renderDriverDashboard() {
       <p>Inicio registrado ${escapeHtml(formatTime(new Date(shift.startedAt)))} · ${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"} en esta jornada</p>
       <div class="active-shift-reference">Referencia del servidor: ${escapeHtml(shift.reference)}</div>
     </section>
+    <section class="surface detail-card bus-qr-card">
+      <h2>QR de abordaje del bus</h2>
+      <p>El pasajero escanea este código desde su teléfono. Dura 15 minutos; actualízalo cuando venza.</p>
+      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="QR de abordaje para la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p>` : "<p>El QR aparecerá al cargar el turno activo.</p>"}
+      <button class="button button-outline" type="button" data-action="refresh-bus-qr">Actualizar código</button>
+    </section>
     <section class="driver-totals" aria-label="Recaudo registrado en el turno">
       <article><span>EFECTIVO</span><strong>${money(cashTotal)}</strong><small>${entries.filter((entry) => entry.method === "Efectivo").length} registros</small></article>
       <article><span>QR / SALDO</span><strong>${money(walletTotal)}</strong><small>${entries.filter((entry) => entry.method === "QR / saldo").length} registros</small></article>
@@ -512,7 +523,6 @@ function renderDriverDashboard() {
         <p>Anota el medio recibido para dejar constancia en la bitácora de este turno.</p>
         <div class="driver-payment-actions">
           <button type="button" data-action="driver-payment" data-method="cash">${icon("wallet")}<span><strong>Efectivo</strong><small>Recibido en la unidad</small></span>${icon("arrow")}</button>
-          <button type="button" data-action="driver-payment" data-method="wallet">${icon("qr")}<span><strong>Validar QR</strong><small>Escanea o ingresa el código del pasajero</small></span>${icon("arrow")}</button>
           <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Registro de demostración · sin POS</small></span>${icon("arrow")}</button>
         </div>
         <div class="driver-demo-warning">${icon("clock")} El turno y sus registros se guardan en el servidor. La terminal POS aún no está integrada.</div>
@@ -536,23 +546,6 @@ function renderDriverDashboard() {
       </table></div>
     </section>
     <article class="driver-integrity-note">${icon("shield")}<div><strong>Bitácora del servidor · medios externos simulados</strong><p>Los recaudos quedan asociados al turno autenticado. Las operaciones QR se debitan en servidor; efectivo se registra manualmente. El pago tarjeta se anota como demostración hasta integrar un POS real.</p></div></article>`;
-}
-
-async function createQrCode(routeId) {
-  // El QR que sirve para abordar lo firma la API; la interfaz solo lo presenta.
-  const qr = await apiRequest("/demo/account/qr", {
-    method: "POST",
-    body: JSON.stringify({ route_id: Number(routeId), validity_minutes: 15 }),
-  });
-  activeQr = {
-    code: qr.token,
-    imageDataUri: qr.image_data_uri,
-    qrId: qr.qr_id,
-    routeId: Number(routeId),
-    createdAt: new Date(qr.created_at),
-    expiresAt: new Date(qr.expires_at),
-  };
-  renderCurrentView();
 }
 
 function finderCell(row, column, top, left) {
@@ -580,40 +573,16 @@ function qrCells(seed) {
 }
 
 function renderQr() {
-  if (!activeQr) {
-    return `${pageHeading(`${icon("qr")} TU VIAJE`, "Mi código QR", "Genera un código firmado por el servidor; su vigencia máxima es de 15 minutos.")}
-      <article class="surface detail-card qr-generation-card">
-        <h2>Prepara tu viaje</h2><p>Selecciona la ruta que vas a abordar. El servidor comprobará que tu billetera tenga saldo suficiente.</p>
-        <form id="qr-generation-form">
-          <div class="form-field"><label for="qr-route">Ruta</label><select class="select" id="qr-route" name="routeId" required><option value="" disabled selected>Selecciona una ruta</option>${routeOptions()}</select></div>
-          <button class="button" type="submit">${icon("qr")} Generar código dinámico</button>
-        </form>
-      </article>`;
-  }
-  const expiresAt = activeQr.expiresAt;
-  const isExpired = expiresAt <= new Date();
-  return `${pageHeading(`${icon("qr")} TU VIAJE`, "Mi código QR", "Tenlo a mano antes de abordar y disfruta un viaje más simple.", `<button class="button button-outline" data-action="new-qr">${icon("qr")} Generar nuevo código</button>`)}
-  <section class="qr-layout">
-    <article class="surface qr-card">
-      <div class="qr-frame"><img class="qr-real-image" src="${activeQr.imageDataUri}" alt="Código QR dinámico para ruta ${escapeHtml(routeCatalog.find((route) => route.id === activeQr.routeId)?.name ?? "")}" /></div>
-      <h2 class="qr-code-label">Ruta ${escapeHtml(routeCatalog.find((route) => route.id === activeQr.routeId)?.name ?? "")}</h2>
-      <span class="demo-tag">${icon("shield")} Firmado por el servidor · demostración</span>
-      <p class="qr-caption">El código se puede validar en línea desde el turno asignado.</p>
-    </article>
-    <div>
-      <article class="surface detail-card">
-        <h2>Detalles de tu código</h2>
-        <p>Información de referencia para esta demostración local.</p>
-        <div class="detail-row"><span>Código de viaje</span><strong>${escapeHtml(activeQr.code)}</strong></div>
-        <div class="detail-row"><span>Fecha de generación</span><strong>${escapeHtml(formatDate(activeQr.createdAt))} · ${escapeHtml(formatTime(activeQr.createdAt))}</strong></div>
-        <div class="detail-row"><span>Válido hasta</span><strong>${escapeHtml(formatTime(expiresAt))}</strong></div>
-        <div class="detail-row"><span>Tarifa de hoy</span><strong>${money(getFare())}</strong></div>
-        <div class="validity-row">${icon(isExpired ? "clock" : "shield")}<span>${isExpired ? "Este código venció. Genera uno nuevo para continuar." : `Válido hasta ${escapeHtml(formatTime(expiresAt))}. Se debita al validarlo el conductor.`}</span></div>
-        <div class="detail-actions"><button class="button" data-view="inicio">Volver al resumen</button></div>
-      </article>
-      <article class="subtle-card notice-card">${icon("spark")}<div><strong>Comprobante de demostración</strong><p>La validación necesita conexión con el servidor. No uses este prototipo para abordar ni para transacciones reales.</p></div></article>
-    </div>
-  </section>`;
+  return `${pageHeading(`${icon("qr")} TU VIAJE`, "Escanear QR del bus", "Paga el abordaje leyendo el código que aparece en la pantalla del bus.")}
+    <article class="surface detail-card qr-generation-card">
+      <h2>Escanea para abordar</h2>
+      <p>El código identifica la ruta y el turno del bus. El valor se descuenta de tu billetera cuando el servidor lo valida.</p>
+      <form id="passenger-qr-form" data-idempotency-key="${createIdempotencyKey()}">
+        <div class="form-field"><label for="passenger-qr-token">Código del bus</label><input class="input" id="passenger-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" required /></div>
+        <video id="passenger-qr-video" class="qr-camera-preview" playsinline muted hidden></video>
+        <div class="modal-actions"><button class="button button-outline" type="button" data-action="scan-passenger-camera">Usar cámara</button><button class="button" type="submit">Pagar y abordar</button></div>
+      </form>
+    </article>`;
 }
 
 function renderTopUp() {
@@ -634,7 +603,7 @@ function renderHistory() {
   <div class="surface"><div class="surface-header"><div><h2>Todos tus movimientos</h2><p>Más reciente primero · Registros de demostración</p></div></div><div class="table-wrap"><table class="trip-table history-table"><thead><tr><th>Ruta</th><th>Fecha</th><th>Hora</th><th>Medio de pago</th><th>Valor</th><th>Estado</th></tr></thead><tbody>${rows.length ? rows.map((trip) => `<tr><td class="trip-route"><span class="route-token">${escapeHtml(trip.route.slice(0, 2))}</span>Ruta ${escapeHtml(trip.route)}</td><td>${escapeHtml(formatDate(new Date(trip.createdAt)))}</td><td>${escapeHtml(formatTime(new Date(trip.createdAt)))}</td><td><span class="payment-tag">${escapeHtml(trip.method)}</span></td><td>${trip.amount === 0 ? "Sin costo" : money(trip.amount)}</td><td><span class="status-pill">Registrado</span></td></tr>`).join("") : emptyTrips("No hay movimientos con este filtro.")}</tbody></table></div></div>`;
 }
 
-const VIEW_LABELS = { inicio: "Resumen", qr: "Mi código QR", historial: "Mis viajes", recarga: "Recargar saldo" };
+const VIEW_LABELS = { inicio: "Resumen", qr: "Escanear QR del bus", historial: "Mis viajes", recarga: "Recargar saldo" };
 
 // ELECCION Y ACTUALIZACION DE LA VISTA
 function renderCurrentView() {
@@ -686,6 +655,7 @@ function renderCurrentView() {
 async function setProfile(profile) {
   // Cambia entre los espacios que el usuario realmente puede usar.
   // Si entra al conductor, primero vuelve a pedir sus datos al servidor.
+  stopQrCamera();
   if ((profile !== "pasajero" && profile !== "conductor") || !hasProfileRole(profile)) {
     showToast("Tu cuenta no tiene autorización para ese espacio.", true);
     renderCurrentView();
@@ -704,6 +674,7 @@ async function setProfile(profile) {
       } catch (error) {
         if (error.status !== 404) throw error;
         driverState.activeShift = null;
+        activeBusQr = null;
       }
       await refreshDriverShiftHistory();
     } catch (error) {
@@ -744,11 +715,7 @@ async function startDriverShift() {
 }
 
 async function recordDriverPayment(method, cardType = null, idempotencyKey = createIdempotencyKey()) {
-  // Registra efectivo o tarjeta. El pago wallet sigue el flujo de escaneo QR.
-  if (method === "wallet") {
-    openQrValidation();
-    return false;
-  }
+  // Registra los pagos en efectivo o tarjeta recibidos durante el turno.
   if (!["cash", "card"].includes(method) || (method === "card" && !["debit", "credit"].includes(cardType))) {
     showToast("Selecciona un medio de pago válido.", true);
     return;
@@ -773,28 +740,15 @@ async function recordDriverPayment(method, cardType = null, idempotencyKey = cre
   }
 }
 
-function openQrValidation() {
-  modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">VALIDACIÓN DE VIAJE · EN LÍNEA</div><h2 id="modal-title">Escanea el QR del pasajero</h2>
-    <p>La cámara requiere HTTPS/localhost y permiso del dispositivo. También puedes pegar el contenido del código.</p>
-    <form id="qr-validation-form" data-idempotency-key="${createIdempotencyKey()}">
-      <div class="form-field"><label for="driver-qr-token">Código firmado</label><input class="input" id="driver-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" required /></div>
-      <video id="driver-qr-video" class="qr-camera-preview" playsinline muted hidden></video>
-      <div class="modal-actions"><button class="button button-outline" type="button" data-action="scan-camera">Usar cámara</button><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Validar pasaje</button></div>
-    </form>
-  </div>`;
-  modal.showModal();
-}
-
-async function startQrCamera() {
-  // La cámara llena el campo del formulario; la validación real sigue en la API.
+async function startQrCamera(formId, inputId, videoId) {
+  // La cámara captura el código; el servidor sigue siendo quien lo valida.
   if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
     showToast("Este navegador no ofrece escaneo QR por cámara. Pega el código manualmente.", true);
     return;
   }
   try {
     activeCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    const video = document.querySelector("#driver-qr-video");
+    const video = document.querySelector(`#${videoId}`);
     video.srcObject = activeCameraStream;
     video.hidden = false;
     await video.play();
@@ -803,9 +757,9 @@ async function startQrCamera() {
       if (!video.isConnected || !activeCameraStream) return;
       const codes = await detector.detect(video);
       if (codes.length) {
-        document.querySelector("#driver-qr-token").value = codes[0].rawValue;
+        document.querySelector(`#${inputId}`).value = codes[0].rawValue;
         stopQrCamera();
-        document.querySelector("#qr-validation-form").requestSubmit();
+        document.querySelector(`#${formId}`).requestSubmit();
         return;
       }
       scanLoopTimer = window.setTimeout(scan, 200);
@@ -848,6 +802,7 @@ async function closeDriverShift(cashCounted) {
     driverState.completedShifts.unshift(mapShiftFromApi(closed));
     driverState.activeShift = null;
     driverAssignment = null;
+    activeBusQr = null;
     renderCurrentView();
     showToast(cashDifference
       ? `Cierre guardado. Diferencia de efectivo: ${money(Math.abs(cashDifference))} ${cashDifference > 0 ? "de más" : "faltante"}.`
@@ -867,6 +822,7 @@ function setMenuOpen(isOpen) {
 
 function navigateTo(view) {
   if (!(view in VIEW_LABELS)) return;
+  stopQrCamera();
   currentView = view;
   renderCurrentView();
   setMenuOpen(false);
@@ -898,9 +854,9 @@ function openDemoInfo() {
       <p>Iniciaste sesión con una cuenta de demostración. La API devuelve sus roles y protege cada operación. Solo una cuenta con rol de conductor puede entrar a ese espacio. Si tiene ambos roles, puede cambiar entre espacios: su billetera de pasajero y su turno son independientes.</p>
       <p>Saldo, historial, pagos simulados, códigos QR y turnos se consultan o registran en el backend de demostración; no se conservan como datos autoritativos en este navegador.</p>
       <h3>Qué puedes probar</h3>
-      <ul><li>En el espacio pasajero: registrar pagos y recargas ficticios, consultar el historial, generar un QR firmado y transferir un pasaje a otra ruta dentro de los 20 minutos establecidos.</li><li>En el espacio conductor: usar por separado las funciones de pasajero y, por su rol adicional, iniciar la ruta asignada, validar el QR en línea, registrar efectivo/tarjeta simulados y cerrar el turno con conciliación de efectivo.</li></ul>
+      <ul><li>En el espacio pasajero: escanear el QR que muestra el bus, pagar con saldo, consultar el historial y corregir un abordaje en la ruta equivocada mediante un transbordo dentro de las reglas vigentes.</li><li>En el espacio conductor: usar por separado las funciones de pasajero y, por su rol adicional, iniciar el turno asignado, mostrar el QR del bus, registrar efectivo/tarjeta simulados y cerrar el turno con conciliación de efectivo.</li></ul>
       <h3>Qué no hace esta versión</h3>
-      <ul><li>No procesa dinero real ni se conecta a un POS o pasarela de pago.</li><li>El QR firmado sí puede leerse y validarse en línea desde el turno del conductor, pero no sirve para abordar ni para pagos reales.</li><li>El funcionamiento sin conexión solo conserva la interfaz PWA; no autoriza, valida ni sincroniza pagos offline.</li><li>La tarifa, asignación y reglas operacionales son datos de demostración, no una integración con el operador de transporte.</li></ul>
+      <ul><li>No procesa dinero real ni se conecta a un POS o pasarela de pago.</li><li>El QR de abordaje es una demostración firmada por el servidor y requiere conexión para pagar; aún no está integrado con un dispositivo físico instalado en el bus.</li><li>El funcionamiento sin conexión solo conserva la interfaz PWA; no autoriza, valida ni sincroniza pagos offline.</li><li>La tarifa, asignación y reglas operacionales son datos de demostración, no una integración con el operador de transporte.</li></ul>
       <h3>Acerca de tus datos de prueba</h3>
       <p>La API guarda los movimientos de prueba en su base de datos local de desarrollo. No introduzcas información bancaria ni utilices estas credenciales fuera del entorno de demostración.</p>
       <div class="demo-info-notice">${icon("shield")}<span>Antes de producción faltan proveedor de pagos, POS, TLS 1.3 en el alojamiento, seguridad de claves y QR offline con firma asimétrica, sincronización y reconciliación, pruebas de carga y revisión legal.</span></div>
@@ -961,14 +917,18 @@ function routeOptions(excludedRoute = "") {
 }
 
 function openPayment(method = "saldo") {
+  // El saldo se paga escaneando el QR del bus, no escogiendo una ruta a mano.
+  if (method === "saldo") {
+    modal.close();
+    navigateTo("qr");
+    return;
+  }
   selectedPaymentMethod = method;
   const fare = getFare();
-  const insufficient = method === "saldo" && state.balance < fare;
   const cardTypeField = method === "tarjeta"
     ? `<div class="form-field"><label for="card-type">Tipo de tarjeta</label><select class="select" id="card-type" name="cardType" required><option value="" disabled selected>Selecciona una opción</option><option value="Débito">Débito</option><option value="Crédito">Crédito</option></select></div>`
     : "";
   const paymentMethods = [
-    { value: "saldo", label: "Saldo QR", detail: `Disponible ${money(state.balance)}`, icon: "wallet" },
     { value: "efectivo", label: "Efectivo", detail: "Pagas al abordar", icon: "bus" },
     { value: "tarjeta", label: "Tarjeta", detail: "Débito o crédito", icon: "card" },
   ];
@@ -984,9 +944,8 @@ function openPayment(method = "saldo") {
         </label>`).join("")}</div>
       </fieldset>
       <div id="card-type-container">${cardTypeField}</div>
-      <div class="modal-total"><span>${method === "saldo" ? `Saldo disponible · ${money(state.balance)}` : "Valor del pasaje"}</span><strong>${money(fare)}</strong></div>
-      <div class="validity-row payment-insufficient" id="payment-insufficient"${insufficient ? "" : " hidden"}>${icon("clock")}<span>Tu saldo es insuficiente. Recárgalo antes de usar este método.</span></div>
-      <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit"${insufficient ? " disabled" : ""}>Confirmar movimiento</button></div>
+      <div class="modal-total"><span>Valor del pasaje</span><strong>${money(fare)}</strong></div>
+      <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Confirmar movimiento</button></div>
     </form>
   </div>`;
   modal.showModal();
@@ -1000,30 +959,25 @@ function choosePaymentMethod(method) {
 }
 
 function updatePaymentMethod(method) {
-  if (!["saldo", "efectivo", "tarjeta"].includes(method)) return;
+  if (!["efectivo", "tarjeta"].includes(method)) return;
   selectedPaymentMethod = method;
   const cardTypeContainer = document.querySelector("#card-type-container");
   const totalLabel = document.querySelector(".modal-total span");
-  const insufficientNotice = document.querySelector("#payment-insufficient");
-  const submitButton = document.querySelector("#payment-form button[type='submit']");
-  const insufficient = method === "saldo" && state.balance < getFare();
 
   cardTypeContainer.innerHTML = method === "tarjeta"
     ? `<div class="form-field"><label for="card-type">Tipo de tarjeta</label><select class="select" id="card-type" name="cardType" required><option value="" disabled selected>Selecciona una opción</option><option value="Débito">Débito</option><option value="Crédito">Crédito</option></select></div>`
     : "";
-  totalLabel.textContent = method === "saldo" ? `Saldo disponible · ${money(state.balance)}` : "Valor del pasaje";
-  insufficientNotice.hidden = !insufficient;
-  submitButton.disabled = insufficient;
+  totalLabel.textContent = "Valor del pasaje";
 }
 
 function openTransfer() {
   const latestPaidTrip = [...state.trips].reverse().find((trip) => trip.amount > 0 && !trip.transferred && trip.tripId);
   if (!latestPaidTrip) {
-    modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTA</div><h2 id="modal-title">Aún no hay un pago para transferir</h2><p>Registra primero un pasaje. Después podrás simular su traspaso a otra ruta, sin costo adicional.</p><div class="modal-actions"><button class="button button-outline" data-action="close-modal">Cerrar</button><button class="button" data-action="payment" data-method="saldo">Registrar pasaje</button></div></div>`;
+    modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTA</div><h2 id="modal-title">Aún no hay un pago para transferir</h2><p>Primero escanea el QR del bus para registrar el viaje. Después podrás solicitar el transbordo.</p><div class="modal-actions"><button class="button button-outline" data-action="close-modal">Cerrar</button><button class="button" data-action="payment" data-method="saldo">Escanear QR del bus</button></div></div>`;
     modal.showModal();
     return;
   }
-  modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTA · DEMOSTRACIÓN</div><h2 id="modal-title">Transfiere tu pago</h2><p>Simula el cambio a la ruta correcta. El pago original no se vuelve a cobrar.</p>
+  modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTA · DEMOSTRACIÓN</div><h2 id="modal-title">Transfiere tu pago</h2><p>Si abordaste el bus equivocado, indica la ruta correcta dentro de los 20 minutos. El pago original no se vuelve a cobrar.</p>
     <form id="transfer-form" data-trip-id="${latestPaidTrip.tripId}">
       <div class="validity-row">${icon("arrows")}<span>Pago ${escapeHtml(latestPaidTrip.code)} · Ruta ${escapeHtml(latestPaidTrip.route)} · ${money(latestPaidTrip.amount)}</span></div>
       <div class="form-field section-gap"><label for="transfer-route">Ruta correcta</label><select class="select" id="transfer-route" name="route" required><option value="" disabled selected>Selecciona otra ruta</option>${routeOptions(latestPaidTrip.route)}</select></div>
@@ -1083,11 +1037,19 @@ document.addEventListener("click", async (event) => {
   if (action === "demo-info") openDemoInfo();
   if (action === "logout") logout();
   if (action === "start-driver-shift") startDriverShift();
+  if (action === "refresh-bus-qr") {
+    try {
+      const qr = await apiRequest("/driver/shift/qr?renew=true", { method: "POST" });
+      activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at) };
+      renderCurrentView();
+      showToast("QR del bus actualizado.");
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  }
   if (action === "driver-payment") {
     if (method === "card") {
       openDriverCardPayment();
-    } else if (method === "wallet") {
-      openQrValidation();
     } else {
       const idempotencyKey = target.dataset.idempotencyKey ?? createIdempotencyKey();
       target.dataset.idempotencyKey = idempotencyKey;
@@ -1098,12 +1060,9 @@ document.addEventListener("click", async (event) => {
     }
   }
   if (action === "choose-method") choosePaymentMethod(method);
-  if (action === "new-qr") {
-    activeQr = null;
-    currentView = "qr";
-    renderCurrentView();
+  if (action === "scan-passenger-camera") {
+    startQrCamera("passenger-qr-form", "passenger-qr-token", "passenger-qr-video");
   }
-  if (action === "scan-camera") startQrCamera();
   if (action === "close-modal") modal.close();
   if (action === "top-up") topUp(Number(amount), target);
 });
@@ -1204,36 +1163,23 @@ document.querySelector("#registration-form").addEventListener("submit", async (e
 document.addEventListener("submit", async (event) => {
   // Los formularios de las ventanas aparecen y desaparecen según el recorrido;
   // una sola entrada mantiene parecida la respuesta aunque cambie el contenido.
-  if (event.target.id === "qr-generation-form") {
-    event.preventDefault();
-    const routeId = new FormData(event.target).get("routeId");
-    try {
-      await createQrCode(routeId);
-    } catch (error) {
-      showToast(error.message, true);
-      if (error.status === 401) logout();
-    }
-  }
-
-  if (event.target.id === "qr-validation-form") {
+  if (event.target.id === "passenger-qr-form") {
     event.preventDefault();
     const form = event.target;
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true;
     try {
-      // Se envía el token leído y una clave estable para que reintentar no cree
-      // un segundo pago si la respuesta tarda o se pierde la conexión.
-      const result = await apiRequest("/driver/qr/validate", {
+      // La clave se conserva durante el envío para impedir cobros duplicados.
+      const result = await apiRequest("/demo/account/qr/validate", {
         method: "POST",
         body: JSON.stringify({
           token: new FormData(form).get("token"),
           idempotency_key: form.dataset.idempotencyKey,
         }),
       });
-      modal.close();
-      await refreshDriverShift();
+      await refreshPassengerData();
       renderCurrentView();
-      showToast(`Pasaje aprobado · Ruta ${result.route_name} · ${money(result.amount)}.`);
+      showToast(`Abordaje pagado · Ruta ${result.route_name} · ${money(result.amount)}.`);
     } catch (error) {
       showToast(error.message, true);
       if (error.status === 401) logout();
@@ -1264,15 +1210,10 @@ document.addEventListener("submit", async (event) => {
     const routeId = Number(formData.get("route"));
     const route = routeCatalog.find((item) => item.id === routeId)?.name;
     selectedPaymentMethod = String(formData.get("method") ?? "");
-    const fare = getFare();
     // Estas comprobaciones dan respuesta rápida en la pantalla. El backend
     // vuelve a comprobarlas porque es quien protege los datos y las reglas.
     if (!route) {
       showToast("Selecciona una ruta disponible.", true);
-      return;
-    }
-    if (selectedPaymentMethod === "saldo" && state.balance < fare) {
-      showToast("Saldo insuficiente. Recarga tu billetera para continuar.", true);
       return;
     }
     const cardType = formData.get("cardType");
@@ -1280,7 +1221,7 @@ document.addEventListener("submit", async (event) => {
       showToast("Selecciona débito o crédito.", true);
       return;
     }
-    const paymentMethods = { saldo: "wallet", efectivo: "cash", tarjeta: "card" };
+    const paymentMethods = { efectivo: "cash", tarjeta: "card" };
     const cardTypes = { Débito: "debit", Crédito: "credit" };
     const submit = event.target.querySelector('button[type="submit"]');
     submit.disabled = true;

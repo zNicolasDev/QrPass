@@ -20,6 +20,8 @@ class CrearPagoSolicitud(EsquemaBase):
     @model_validator(mode="after")
     def validar_tipo_tarjeta(self) -> 'CrearPagoSolicitud':
         # Valida la combinación entre medio y tipo de tarjeta, no cada campo aislado.
+        if self.medio == MedioPago.WALLET:
+            raise ValueError("Para pagar con saldo, escanea el QR que muestra el bus.")
         if self.medio == MedioPago.CARD and self.tipo_tarjeta is None:
             raise ValueError("card_type es obligatorio para pagos con tarjeta.")
         if self.medio != MedioPago.CARD and self.tipo_tarjeta is not None:

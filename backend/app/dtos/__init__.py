@@ -7,7 +7,6 @@ from app.dtos.autenticacion import UsuarioAutenticadoRespuesta, InicioSesionSoli
 from app.dtos.conductor import (
     AsignacionConductorRespuesta,
     PagoConductorSolicitud,
-    ValidacionQrConductorSolicitud,
     CierreTurnoSolicitud,
     MovimientoTurnoRespuesta,
     TurnoConductorRespuesta,
@@ -21,7 +20,7 @@ from app.dtos.pago import (
     CrearRecargaSolicitud,
     ReciboRecarga,
 )
-from app.dtos.codigo_qr import CrearCodigoQrSolicitud, CodigoQrRespuesta
+from app.dtos.codigo_qr import CodigoQrRespuesta, ValidacionQrPasajeroSolicitud
 from app.dtos.ruta import TarifaRespuesta, RutaRespuesta
 from app.dtos.sistema import EstadoServicioRespuesta
 from app.dtos.transbordo import CrearTransbordoSolicitud, TransbordoRespuesta
@@ -33,7 +32,6 @@ __all__ = [
     'TipoTarjeta',
     'AsignacionConductorRespuesta',
     'PagoConductorSolicitud',
-    'ValidacionQrConductorSolicitud',
     'CierreTurnoSolicitud',
     'MovimientoTurnoRespuesta',
     'TurnoConductorRespuesta',
@@ -46,7 +44,7 @@ __all__ = [
     'MedioPago',
     'ReciboPago',
     'RegistroPasajeroSolicitud',
-    'CrearCodigoQrSolicitud',
+    'ValidacionQrPasajeroSolicitud',
     'CodigoQrRespuesta',
     'RutaRespuesta',
     'CierreTurnoRespuesta',

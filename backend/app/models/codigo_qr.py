@@ -13,12 +13,12 @@ if TYPE_CHECKING:
     from app.models.usuario import Usuario
 
 
-# QR temporal que identifica un viaje y registra su estado.
+# QR temporal que identifica el turno y la ruta del bus.
 class CodigoQr(Base):
-    # QR asociado a una cuenta; estado y vencimiento controlan su uso.
+    # El conductor del turno lo crea; varios pasajeros pueden escanearlo.
     __tablename__ = "qr_codes"
 
-    # Identificador interno y cuenta propietaria del código.
+    # Identificador interno y conductor que presenta el código.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(
         "user_id", ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -33,6 +33,6 @@ class CodigoQr(Base):
         "created_at", DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    # Permite navegar del QR a su cuenta y a los pagos que lo consumieron.
+    # Permite consultar quién presentó el QR y qué pagos se hicieron con él.
     usuario: Mapped['Usuario'] = relationship(back_populates="codigos_qr")
     pagos: Mapped[list['Pago']] = relationship(back_populates="codigo_qr")

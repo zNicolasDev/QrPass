@@ -54,8 +54,8 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | GET | `/payments/history` | Historial autenticado unificado de ingresos y egresos |
 | GET | `/trips` | Historial de viajes del usuario autenticado |
 | GET | `/trips/{trip_id}` | Detalle de un viaje propio |
-| POST | `/demo/account/qr` | QR firmado con vigencia máxima de 15 minutos |
-| POST | `/demo/account/payments` | Pago de demostración por saldo, efectivo o tarjeta |
+| POST | `/demo/account/qr/validate` | El pasajero escanea el QR firmado que muestra el bus y paga con su saldo |
+| POST | `/demo/account/payments` | Pago simulado en efectivo o tarjeta; el saldo requiere escanear QR del bus |
 | POST | `/demo/account/top-ups` | Recarga ficticia e idempotente |
 | POST | `/demo/account/transfers` | Traspaso único a otra ruta dentro de 20 minutos |
 | GET | `/driver/demo/assignment` | Asignación de ejemplo; requiere rol `DRIVER` |
@@ -63,7 +63,7 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | GET | `/driver/shifts/history` | Últimos 20 cierres del conductor |
 | POST | `/driver/shift/start?route_id={id}` | Inicio de turno asignado |
 | POST | `/driver/shift/payments` | Registro de efectivo o tarjeta simulados |
-| POST | `/driver/qr/validate` | Validación en línea de QR durante el turno |
+| POST | `/driver/shift/qr` | Genera el QR temporal del turno activo para mostrarlo en el bus |
 | POST | `/driver/shift/close` | Cierre de turno y conciliación |
 
 ## Carpetas y archivos
@@ -90,6 +90,6 @@ python -m pytest
 
 Esta API no mueve dinero real: los pagos con tarjeta y las recargas son ficticios, y no hay integración POS o bancaria. Los QR se verifican en línea mediante HMAC; no se debe distribuir esa clave a validadores sin conexión. Una modalidad offline requiere firma asimétrica, gestión de claves y controles contra el doble gasto.
 
-`/health` es una señal de vida de la API; `/ready` prueba conectividad con la base de datos y responde 503 si no puede consultarla. En pagos, el débito/recarga y sus filas de pago/viaje se escriben dentro de la transacción SQLAlchemy de la solicitud. Las pruebas `test_failed_payment_commit_rolls_back_balance_payment_and_trip` y `test_failed_qr_redemption_commit_restores_qr_balance_payment_and_trip` inyectan un fallo antes del commit y confirman que no quedan débito, consumo de QR ni registros parciales.
+`/health` es una señal de vida de la API; `/ready` prueba conectividad con la base de datos y responde 503 si no puede consultarla. En pagos, el débito/recarga y sus filas de pago/viaje se escriben dentro de la transacción SQLAlchemy de la solicitud. Las pruebas `test_failed_payment_commit_rolls_back_balance_payment_and_trip` y `test_failed_qr_redemption_commit_restores_qr_balance_payment_and_trip` inyectan un fallo antes del commit y confirman que no quedan débito, el QR sigue disponible para reintentar y no quedan registros parciales.
 
 SQLite y la inicialización de desarrollo no sustituyen migraciones versionadas ni una base de producción compartida. La compatibilidad actual hace ajustes de esquema SQLite durante la inicialización, por lo que el proceso de migraciones debe formalizarse antes de evolucionar datos persistidos. TLS 1.3 depende del proxy o alojamiento. También hacen falta pruebas de concurrencia/carga, monitoreo y validación jurídica y operativa. No almacenes datos personales o financieros reales en este prototipo.

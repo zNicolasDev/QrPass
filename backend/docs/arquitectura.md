@@ -37,8 +37,8 @@ La especificación formal del proyecto establece que QRPASS debe responder a tre
   - Pago tipo SALIENTE mediante QR.
   - Pago tipo SALIENTE por tarjeta (débito/crédito).
 - RF-04: generación y validación de QR
-  - Generación de un QR asociado al usuario y su token.
-  - Verificación de validez y estado del QR.
+  - El conductor muestra un QR firmado asociado al turno y a la ruta del bus.
+  - El pasajero lo escanea; la API verifica el turno, cobra su billetera y crea el viaje.
 - RF-05: tarifa por ruta y tipo de día
   - Tarifa vigente según el calendario y la ruta.
 - RF-06: cobro manual en efectivo
@@ -92,10 +92,10 @@ La versión demo actual modela los roles `PASSENGER` y `DRIVER`. El bloque de ad
 | RF-01.3 | Perfil y saldo | `GET /api/v1/auth/me` + `GET /api/v1/demo/account` |
 | RF-02.1 | Login del conductor | `POST /api/v1/auth/login` (login compartido); la autorización de conductor se valida después mediante rol |
 | RF-02.2 | Inicio de turno | `POST /api/v1/driver/shift/start?route_id={id}` |
-| RF-03.1 | Pago con QR | `POST /api/v1/driver/qr/validate` (verifica y consume QR, debita billetera y crea viaje) |
-| RF-03.2 | Pago con tarjeta | `POST /api/v1/driver/shift/payments` o `/api/v1/demo/account/payments` (simulado; no consulta una tarjeta registrada ni un POS) |
-| RF-04.1 | Generar QR | `POST /api/v1/demo/account/qr` |
-| RF-04.2 | Validar QR | `POST /api/v1/driver/qr/validate` |
+| RF-03.1 | Pago con QR del bus | `POST /api/v1/demo/account/qr/validate` (verifica turno/ruta, debita billetera y crea viaje) |
+| RF-03.2 | Pago en efectivo o tarjeta | `POST /api/v1/driver/shift/payments` o `/api/v1/demo/account/payments` (simulado; no consulta tarjeta guardada ni POS) |
+| RF-04.1 | Mostrar QR del bus | `POST /api/v1/driver/shift/qr` |
+| RF-04.2 | Escanear y pagar | `POST /api/v1/demo/account/qr/validate` |
 | RF-05.1 | Ver tarifa por ruta y día | `GET /api/v1/fares/current` |
 | RF-06.1 | Cobro efectivo | `POST /api/v1/driver/shift/payments` |
 | RF-07.1 | Consultar saldo | `GET /api/v1/demo/account` |
@@ -108,7 +108,7 @@ La versión demo actual modela los roles `PASSENGER` y `DRIVER`. El bloque de ad
 | RF-11.1 | Cierre del turno | `POST /api/v1/driver/shift/close` (la especificación propone `PATCH`; se conserva POST porque el cierre es una acción que consolida y fija el turno) |
 | RNF-01.1 | Sincronización offline | Modelado en `OfflineSync` y flujo de dispositivos |
 
-Los recursos `/payments/history`, `/trips` y `/trips/{trip_id}` son endpoints nuevos alineados con la especificación. Las rutas anteriores bajo `/demo/account` se conservan para no romper la interfaz existente. El flujo de validación de QR sigue siendo una operación autenticada del conductor (`POST /driver/qr/validate`): no se expone la consulta pública por token sugerida en la matriz porque el QR es un token portador y su validación real también debe consumirlo y registrar el pago.
+Los recursos `/payments/history`, `/trips` y `/trips/{trip_id}` son endpoints nuevos alineados con la especificación. La pantalla del conductor genera un QR temporal cuando su turno está activo. El pasajero autenticado lo presenta desde su aplicación; el QR identifica al bus y puede ser usado por varios pasajeros hasta vencer o ser renovado.
 
 La alineación funcional no implica que todas las URI, métodos HTTP o integraciones sean idénticos a la matriz del PDF. En particular, el pago con tarjeta no usa una tarjeta registrada (`Payment.card_id` todavía no se asocia), el login de conductor reutiliza el login general y el cierre se modela como acción POST. La tabla muestra el contrato actual y explicita estas decisiones para no reportar como completo lo que solo es una simulación.
 
@@ -126,7 +126,7 @@ Las pruebas `test_failed_payment_commit_rolls_back_balance_payment_and_trip` y `
 ## Trabajo técnico siguiente, basado en brechas comprobadas
 
 1. **Evolución del esquema:** sustituir los ALTER manuales por migraciones versionadas; definir la política de respaldo/recuperación antes de aplicar migraciones sobre una base con datos.
-2. **Concurrencia transaccional:** probar dos solicitudes simultáneas con la misma clave idempotente, débitos con saldo justo y dos consumos del mismo QR. Los criterios deben incluir no saldo negativo, un solo pago/viaje y resultado estable para reintentos.
+2. **Concurrencia transaccional:** probar dos solicitudes simultáneas con la misma clave idempotente, débitos con saldo justo y varios pasajeros que usan el QR del mismo turno. Los criterios deben incluir no saldo negativo, pagos asociados a la ruta del bus y resultado estable para reintentos.
 3. **Operación y comunicaciones:** documentar el contrato de errores/reintentos y límites de timeout. La API es síncrona HTTP hoy; la sincronización offline por lotes aún no está implementada.
 4. **Integraciones financieras y a bordo:** antes de construir adaptadores hay que decidir proveedor/pasarela, POS, identidad de terminal, conciliación y modelo de riesgo offline. No hay evidencia de esas decisiones en el código o especificación disponible, así que quedan explícitamente abiertas.
 5. **Validación no funcional:** medir latencia de extremo a extremo y carga objetivo en el despliegue elegido; las pruebas funcionales actuales no prueban umbrales de 1.5 s ni crecimiento de 200%.
@@ -141,7 +141,7 @@ erDiagram
     ROL ||--o{ USUARIO_ROL : asigna
     USUARIO ||--o| CONDUCTOR : puede_ser
     USUARIO ||--o{ TARJETA : registra
-    USUARIO ||--o{ CODIGO_QR : genera
+    USUARIO ||--o{ CODIGO_QR : presenta_como_conductor
     USUARIO ||--o{ PAGO : realiza
 
     EMPRESA_TRANSPORTE ||--o{ VEHICULO : opera
@@ -306,7 +306,7 @@ Lo importante no es solo el diagrama: el dominio queda materializado en capas re
   - Aquí se definen keys, relaciones, constraints y reglas de integridad.
 
 - Lógica de negocio: `backend/app/services.py`
-  - `crear_pago`, `crear_codigo_qr`, `crear_recarga`, `crear_transbordo`, `cerrar_turno_conductor`, `validar_y_canjear_qr`
+  - `crear_pago`, `crear_qr_turno_conductor`, `validar_qr_de_abordaje`, `crear_recarga`, `crear_transbordo`, `cerrar_turno_conductor`
   - Aquí se aplican reglas como saldo, tarifa vigente, duplicados por idempotencia, cierre de turno y validación del QR.
 
 - Controladores HTTP: `backend/app/controllers/`
@@ -341,45 +341,44 @@ Los ejercicios de gestión hospitalaria practican conceptos que también se usan
 
 La intención que se conserva es modelar el dominio, sus relaciones y sus reglas antes de implementar los flujos. No corresponde añadir al transporte conceptos hospitalarios como médicos, citas, atenciones o un menú de consola. Tampoco hace falta replicar la herencia o las listas en memoria: QrPass ya expresa esos conceptos mediante roles, relaciones ORM, servicios y persistencia. Para este alcance demo no se identifica una brecha funcional de modelado que requiera agregar código; las limitaciones operativas y de producción se registran en la trazabilidad.
 
-## Secuencia de pago con saldo
+## Secuencia de pago manual en efectivo o tarjeta
 
 ```mermaid
 sequenceDiagram
     actor Pasajero
     participant Frontend
-    participant Controller as Ruta FastAPI
-    participant DTO as Esquema PaymentCreate
+    participant Controller as Controlador FastAPI
+    participant DTO as CrearPagoSolicitud
     participant Service as Servicio de pagos
     participant DB as SQLAlchemy / SQLite
-    Pasajero->>Frontend: Selecciona ruta y saldo QR
+    Pasajero->>Frontend: Selecciona ruta y efectivo o tarjeta
     Frontend->>Controller: POST /api/v1/demo/account/payments
-    Controller->>DTO: Valida route_id y method
+    Controller->>DTO: Valida ruta y medio de pago
     DTO-->>Controller: Solicitud validada
-    Controller->>Service: create_payment(request)
-    Service->>DB: Lee ruta, tarifa y saldo del usuario autenticado
-    Service->>DB: Descuenta saldo condicionalmente
-    alt saldo insuficiente
-        DB-->>Service: 0 filas actualizadas
-        Service-->>Controller: Error de dominio 409
-        Controller-->>Frontend: Saldo insuficiente
-    else saldo disponible
-        Service->>DB: Inserta pago y viaje con clave de idempotencia
-        DB-->>Service: Operación confirmada (demo)
-        Service-->>Controller: Pago, viaje y saldo
-        Controller-->>Frontend: Respuesta PaymentReceipt · HTTP 201
+    Controller->>Service: crear_pago(solicitud)
+    Service->>DB: Consulta ruta y tarifa vigente
+    DB-->>Service: Devuelve datos de ruta y tarifa
+    alt Ruta no existe o tarjeta sin tipo
+        Service-->>Controller: Error de validacion
+        Controller-->>Frontend: Informa el motivo
+    else Datos correctos
+        Service->>DB: Guarda pago y viaje
+        DB-->>Service: Operacion confirmada (demo)
+        Service-->>Controller: Pago y viaje
+        Controller-->>Frontend: Recibo de pago ? HTTP 201
     end
 ```
 
-## Contrato de ejemplo
+## Contrato de pago manual
 
 ```http
 POST /api/v1/demo/account/payments
 Content-Type: application/json
 
-{"route_id": 1, "method": "wallet", "idempotency_key": "pago-intento-0001"}
+{"route_id": 1, "method": "cash", "idempotency_key": "pago-intento-0001"}
 ```
 
-`method` acepta `wallet`, `cash` o `card`; si es `card`, debe incluir `card_type` (`debit` o `credit`). Las respuestas incluyen `mode: "demo"` y el estado `completed_demo` para no confundir la simulación con una autorización financiera real.
+La ruta manual acepta `cash` o `card`; el pago con saldo se realiza escaneando el QR del bus en `POST /api/v1/demo/account/qr/validate`. Para tarjeta, `card_type` debe ser `debit` o `credit`. Las respuestas incluyen `mode: "demo"` y estado `completed_demo`.
 
 ## Secuencia QR y turno conductor
 
@@ -391,20 +390,20 @@ sequenceDiagram
     participant API as FastAPI
     participant Service as Servicio de pagos
     participant DB as SQLite de desarrollo
-    Pasajero->>Frontend: Solicita QR para una ruta
-    Frontend->>API: POST /api/v1/demo/account/qr · bearer
-    API->>Service: Verifica saldo, ruta y tarifa
-    Service->>DB: Guarda QR activo y expiración
-    Service-->>API: Token HMAC con vigencia ≤15 min
-    API-->>Frontend: Token y SVG escaneable
-    Conductor->>Frontend: Escanea o pega el token
-    Frontend->>API: POST /api/v1/driver/qr/validate · bearer DRIVER
-    API->>Service: Verifica firma, expiración, ruta y turno
-    Service->>DB: Consume QR, debita saldo y asocia viaje al turno
-    API-->>Frontend: Recibo demo y totales actualizados
+    Conductor->>Frontend: Solicita el QR de su turno activo
+    Frontend->>API: POST /api/v1/driver/shift/qr · bearer DRIVER
+    API->>Service: Busca el turno activo y su ruta
+    Service->>DB: Guarda QR temporal asociado al conductor
+    Service-->>API: Token HMAC ligado a turno, ruta y vencimiento
+    API-->>Frontend: Imagen QR para mostrar en el bus
+    Pasajero->>Frontend: Escanea el QR que muestra el bus
+    Frontend->>API: POST /api/v1/demo/account/qr/validate · bearer
+    API->>Service: Verifica firma, vigencia y turno/ruta activos
+    Service->>DB: Debita saldo y asocia viaje al turno
+    API-->>Frontend: Recibo demo y saldo actualizado
     Conductor->>API: POST /api/v1/driver/shift/close · cash_counted
     API->>Service: Consolida recaudo y diferencia de efectivo
     Service->>DB: Persiste cierre de turno
 ```
 
-La secuencia QR requiere conectividad con la API. HMAC sirve para este validador online; no se debe entregar el secreto a dispositivos offline.
+La secuencia QR requiere conectividad con la API. En esta versión la pantalla del conductor representa el dispositivo que estaría instalado en el bus; la integración con el aparato físico queda pendiente. HMAC sirve para este validador online; no se debe entregar el secreto a dispositivos offline.

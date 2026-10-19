@@ -27,7 +27,7 @@ La dirección de la API puede establecerse con `window.QRPASS_API_BASE_URL` ante
 
 ## Flujos y límites
 
-El servidor asigna y verifica roles; solo una cuenta con `DRIVER` puede usar las funciones de conductor. El pasajero consulta saldo e historial, simula pagos y recargas, genera un QR firmado por la API y solicita traspasos. El conductor puede iniciar el turno asignado, registrar recaudos simulados, validar QR en línea y consultar los cierres persistidos.
+El servidor asigna y verifica roles; solo una cuenta con `DRIVER` puede usar las funciones de conductor. El pasajero consulta saldo e historial, simula pagos y recargas, escanea el QR firmado que muestra el bus y solicita un transbordo si abordó la ruta equivocada. El conductor puede iniciar el turno asignado, mostrar el QR temporal de abordaje, registrar recaudos simulados y consultar los cierres persistidos.
 
 Las operaciones financieras y los resultados son ficticios. La PWA cachea la interfaz, pero **no permite autorizar viajes, cobrar o sincronizar movimientos sin conexión**. Los QR actuales dependen de la API para verificar la firma.
 
