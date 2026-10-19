@@ -5,8 +5,9 @@
 ```mermaid
 flowchart LR
     FE[Interfaz web / PWA] -->|JSON sobre HTTPS| API[FastAPI · app/main.py]
-    API --> CTRL[Rutas · app/routes.py]
-    API --> READY[Readiness · SELECT 1]
+    API --> CTRL[Controladores · app/controllers/]
+    API --> READY[Comprobación de disponibilidad]
+    READY --> DB
     CTRL --> DTO[DTOs Pydantic · app/dtos/]
     CTRL --> SVC[Servicios · app/services.py]
     SVC --> ORM[Modelos SQLAlchemy · app/models/]
@@ -116,7 +117,7 @@ La alineación funcional no implica que todas las URI, métodos HTTP o integraci
 - `get_session` entrega una sesión SQLAlchemy por solicitud. SQLite habilita `PRAGMA foreign_keys=ON` al abrir cada conexión.
 - Débitos y recargas aplican el cambio de saldo y crean el pago (y, para pasajes, el viaje) en la misma transacción de base de datos. El commit es el límite de confirmación; si falla antes de terminar, el cierre de la sesión revierte los cambios pendientes.
 - Hay controles de integridad para saldo no negativo, importes, unicidad de idempotencia y relaciones FK. Las claves de idempotencia ayudan a evitar aplicar de nuevo una petición reintentada; todavía falta probar explícitamente las carreras concurrentes sobre el motor productivo elegido.
-- `GET /api/v1/health` es una señal de vida del proceso y no toca la base. `GET /api/v1/ready` ejecuta `SELECT 1`; devuelve 503 y deja registro de error si la base no está disponible. Esto verifica conectividad, no que migraciones, semillas o servicios externos estén listos.
+- `GET /api/v1/health` es una señal de vida del proceso y no toca la base. `GET /api/v1/ready` solicita a `database.py` que ejecute `SELECT 1`; devuelve 503 y deja registro de error si la base no está disponible. El controlador no construye consultas SQL. Esto verifica conectividad, no que migraciones, semillas o servicios externos estén listos.
 - La base SQLite local se crea con `metadata.create_all` y conserva upgrades manuales de compatibilidad. Aún no hay historial de migraciones versionadas; cualquier cambio de esquema que deba conservar datos necesita migración explícita y prueba sobre una copia representativa.
 - No existe cola de mensajería o sincronización offline operativa. No se debe introducir broker, protocolo de eventos o garantías de entrega hasta definir qué eventos se producen, cómo se identifican/reintentan y cómo se resuelven duplicados/conflictos entre dispositivos.
 
@@ -308,9 +309,9 @@ Lo importante no es solo el diagrama: el dominio queda materializado en capas re
   - `crear_pago`, `crear_codigo_qr`, `crear_recarga`, `crear_transbordo`, `cerrar_turno_conductor`, `validar_y_canjear_qr`
   - Aquí se aplican reglas como saldo, tarifa vigente, duplicados por idempotencia, cierre de turno y validación del QR.
 
-- API HTTP: `backend/app/routes.py`
-  - Endpoints para `/auth`, `/demo/account` y `/driver`
-  - Expone funcionalidades en capas: autenticación, viajes del usuario, pago, QR, recargas, transbordos y turno del conductor.
+- Controladores HTTP: `backend/app/controllers/`
+  - Reciben solicitudes, llaman servicios, convierten errores de dominio a respuestas HTTP y preparan los DTOs de salida.
+  - No contienen consultas SQL ni ejecutan cambios de persistencia; las operaciones de negocio y sus consultas están en `services.py` y la conectividad está en `database.py`.
 
 - Contratos de entrada/salida: `backend/app/dtos/` (DTOs Pydantic agrupados por tema)
   - Define payloads y respuesta para rutas, pagos, tarjetas, top-ups, transferencias, turnos, QR y salud del servicio.
@@ -320,7 +321,9 @@ Lo importante no es solo el diagrama: el dominio queda materializado en capas re
 
 La composición real es entonces:
 
-`dominio / esquema -> modelos SQLAlchemy -> servicios -> rutas FastAPI -> esquemas Pydantic -> interfaz web`
+`interfaz web -> controladores FastAPI -> servicios -> modelos SQLAlchemy -> base de datos`
+
+Los DTOs Pydantic describen los datos de entrada y salida entre la interfaz y los controladores. El controlador puede leer los resultados de un servicio para formar la respuesta, pero no consulta ni modifica directamente las tablas.
 
 Es decir, el esquema que dibujamos representa la estructura conceptual; el backend ya lo está implementando en las entidades y las reglas operativas que lo hacen funcionar.
 

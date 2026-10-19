@@ -1,5 +1,6 @@
 // La pantalla sigue el recorrido de la persona; el servidor conserva las
 // decisiones y el historial. Si algo cambia dinero o un viaje, se confirma allí.
+// CONFIGURACION Y ESTADO DE LA PANTALLA
 const ACCESS_TOKEN_KEY = "qrpass-access-token-v1";
 const SESSION_EXPIRY_KEY = "qrpass-session-expiry-v1";
 const API_BASE_URL = globalThis.QRPASS_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -28,6 +29,7 @@ let driverAssignment = null;
 let activeCameraStream = null;
 let scanLoopTimer = null;
 
+// FUNCIONES GENERALES Y COMUNICACION CON LA API
 function createIdempotencyKey() {
   // Una misma acción conserva su clave mientras se reintenta; al empezar otra
   // acción se crea otra. Así un toque lento no se convierte en dos cobros.
@@ -35,6 +37,7 @@ function createIdempotencyKey() {
     ?? `qrpass-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+// Presenta valores de dinero en pesos colombianos, sin decimales.
 function money(value) {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -43,6 +46,8 @@ function money(value) {
   }).format(value);
 }
 
+// Escapa texto antes de insertarlo en una plantilla HTML para que se trate
+// como texto y no como etiquetas o atributos.
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -66,6 +71,7 @@ function hasProfileRole(profile) {
 async function apiRequest(path, options = {}) {
   // Todas las pantallas hablan con la API por aquí para que una caída de red
   // o un rechazo se convierta en un mensaje entendible, no en una pantalla rota.
+  // Se centralizan encabezados y token para que cada pantalla no repita el login.
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (options.body) headers.set("Content-Type", "application/json");
@@ -78,6 +84,7 @@ async function apiRequest(path, options = {}) {
     throw new Error("No se pudo conectar con QrPass. Comprueba que la API esté iniciada.");
   }
 
+  // La interfaz espera JSON tanto en respuestas exitosas como en errores.
   let payload;
   try {
     payload = await response.json();
@@ -117,6 +124,7 @@ function mapTripFromApi(trip) {
 async function refreshPassengerData() {
   // Al volver de una operación, reconstruimos saldo e historial desde el
   // servidor: la memoria de esta pestaña no es el registro oficial.
+  // Saldo e historial se piden en paralelo para que la pantalla muestre datos actuales.
   const [account, trips] = await Promise.all([
     apiRequest("/demo/account"),
     apiRequest("/demo/account/trips"),
@@ -179,6 +187,8 @@ function showLoginError(message = "") {
 }
 
 async function activateSession(user, token) {
+  // Se ejecuta después del login y al restaurar una sesión guardada.
+  // Comprueba el perfil y carga los datos necesarios para mostrar la aplicación.
   const expiresAt = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY));
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
     throw new Error("La sesión venció. Inicia sesión otra vez.");
@@ -264,6 +274,7 @@ function logout() {
 }
 
 async function bootstrapAuthentication() {
+  // Al abrir la página se intenta restaurar la sesión guardada en esta pestaña.
   const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
   if (!token) return;
   accessToken = token;
@@ -280,6 +291,7 @@ let state = { balance: 0, trips: [] };
 
 let driverState = { activeShift: null, completedShifts: [] };
 
+// FORMATO DE DATOS Y PIEZAS HTML REUTILIZABLES
 function icon(name, className = "icon") {
   return `<svg class="${className}" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 }
@@ -329,6 +341,7 @@ function pageTable(trips, className = "") {
   </div>`;
 }
 
+// VISTA DEL PASAJERO: RESUMEN E HISTORIAL
 function getRecentTrips() {
   return [...state.trips].reverse().slice(0, 4);
 }
@@ -437,6 +450,7 @@ function renderDashboard() {
   </section>`;
 }
 
+// VISTA DEL CONDUCTOR Y SU TURNO
 function renderDriverDashboard() {
   const shift = driverState.activeShift;
   const latestShift = driverState.completedShifts.at(-1);
@@ -622,7 +636,10 @@ function renderHistory() {
 
 const VIEW_LABELS = { inicio: "Resumen", qr: "Mi código QR", historial: "Mis viajes", recarga: "Recargar saldo" };
 
+// ELECCION Y ACTUALIZACION DE LA VISTA
 function renderCurrentView() {
+  // Esta función central decide qué contenido va dentro del área principal.
+  // Los datos se preparan en otras funciones; aquí solo se elige y dibuja la vista.
   if (!authenticatedUser || !hasProfileRole(currentProfile)) return;
   const views = { inicio: renderDashboard, qr: renderQr, historial: renderHistory, recarga: renderTopUp };
   const renderer = currentProfile === "conductor"
@@ -665,7 +682,10 @@ function renderCurrentView() {
   document.querySelector("#today-date").textContent = currentDateLong();
 }
 
+// ACCIONES DEL CONDUCTOR Y NAVEGACION
 async function setProfile(profile) {
+  // Cambia entre los espacios que el usuario realmente puede usar.
+  // Si entra al conductor, primero vuelve a pedir sus datos al servidor.
   if ((profile !== "pasajero" && profile !== "conductor") || !hasProfileRole(profile)) {
     showToast("Tu cuenta no tiene autorización para ese espacio.", true);
     renderCurrentView();
@@ -706,6 +726,8 @@ async function setProfile(profile) {
 }
 
 async function startDriverShift() {
+  // La interfaz solicita iniciar el turno asignado; el backend valida la ruta
+  // y decide si el cambio de estado está permitido.
   if (!driverAssignment) {
     showToast("No hay una asignación disponible para iniciar.", true);
     return;
@@ -722,6 +744,7 @@ async function startDriverShift() {
 }
 
 async function recordDriverPayment(method, cardType = null, idempotencyKey = createIdempotencyKey()) {
+  // Registra efectivo o tarjeta. El pago wallet sigue el flujo de escaneo QR.
   if (method === "wallet") {
     openQrValidation();
     return false;
@@ -764,6 +787,7 @@ function openQrValidation() {
 }
 
 async function startQrCamera() {
+  // La cámara llena el campo del formulario; la validación real sigue en la API.
   if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
     showToast("Este navegador no ofrece escaneo QR por cámara. Pega el código manualmente.", true);
     return;
@@ -802,6 +826,7 @@ function stopQrCamera() {
 }
 
 async function closeDriverShift(cashCounted) {
+  // Envía el efectivo contado para que el servidor cierre y calcule la diferencia.
   const shift = driverState.activeShift;
   if (!shift) {
     showToast("No hay un turno activo para cerrar.", true);
@@ -860,6 +885,7 @@ function updateInstallButton() {
   installButton.hidden = isStandalone || (!deferredInstallPrompt && window.innerWidth > 760);
 }
 
+// VENTANAS, MENSAJES Y ACCIONES DEL PASAJERO
 function openDemoInfo() {
   modal.classList.add("demo-info-open");
   modalContent.innerHTML = `<article class="demo-info-container">
@@ -1033,9 +1059,12 @@ async function topUp(amount, trigger) {
   }
 }
 
+// EVENTOS: BOTONES, FORMULARIOS Y CONTROLES
 document.addEventListener("click", async (event) => {
   // La mayoría de las pantallas se vuelve a dibujar; escuchar en el documento
   // permite que los botones recién creados sigan respondiendo.
+  // Los botones de las pantallas se crean al dibujarlas; este listener único
+  // sigue funcionando aunque el HTML interno se reemplace.
   const target = event.target.closest("[data-profile], [data-view], [data-action]");
   if (!target) return;
 
@@ -1105,6 +1134,8 @@ document.querySelector("#registration-toggle").addEventListener("click", () => {
 });
 
 document.querySelector("#login-form").addEventListener("submit", async (event) => {
+  // El formulario manda las credenciales, guarda el token y carga el perfil.
+  // La API valida la contraseña; el navegador no decide si son correctas.
   event.preventDefault();
   const form = event.currentTarget;
   const submit = form.querySelector('button[type="submit"]');
@@ -1135,6 +1166,7 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
 });
 
 document.querySelector("#registration-form").addEventListener("submit", async (event) => {
+  // Registro crea la cuenta en el backend. Después se completa el login normal.
   event.preventDefault();
   const form = event.currentTarget;
   const submit = form.querySelector('button[type="submit"]');
@@ -1189,6 +1221,8 @@ document.addEventListener("submit", async (event) => {
     const submit = form.querySelector('button[type="submit"]');
     submit.disabled = true;
     try {
+      // Se envía el token leído y una clave estable para que reintentar no cree
+      // un segundo pago si la respuesta tarda o se pierde la conexión.
       const result = await apiRequest("/driver/qr/validate", {
         method: "POST",
         body: JSON.stringify({
@@ -1231,6 +1265,8 @@ document.addEventListener("submit", async (event) => {
     const route = routeCatalog.find((item) => item.id === routeId)?.name;
     selectedPaymentMethod = String(formData.get("method") ?? "");
     const fare = getFare();
+    // Estas comprobaciones dan respuesta rápida en la pantalla. El backend
+    // vuelve a comprobarlas porque es quien protege los datos y las reglas.
     if (!route) {
       showToast("Selecciona una ruta disponible.", true);
       return;
@@ -1286,6 +1322,8 @@ document.addEventListener("submit", async (event) => {
     event.preventDefault();
     const destinationRouteId = Number(new FormData(event.target).get("route"));
     const source = state.trips.find((trip) => trip.tripId === Number(event.target.dataset.tripId));
+    // Se comprueba que el viaje y el destino estén en pantalla; el servicio
+    // también valida propiedad, tiempo y ruta antes de guardar el traspaso.
     if (!source || !routeCatalog.some((route) => route.id === destinationRouteId) || source.transferred) {
       showToast("No se pudo validar el pago y la nueva ruta.", true);
       return;

@@ -12,14 +12,17 @@ if TYPE_CHECKING:
     from app.models.viaje import Viaje
 
 
+# Ruta activa que puede elegirse para un viaje.
 class Ruta(Base):
     # Catálogo de recorridos; sus relaciones permiten llegar a tarifas y viajes.
     __tablename__ = "routes"
 
+    # La ruta tiene un identificador, un nombre visible y un estado de uso.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nombre: Mapped[str] = mapped_column("name", String(30), unique=True, nullable=False)
     activa: Mapped[bool] = mapped_column("active", Boolean, nullable=False, default=True)
 
+    # Desde una ruta se consultan sus tarifas, turnos, viajes y transbordos.
     tarifas: Mapped[list['Tarifa']] = relationship(back_populates="ruta")
     turnos: Mapped[list['Turno']] = relationship(back_populates="ruta")
     viajes: Mapped[list['Viaje']] = relationship(back_populates="ruta")

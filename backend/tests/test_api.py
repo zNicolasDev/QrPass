@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -37,9 +37,12 @@ def start_driver(client: TestClient, headers: dict[str, str]) -> None:
 
 
 @pytest.fixture()
-def client() -> Iterator[TestClient]:
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     # Cada escenario arranca con una base de datos de memoria propia; así un
     # pago de una prueba no cambia el saldo con el que comienza la siguiente.
+    # Los flujos generales usan un día hábil fijo; las pruebas de calendario
+    # indican su propia fecha y también cubren fines de semana y festivos.
+    monkeypatch.setattr(services, "fecha_servicio", lambda: date(2026, 10, 19))
     application = crear_aplicacion("sqlite://")
     with TestClient(application, raise_server_exceptions=False) as test_client:
         yield test_client

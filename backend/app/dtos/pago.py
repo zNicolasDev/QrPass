@@ -7,9 +7,11 @@ from app.dtos.enumeraciones import TipoTarjeta, MedioPago
 from app.dtos.base import EsquemaBase
 
 
+# Ruta y medio de pago solicitados para registrar un viaje.
 class CrearPagoSolicitud(EsquemaBase):
     # Datos que el cliente necesita para solicitar un viaje pagado.
     # Annotated combina el tipo int con restricciones extra definidas por Field.
+    # route_id debe ser positivo; method y card_type deben formar una combinación válida.
     ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
     medio: MedioPago = Field(validation_alias="method", serialization_alias="method")
     tipo_tarjeta: TipoTarjeta | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
@@ -25,12 +27,15 @@ class CrearPagoSolicitud(EsquemaBase):
         return self
 
 
+# Resumen del pago y del viaje creado por la API.
 class ReciboPago(EsquemaBase):
     # Comprobante de un pago y del viaje que produjo.
+    # IDs conectan el pago con su viaje y su ruta.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
     viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
+    # Datos del cobro y saldo resultante que se muestran después de confirmar.
     medio: str = Field(validation_alias="method", serialization_alias="method")
     tipo_tarjeta: str | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
     tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
@@ -42,8 +47,10 @@ class ReciboPago(EsquemaBase):
     modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
 
 
+# Movimiento de pago o recarga presentado en el historial.
 class HistorialPagosRespuesta(EsquemaBase):
     # Elemento del historial; ruta/viaje pueden faltar en movimientos de recarga.
+    # El saldo anterior y posterior permiten ver cómo afectó el movimiento a la billetera.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
     tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
     medio: str = Field(validation_alias="method", serialization_alias="method")
@@ -58,12 +65,15 @@ class HistorialPagosRespuesta(EsquemaBase):
     nombre_ruta: str | None = Field(default=None, validation_alias="route_name", serialization_alias="route_name")
 
 
+# Monto y clave que identifican una solicitud de recarga.
 class CrearRecargaSolicitud(EsquemaBase):
     # Solicitud de recarga con monto acotado y clave para evitar duplicados.
+    # amount está expresado en pesos y no puede superar el límite de demostración.
     monto: Annotated[int, Field(gt=0, le=500000, validation_alias="amount", serialization_alias="amount")]
     clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
 
 
+# Resultado de la recarga y saldo que queda en la cuenta.
 class ReciboRecarga(EsquemaBase):
     # Comprobante de recarga con el saldo resultante.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")

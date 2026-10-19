@@ -7,8 +7,10 @@ from app.dtos.enumeraciones import TipoTarjeta, MedioPago
 from app.dtos.base import EsquemaBase
 
 
+# Ruta, vehículo y conductor que el servidor tiene asignados.
 class AsignacionConductorRespuesta(EsquemaBase):
     # Datos de la ruta, vehículo y conductor asignados para la pantalla operativa.
+    # Incluye la identidad de quien conduce y los datos de la ruta/vehículo.
     nombre_conductor: str = Field(validation_alias="driver_name", serialization_alias="driver_name")
     numero_licencia: str = Field(validation_alias="license_number", serialization_alias="license_number")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
@@ -18,8 +20,10 @@ class AsignacionConductorRespuesta(EsquemaBase):
     modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
 
 
+# Un recaudo incluido en el detalle del turno.
 class MovimientoTurnoRespuesta(EsquemaBase):
     # Un pago individual incluido dentro del resumen de un turno.
+    # Cada fila indica qué pago fue, en qué ruta, por qué medio y cuándo ocurrió.
     pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
     medio: str = Field(validation_alias="method", serialization_alias="method")
@@ -27,8 +31,10 @@ class MovimientoTurnoRespuesta(EsquemaBase):
     creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
 
 
+# Resumen de jornada, totales y movimientos del conductor.
 class TurnoConductorRespuesta(EsquemaBase):
     # Resumen agregado: totales por medio y lista de movimientos del turno.
+    # Los primeros datos identifican la jornada y su ruta/vehículo.
     turno_id: int = Field(validation_alias="shift_id", serialization_alias="shift_id")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
@@ -36,20 +42,24 @@ class TurnoConductorRespuesta(EsquemaBase):
     estado: str = Field(validation_alias="status", serialization_alias="status")
     inicia_en: datetime = Field(validation_alias="starts_at", serialization_alias="starts_at")
     finaliza_en: datetime | None = Field(default=None, validation_alias="ends_at", serialization_alias="ends_at")
+    # Totales y cantidad de pagos calculados por el servicio.
     total_efectivo: int = Field(default=0, validation_alias="cash_total", serialization_alias="cash_total")
     total_qr: int = Field(default=0, validation_alias="qr_total", serialization_alias="qr_total")
     total_tarjeta: int = Field(default=0, validation_alias="card_total", serialization_alias="card_total")
     cantidad_pagos: int = Field(default=0, validation_alias="payment_count", serialization_alias="payment_count")
     # default_factory crea una lista nueva por respuesta, sin compartirla entre instancias.
     movimientos: list[MovimientoTurnoRespuesta] = Field(default_factory=list, validation_alias="entries", serialization_alias="entries")
+    # Estos dos valores solo se completan después del cierre del turno.
     efectivo_contado: int | None = Field(default=None, validation_alias="cash_counted", serialization_alias="cash_counted")
     diferencia_efectivo: int | None = Field(default=None, validation_alias="cash_difference", serialization_alias="cash_difference")
     moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
     modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
 
 
+# Medio de pago que el conductor registra durante su turno.
 class PagoConductorSolicitud(EsquemaBase):
     # Cobro manual a bordo; wallet/QR usa el endpoint específico de escaneo.
+    # El cliente solicita el medio; el validador exige el tipo si es tarjeta.
     medio: MedioPago = Field(validation_alias="method", serialization_alias="method")
     tipo_tarjeta: TipoTarjeta | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
     clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
@@ -66,18 +76,22 @@ class PagoConductorSolicitud(EsquemaBase):
         return self
 
 
+# Token QR que el conductor envía para validar un viaje.
 class ValidacionQrConductorSolicitud(EsquemaBase):
     # El conductor envía el token escaneado y una clave para reconocer reintentos.
     token: Annotated[str, Field(min_length=20, max_length=512)]
     clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
 
 
+# Efectivo contado que se compara con el recaudo registrado.
 class CierreTurnoSolicitud(EsquemaBase):
     # Efectivo contado por el conductor; no puede ser negativo.
     efectivo_contado: Annotated[int, Field(ge=0, validation_alias="cash_counted", serialization_alias="cash_counted")]
 
 
+# Resultado del cierre y resumen final del turno.
 class CierreTurnoRespuesta(EsquemaBase):
     # Agrupa el turno actualizado y confirma que la acción de cierre se completó.
+    # shift contiene el resumen final; closed indica que se guardó el cierre.
     turno: TurnoConductorRespuesta = Field(validation_alias="shift", serialization_alias="shift")
     cerrado: bool = Field(validation_alias="closed", serialization_alias="closed")

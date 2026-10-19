@@ -69,7 +69,7 @@ Todos los endpoints usan el prefijo `/api/v1`.
 ## Carpetas y archivos
 
 - `app/auth.py`: autenticación y permisos por rol.
-- `app/routes.py`: endpoints HTTP.
+- `app/controllers/`: controladores HTTP organizados por sistema, autenticación, pasajero y conductor.
 - `app/dtos/`: DTOs; clases y campos internos en español, con alias que conservan las claves actuales de JSON para solicitudes y respuestas.
 - `app/services.py`: reglas de pagos, tarifas, QR, traspasos y turnos.
 - `app/models/`: modelos; clases, atributos y relaciones SQLAlchemy en español. Los nombres físicos de tablas y columnas siguen iguales mediante los nombres explícitos de SQLAlchemy.

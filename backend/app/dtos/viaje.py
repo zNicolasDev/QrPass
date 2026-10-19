@@ -5,8 +5,10 @@ from pydantic import Field
 from app.dtos.base import EsquemaBase
 
 
+# Datos de un viaje que se muestran en listas y detalles.
 class ViajeRespuesta(EsquemaBase):
     # Vista de un viaje; combina datos que internamente pertenecen a pago y ruta.
+    # Los IDs permiten relacionarlo; los demás campos sirven para mostrar el historial.
     viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")

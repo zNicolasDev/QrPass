@@ -26,6 +26,7 @@
     <script src="app.js" defer></script>
   </head>
   <body>
+    <!-- Simbolos SVG reutilizados por botones e iconos de toda la pagina. -->
     <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <symbol id="icon-grid" viewBox="0 0 24 24">
         <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
@@ -96,6 +97,7 @@
 
     <!-- La entrada y la app viven en la misma página; JavaScript muestra una
          u otra según la sesión que el servidor reconoce. -->
+    <!-- Acceso y registro: se muestra antes de iniciar sesion. -->
     <main class="login-gate" id="login-gate">
       <section class="login-card" aria-labelledby="login-title">
         <a class="brand login-brand" href="#login" aria-label="QrPass">
@@ -109,20 +111,64 @@
         </div>
         <form id="login-form" class="login-form">
           <label for="login-username">Usuario o correo electrónico</label>
-          <input class="input" id="login-username" name="username" type="text" autocomplete="username" placeholder="Tu usuario o correo" minlength="3" maxlength="254" required />
+          <input
+            class="input"
+            id="login-username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            placeholder="Tu usuario o correo"
+            minlength="3"
+            maxlength="254"
+            required
+          />
           <label for="login-password">Contraseña</label>
-          <input class="input" id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required />
+          <input
+            class="input"
+            id="login-password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Tu contraseña"
+            required
+          />
           <p class="login-error" id="login-error" role="alert" hidden></p>
           <button class="button login-submit" type="submit">Iniciar sesión <svg class="icon"><use href="#icon-arrow" /></svg></button>
         </form>
         <button class="login-register-toggle" id="registration-toggle" type="button">Crear cuenta de pasajero</button>
         <form id="registration-form" class="login-form" hidden>
           <label for="register-names">Nombre completo</label>
-          <input class="input" id="register-names" name="names" type="text" autocomplete="name" minlength="2" maxlength="120" required />
+          <input
+            class="input"
+            id="register-names"
+            name="names"
+            type="text"
+            autocomplete="name"
+            minlength="2"
+            maxlength="120"
+            required
+          />
           <label for="register-email">Correo electrónico</label>
-          <input class="input" id="register-email" name="email" type="email" autocomplete="email" maxlength="254" required />
+          <input
+            class="input"
+            id="register-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            maxlength="254"
+            required
+          />
           <label for="register-password">Contraseña (mínimo 12 caracteres)</label>
-          <input class="input" id="register-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required />
+          <input
+            class="input"
+            id="register-password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            minlength="12"
+            maxlength="256"
+            required
+          />
           <label class="login-consent"><input name="privacy_consent" type="checkbox" required /><span>Autorizo el tratamiento de mis datos para esta demostración y acepto su política de privacidad.</span></label>
           <p class="login-error" id="registration-error" role="alert" hidden></p>
           <button class="button login-submit" type="submit">Crear cuenta pasajera <svg class="icon"><use href="#icon-arrow" /></svg></button>
@@ -135,6 +181,7 @@
 
     <!-- Este contenedor se mantiene oculto hasta validar la cuenta y sus roles. -->
     <div class="app-shell">
+      <!-- Navegacion lateral y opciones disponibles por perfil. -->
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="#inicio" data-view="inicio" aria-label="QrPass, inicio">
           <span class="brand-mark" aria-hidden="true">
@@ -195,22 +242,40 @@
         </div>
       </aside>
 
+      <!-- Area de trabajo: barra superior, aviso y pantalla activa. -->
       <main class="main-area">
+        <!-- Contexto de la pagina, perfil, estado de conexion e instalacion. -->
         <header class="topbar">
-          <button class="mobile-menu icon-button" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false">
+          <button
+            class="mobile-menu icon-button"
+            id="menu-toggle"
+            aria-label="Abrir menú"
+            aria-expanded="false"
+          >
             <svg class="icon"><use href="#icon-menu" /></svg>
           </button>
           <div class="breadcrumb"><span id="breadcrumb-context">Pasajero demo</span><span class="breadcrumb-slash">/</span><strong id="page-crumb">Resumen</strong></div>
           <div class="topbar-right">
             <span class="single-profile-label" id="single-profile-label">Pasajero</span>
-            <div class="profile-switcher" id="workspace-switcher" role="group" aria-label="Cambiar entre roles autorizados" hidden>
+            <div
+              class="profile-switcher"
+              id="workspace-switcher"
+              role="group"
+              aria-label="Cambiar entre roles autorizados"
+              hidden
+            >
               <button type="button" data-profile="pasajero" aria-pressed="false">Pasajero</button>
               <button type="button" data-profile="conductor" aria-pressed="true">Conductor</button>
             </div>
             <span class="service-status" id="connection-status" role="status"><span></span><span id="connection-label">API de demostración</span></span>
             <span class="topbar-divider"></span>
             <span class="topbar-date" id="today-date"></span>
-            <button class="button button-outline install-button" id="install-button" type="button" hidden><svg class="icon"><use href="#icon-download" /></svg> Instalar app</button>
+            <button
+              class="button button-outline install-button"
+              id="install-button"
+              type="button"
+              hidden
+            ><svg class="icon"><use href="#icon-download" /></svg> Instalar app</button>
             <span class="avatar avatar-small" id="topbar-avatar">MC</span>
           </div>
         </header>
@@ -219,6 +284,7 @@
           <span><strong>Versión de demostración</strong> · Los movimientos son ficticios y los registra una API local.</span>
           <button class="demo-info-link" type="button" data-action="demo-info">¿Qué significa?</button>
         </div>
+        <!-- JavaScript coloca aqui la pantalla seleccionada. -->
         <section id="app-content" class="page-content" aria-live="polite"></section>
         <footer class="site-footer">
           <span>QrPass <span class="footer-dot">·</span> Hecho para moverte mejor.</span>
@@ -226,18 +292,31 @@
         </footer>
       </main>
     </div>
-    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Cerrar menú"></button>
+    <button
+      class="sidebar-backdrop"
+      id="sidebar-backdrop"
+      type="button"
+      aria-label="Cerrar menú"
+    ></button>
+    <!-- Navegacion compacta para pantallas pequenas. -->
     <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Navegación rápida">
-      <button class="mobile-tab is-active" data-view="inicio" data-tab-view="inicio" aria-current="page"><svg class="icon"><use href="#icon-grid" /></svg><span>Inicio</span></button>
+      <button
+        class="mobile-tab is-active"
+        data-view="inicio"
+        data-tab-view="inicio"
+        aria-current="page"
+      ><svg class="icon"><use href="#icon-grid" /></svg><span>Inicio</span></button>
       <button class="mobile-tab" data-view="qr" data-tab-view="qr"><svg class="icon"><use href="#icon-qr" /></svg><span>Mi QR</span></button>
       <button class="mobile-tab" data-view="historial" data-tab-view="historial"><svg class="icon"><use href="#icon-clock" /></svg><span>Viajes</span></button>
       <button class="mobile-tab" data-view="recarga" data-tab-view="recarga"><svg class="icon"><use href="#icon-wallet" /></svg><span>Saldo</span></button>
     </nav>
 
+    <!-- Ventana reutilizable para pagos, recibos y formularios. -->
     <dialog class="modal" id="app-modal" aria-labelledby="modal-title">
       <form method="dialog" class="modal-dismiss"><button class="icon-button" aria-label="Cerrar ventana"><svg class="icon"><use href="#icon-close" /></svg></button></form>
       <div id="modal-content"></div>
     </dialog>
+    <!-- Mensajes breves de confirmacion y error. -->
     <div class="toast-region" id="toast-region" role="status" aria-live="polite"></div>
   </body>
 </html>

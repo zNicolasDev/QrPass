@@ -6,19 +6,25 @@ from pydantic import Field
 from app.dtos.base import EsquemaBase
 
 
+# Ruta y tiempo de vigencia solicitados para generar un QR.
 class CrearCodigoQrSolicitud(EsquemaBase):
     # Solicitud para generar un QR; la vigencia está limitada a 15 minutos.
+    # route_id indica para qué ruta se genera; validity_minutes pide una vigencia de 1 a 15.
     ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
     vigencia_minutos: Annotated[int, Field(default=15, ge=1, le=15, validation_alias="validity_minutes", serialization_alias="validity_minutes")]
 
 
+# Token QR, estado, vigencia e imagen que recibe el pasajero.
 class CodigoQrRespuesta(EsquemaBase):
     # Respuesta con el token y la imagen que la interfaz puede mostrar y escanear.
+    # qr_id identifica el registro; token es el contenido que leerá el conductor.
     codigo_qr_id: int = Field(validation_alias="qr_id", serialization_alias="qr_id")
     token: str
+    # Estado y fechas indican si el código todavía puede usarse.
     estado: str = Field(validation_alias="status", serialization_alias="status")
     creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
     vence_en: datetime = Field(validation_alias="expires_at", serialization_alias="expires_at")
+    # La imagen viene lista para mostrar en el navegador como data URI.
     escaneable: bool = Field(default=True, validation_alias="scannable", serialization_alias="scannable")
     imagen_data_uri: str = Field(validation_alias="image_data_uri", serialization_alias="image_data_uri")
     modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")

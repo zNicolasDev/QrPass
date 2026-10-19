@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.rol_usuario import RolUsuario
 
 
+# Cuenta de la persona, su saldo y sus relaciones con pagos, roles, tarjetas y QR.
 class Usuario(Base):
     # Cuenta principal; una persona puede tener pagos, QR, tarjetas y roles.
     __tablename__ = "users"
@@ -26,6 +27,7 @@ class Usuario(Base):
     )
 
     # Mapped expresa el tipo Python; mapped_column define la columna SQL.
+    # Estos campos guardan identidad, datos de acceso, consentimiento y saldo.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nombres: Mapped[str] = mapped_column("names", String(120), nullable=False)
     nombre_usuario: Mapped[str | None] = mapped_column("username", String(80), unique=True)

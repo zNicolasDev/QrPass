@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.usuario import Usuario
 
 
+# Movimiento de dinero o recaudo generado por un viaje o una recarga.
 class Pago(Base):
     # Registro financiero interno: conserva importe, saldos y medio utilizado.
     __tablename__ = "payments"
@@ -27,11 +28,13 @@ class Pago(Base):
         UniqueConstraint("user_id", "idempotency_key", name="uq_payments_user_idempotency_key"),
     )
 
+    # Identificador y cuenta a la que se atribuye este movimiento.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(
         # El primer argumento conserva el nombre físico en inglés en la tabla.
         "user_id", ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+    # La clave reconoce reintentos; tarjeta y QR son opcionales según el medio.
     clave_idempotencia: Mapped[str | None] = mapped_column("idempotency_key", String(80))
     tarjeta_id: Mapped[int | None] = mapped_column(
         "card_id", ForeignKey("cards.id", ondelete="RESTRICT")
@@ -39,9 +42,11 @@ class Pago(Base):
     codigo_qr_id: Mapped[int | None] = mapped_column(
         "qr_code_id", ForeignKey("qr_codes.id", ondelete="RESTRICT")
     )
+    # Datos del movimiento: medio, clase de operación, monto y estado.
     medio: Mapped[str] = mapped_column("method", String(20), nullable=False)
     tipo_movimiento: Mapped[str] = mapped_column("movement_type", String(20), nullable=False)
     monto: Mapped[int] = mapped_column("amount", Integer, nullable=False)
+    # Se guardan ambos saldos para que el historial muestre el efecto del pago.
     saldo_anterior: Mapped[int] = mapped_column("balance_before", Integer, nullable=False)
     saldo_posterior: Mapped[int] = mapped_column("balance_after", Integer, nullable=False)
     estado: Mapped[str] = mapped_column("status", String(20), nullable=False, default="completed")
@@ -49,6 +54,8 @@ class Pago(Base):
         "created_at", DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    # El usuario puede tener muchos pagos; un pago de pasaje puede originar
+    # como máximo un viaje, mientras una recarga no tiene viaje asociado.
     usuario: Mapped['Usuario'] = relationship(back_populates="pagos")
     tarjeta: Mapped["Tarjeta | None"] = relationship(back_populates="pagos")
     codigo_qr: Mapped["CodigoQr | None"] = relationship(back_populates="pagos")

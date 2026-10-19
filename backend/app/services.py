@@ -1,4 +1,5 @@
 from __future__ import annotations
+# Este módulo contiene las reglas de negocio de pagos, tarifas, QR, traspasos y turnos.
 
 import base64
 import hashlib
@@ -14,10 +15,13 @@ import holidays
 import qrcode
 from qrcode.image.svg import SvgPathImage
 from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.dtos import CrearPagoSolicitud, MedioPago, CrearRecargaSolicitud, CrearTransbordoSolicitud
 from app.models import Tarifa, Pago, CodigoQr, Ruta, Turno, Transbordo, Viaje, Usuario
+from app.models import Rol, RolUsuario, Conductor
+from app.passwords import crear_hash_contrasena
+from app.passwords import verificar_contrasena
 
 
 # Aquí están las decisiones que una persona esperaría que siempre se cumplan,
@@ -25,6 +29,7 @@ from app.models import Tarifa, Pago, CodigoQr, Ruta, Turno, Transbordo, Viaje, U
 IBAGUE_TIMEZONE = ZoneInfo("America/Bogota")
 
 
+# Estructuras internas para pasar un resumen claro del servicio al controlador.
 class ResumenMovimientoTurno(TypedDict):
     payment_id: int
     route_name: str
@@ -43,20 +48,84 @@ class ResumenTurnoConductor(TypedDict):
 
 
 class ErrorDominio(Exception):
+    # El servicio informa una regla incumplida sin importar cómo se presenta
+    # el resultado (API, pruebas u otra interfaz).
     def __init__(self, status_code: int, detail: str) -> None:
         self.status_code = status_code
         self.detail = detail
         super().__init__(detail)
 
 
+# Registra una cuenta pasajera y asigna únicamente el rol público permitido.
+def registrar_pasajero(session: Session, names: str, email: str, password: str) -> Usuario:
+    normalized_email = email.strip().lower()
+    if session.scalar(select(Usuario.id).where(Usuario.correo == normalized_email)) is not None:
+        raise ErrorDominio(409, "Ya existe una cuenta con ese correo.")
+    passenger_role = session.scalar(select(Rol).where(Rol.codigo == "PASSENGER"))
+    if passenger_role is None:
+        raise ErrorDominio(503, "Los roles del sistema no están inicializados.")
+    user = Usuario(
+        nombres=" ".join(names.split()),
+        nombre_usuario=normalized_email,
+        correo=normalized_email,
+        hash_contrasena=crear_hash_contrasena(password),
+        consentimiento_privacidad_en=ahora_servicio(),
+        numero_documento=f"QRPASS-{secrets.token_hex(12)}",
+        saldo_billetera=0,
+        estado="active",
+    )
+    session.add(user)
+    session.flush()
+    user.roles.append(RolUsuario(rol=passenger_role))
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+# Busca una cuenta activa y valida su contraseña para iniciar sesión.
+def autenticar_usuario(session: Session, username: str, password: str) -> Usuario:
+    user = session.execute(
+        select(Usuario)
+        .options(joinedload(Usuario.roles).joinedload(RolUsuario.rol))
+        .where(Usuario.nombre_usuario == username, Usuario.estado == "active")
+    ).unique().scalar_one_or_none()
+    if user is None or not verificar_contrasena(password, user.hash_contrasena):
+        raise ErrorDominio(401, "Usuario o contraseña incorrectos.")
+    return user
+
+
+# Busca una cuenta activa y carga sus roles para validar permisos de la API.
+def obtener_usuario_activo(session: Session, user_id: int) -> Usuario | None:
+    return session.scalar(
+        select(Usuario)
+        .options(selectinload(Usuario.roles).selectinload(RolUsuario.rol))
+        .where(Usuario.id == user_id, Usuario.estado == "active")
+    )
+
+
+# Comprueba si la cuenta tiene asignado el rol que pide una operación.
+def usuario_tiene_rol(user: Usuario, role_code: str) -> bool:
+    return any(user_role.rol.codigo == role_code for user_role in user.roles)
+
+
+# Obtiene el perfil del conductor y su asignación para presentar la respuesta.
+def obtener_datos_asignacion_conductor(session: Session, user: Usuario) -> tuple[Conductor | None, Turno | None]:
+    # Se consultan el perfil y el turno juntos porque la pantalla necesita ambos.
+    return session.get(Conductor, user.id), obtener_asignacion_conductor(session, user)
+
+
 def ahora_servicio() -> datetime:
+    # Todos los vencimientos y registros se comparan con una hora UTC común.
     return datetime.now(timezone.utc)
 
 
 def fecha_servicio() -> date:
+    # Las tarifas se calculan con la fecha local de Ibagué, aunque el servidor
+    # esté desplegado en otra zona horaria.
     return datetime.now(IBAGUE_TIMEZONE).date()
 
 
+# Clasifica una fecha usando el calendario colombiano para elegir la tarifa.
 def tipo_dia(day: date) -> str:
     # El día del servicio se entiende según Ibagué; no según la zona horaria
     # del servidor o del celular que hizo la solicitud.
@@ -64,6 +133,7 @@ def tipo_dia(day: date) -> str:
 
 
 def obtener_usuario_demo(session: Session) -> Usuario:
+    # Recupera la cuenta fija usada por los flujos de demostración.
     user = session.get(Usuario, 1)
     if user is None or user.estado != "active":
         raise ErrorDominio(404, "La cuenta de demostración no existe o está inactiva.")
@@ -71,10 +141,12 @@ def obtener_usuario_demo(session: Session) -> Usuario:
 
 
 def listar_rutas(session: Session) -> list[Ruta]:
+    # Las rutas inactivas no deben aparecer en el catálogo seleccionable.
     statement = select(Ruta).where(Ruta.activa.is_(True)).order_by(Ruta.id)
     return list(session.scalars(statement))
 
 
+# Busca y devuelve las tarifas activas de una ruta o de todo el catálogo.
 def obtener_tarifa_vigente(session: Session, route_id: int | None, on_date: date | None = None) -> list[dict[str, object]]:
     requested_date = on_date or fecha_servicio()
     day_type = tipo_dia(requested_date)
@@ -104,11 +176,13 @@ def obtener_tarifa_vigente(session: Session, route_id: int | None, on_date: date
 
 
 def _encode_qr_payload(payload: dict[str, object]) -> str:
+    # Convierte los datos del QR a texto compacto que se puede firmar y compartir.
     serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return base64.urlsafe_b64encode(serialized).rstrip(b"=").decode("ascii")
 
 
 def _decode_qr_payload(encoded: str) -> dict[str, object]:
+    # Deshace la codificación y rechaza el contenido si no es un objeto JSON.
     payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
     decoded = json.loads(payload)
     if not isinstance(decoded, dict):
@@ -117,6 +191,8 @@ def _decode_qr_payload(encoded: str) -> dict[str, object]:
 
 
 def crear_imagen_qr(token: str) -> str:
+    # Genera una imagen SVG incrustada como data URI; así la API devuelve el QR
+    # junto con el token sin guardar un archivo de imagen en el proyecto.
     code = qrcode.QRCode(box_size=8, border=4, image_factory=SvgPathImage)
     code.add_data(token)
     code.make(fit=True)
@@ -127,6 +203,7 @@ def crear_imagen_qr(token: str) -> str:
     return f"data:image/svg+xml;base64,{encoded_image}"
 
 
+# Revisa ruta, tarifa y saldo; luego guarda y firma un QR temporal.
 def crear_codigo_qr(
     session: Session,
     user: Usuario,
@@ -134,11 +211,14 @@ def crear_codigo_qr(
     validity_minutes: int,
     signing_secret: bytes,
 ) -> CodigoQr:
+    # Antes de emitir el QR se confirma que la ruta exista y que el saldo cubra
+    # al menos una tarifa. El QR no debita el saldo todavía.
     route = _obtener_ruta_activa(session, route_id)
     fare = _obtener_tarifa_ruta(session, route.id)
     if user.saldo_billetera < fare.monto:
         raise ErrorDominio(409, "Saldo insuficiente para generar un código de viaje.")
     now = ahora_servicio()
+    # Solo se permite un QR activo por cuenta: se revocan los anteriores.
     session.execute(
         update(CodigoQr)
         .where(CodigoQr.usuario_id == user.id, CodigoQr.estado == "active")
@@ -153,6 +233,8 @@ def crear_codigo_qr(
     )
     session.add(qr_code)
     session.flush()
+    # El token lleva identificadores y vencimiento; la firma permite detectar
+    # cambios hechos al contenido después de generar el QR.
     payload = {
         "v": 1,
         "qr_id": qr_code.id,
@@ -170,6 +252,7 @@ def crear_codigo_qr(
 
 
 def _obtener_ruta_activa(session: Session, route_id: int) -> Ruta:
+    # Esta consulta compartida evita usar una ruta inexistente o desactivada.
     route = session.scalar(select(Ruta).where(Ruta.id == route_id, Ruta.activa.is_(True)))
     if route is None:
         raise ErrorDominio(404, "La ruta solicitada no existe o está inactiva.")
@@ -177,6 +260,8 @@ def _obtener_ruta_activa(session: Session, route_id: int) -> Ruta:
 
 
 def _obtener_tarifa_ruta(session: Session, route_id: int) -> Tarifa:
+    # La tarifa se determina con la fecha y zona horaria del servicio, no con
+    # la hora local que envíe el navegador.
     day_type = tipo_dia(fecha_servicio())
     fare = session.scalar(select(Tarifa).where(
         Tarifa.ruta_id == route_id,
@@ -188,7 +273,10 @@ def _obtener_tarifa_ruta(session: Session, route_id: int) -> Tarifa:
     return fare
 
 
+# Valida el pago, actualiza el saldo si corresponde y guarda el pago y el viaje.
 def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> tuple[Pago, Viaje, int]:
+    # Flujo general: evitar un cobro duplicado, validar ruta y tarifa, aplicar
+    # el medio de pago y guardar juntos el pago y el viaje.
     if request.clave_idempotencia:
         # Si la conexión se corta y la pantalla reintenta, la persona no debe
         # pagar dos veces por haber pulsado una sola vez.
@@ -234,6 +322,7 @@ def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> 
             raise ErrorDominio(422, "El método tarjeta requiere indicar débito o crédito.")
         payment_method = f"card_{request.tipo_tarjeta.value}"
 
+    # Con el saldo resuelto, se construyen los dos registros que forman el pasaje.
     payment = Pago(
         usuario_id=user.id,
         medio=payment_method,
@@ -262,7 +351,10 @@ def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> 
     return payment, trip, balance_after
 
 
+# Acredita saldo una sola vez usando la clave de idempotencia.
 def crear_recarga(session: Session, user: Usuario, request: CrearRecargaSolicitud) -> Pago:
+    # Una recarga repetida con la misma clave devuelve el pago original y no
+    # vuelve a aumentar el saldo.
     prior = session.scalar(select(Pago).where(
         Pago.usuario_id == user.id,
         Pago.clave_idempotencia == request.clave_idempotencia,
@@ -300,6 +392,8 @@ def crear_recarga(session: Session, user: Usuario, request: CrearRecargaSolicitu
 
 
 def listar_viajes(session: Session, user: Usuario) -> list[Viaje]:
+    # El filtro por usuario evita exponer viajes de otras cuentas; las relaciones
+    # se cargan para que la respuesta pueda mostrar ruta, pago y transbordo.
     statement = (
         select(Viaje)
         .join(Viaje.pago)
@@ -311,6 +405,8 @@ def listar_viajes(session: Session, user: Usuario) -> list[Viaje]:
 
 
 def obtener_viaje(session: Session, user: Usuario, trip_id: int) -> Viaje:
+    # Se busca por viaje y dueño al mismo tiempo, para no revelar si otro usuario
+    # tiene un identificador de viaje válido.
     trip = session.scalar(
         select(Viaje)
         .join(Viaje.pago)
@@ -327,6 +423,7 @@ def obtener_viaje(session: Session, user: Usuario, trip_id: int) -> Viaje:
 
 
 def listar_pagos(session: Session, user: Usuario) -> list[Pago]:
+    # Devuelve pagos y recargas de la cuenta, ordenados desde el más reciente.
     statement = (
         select(Pago)
         .options(joinedload(Pago.viaje).joinedload(Viaje.ruta))
@@ -336,6 +433,7 @@ def listar_pagos(session: Session, user: Usuario) -> list[Pago]:
     return list(session.scalars(statement))
 
 
+# Valida el viaje anterior y las reglas de tiempo y ruta para hacer el traspaso.
 def crear_transbordo(session: Session, user: Usuario, request: CrearTransbordoSolicitud) -> Transbordo:
     # El traspaso no crea otro pago: enlaza el viaje ya pagado con otra ruta
     # y deja intacto el registro que la persona puede consultar después.
@@ -374,6 +472,7 @@ def crear_transbordo(session: Session, user: Usuario, request: CrearTransbordoSo
 
 
 def obtener_turno_activo_conductor(session: Session, driver: Usuario) -> Turno | None:
+    # Un turno activo todavía no tiene hora de finalización.
     return session.scalar(
         select(Turno)
         .options(joinedload(Turno.ruta), joinedload(Turno.vehiculo))
@@ -383,6 +482,7 @@ def obtener_turno_activo_conductor(session: Session, driver: Usuario) -> Turno |
 
 
 def obtener_asignacion_conductor(session: Session, driver: Usuario) -> Turno | None:
+    # Incluye asignaciones pendientes y activas, pero excluye turnos ya cerrados.
     return session.scalar(
         select(Turno)
         .options(joinedload(Turno.ruta), joinedload(Turno.vehiculo))
@@ -395,11 +495,39 @@ def obtener_asignacion_conductor(session: Session, driver: Usuario) -> Turno | N
     )
 
 
+# Inicia la asignación solo si corresponde a la ruta solicitada.
+def iniciar_turno_conductor(session: Session, driver: Usuario, route_id: int) -> ResumenTurnoConductor:
+    shift = obtener_turno_activo_conductor(session, driver)
+    if shift is not None:
+        if shift.ruta_id != route_id:
+            raise ErrorDominio(403, "Solo puedes iniciar la ruta asignada.")
+        summary = resumir_turno_conductor(session, driver)
+        if summary is None:
+            raise ErrorDominio(409, "No se pudo consultar el turno activo.")
+        return summary
+
+    shift = obtener_asignacion_conductor(session, driver)
+    if shift is None:
+        raise ErrorDominio(409, "No hay una asignación para iniciar.")
+    if shift.ruta_id != route_id:
+        raise ErrorDominio(403, "Solo puedes iniciar la ruta asignada.")
+
+    shift.estado = "active"
+    shift.inicia_en = ahora_servicio()
+    session.commit()
+    summary = resumir_turno_conductor(session, driver)
+    if summary is None:
+        raise ErrorDominio(409, "No se pudo iniciar el turno asignado.")
+    return summary
+
+
 def _validar_ruta_conductor(shift: Turno, route_id: int) -> None:
+    # El conductor solo puede cobrar en la ruta asociada a su turno actual.
     if shift.ruta_id != route_id:
         raise ErrorDominio(409, "El código o pago no corresponde a la ruta asignada al turno.")
 
 
+# Verifica turno, firma, vigencia y saldo; consume el QR y registra el viaje.
 def validar_y_canjear_qr(
     session: Session,
     driver: Usuario,
@@ -431,6 +559,7 @@ def validar_y_canjear_qr(
     except (ValueError, KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError):
         raise ErrorDominio(422, "El código QR no es válido.") from None
 
+    # Un reintento de la misma solicitud devuelve el recibo anterior.
     prior = session.scalar(select(Pago).where(
         Pago.usuario_id == user_id,
         Pago.clave_idempotencia == idempotency_key,
@@ -465,6 +594,8 @@ def validar_y_canjear_qr(
     fare = _obtener_tarifa_ruta(session, route_id)
     now = ahora_servicio()
     balance_before = passenger.saldo_billetera
+    # El UPDATE condicional consume el QR una sola vez, incluso si llegan dos
+    # validaciones casi al mismo tiempo.
     consumed = session.scalar(
         update(CodigoQr)
         .where(CodigoQr.id == qr_code.id, CodigoQr.estado == "active", CodigoQr.vence_en > now)
@@ -514,6 +645,7 @@ def validar_y_canjear_qr(
     return payment, trip, balance_after
 
 
+# Guarda un recaudo manual asociado al turno activo.
 def registrar_pago_conductor(
     session: Session,
     driver: Usuario,
@@ -523,6 +655,7 @@ def registrar_pago_conductor(
 ) -> tuple[Pago, Viaje, int]:
     # El recaudo de efectivo/tarjeta se atribuye al turno activo, no a un
     # turno elegido por la interfaz ni a un historial separado del cierre.
+    # Se requiere un turno activo antes de registrar cualquier recaudo manual.
     shift = obtener_turno_activo_conductor(session, driver)
     if shift is None:
         raise ErrorDominio(409, "No hay un turno de conductor activo.")
@@ -573,6 +706,8 @@ def registrar_pago_conductor(
 
 
 def _resumir_turno(session: Session, shift: Turno) -> ResumenTurnoConductor:
+    # Una consulta suma los importes por medio; otra obtiene cada movimiento
+    # para mostrar el detalle en la pantalla del conductor.
     rows = session.execute(
         select(Pago.medio, func.sum(Pago.monto), func.count(Pago.id))
         .join(Viaje, Viaje.pago_id == Pago.id)
@@ -615,11 +750,14 @@ def _resumir_turno(session: Session, shift: Turno) -> ResumenTurnoConductor:
 
 
 def resumir_turno_conductor(session: Session, driver: Usuario) -> ResumenTurnoConductor | None:
+    # Si no hay turno activo no hay recaudo que resumir.
     shift = obtener_turno_activo_conductor(session, driver)
     return _resumir_turno(session, shift) if shift is not None else None
 
 
 def consultar_historial_turnos(session: Session, driver: Usuario, limit: int = 20) -> list[ResumenTurnoConductor]:
+    # Solo se muestran turnos cerrados y se limita la cantidad para mantener
+    # la consulta y la respuesta pequeñas.
     shifts = session.scalars(
         select(Turno)
         .options(joinedload(Turno.ruta), joinedload(Turno.vehiculo))
@@ -630,7 +768,10 @@ def consultar_historial_turnos(session: Session, driver: Usuario, limit: int = 2
     return [_resumir_turno(session, shift) for shift in shifts]
 
 
+# Cierra el turno y calcula la diferencia del efectivo contado.
 def cerrar_turno_conductor(session: Session, driver: Usuario, cash_counted: int) -> ResumenTurnoConductor:
+    # Primero se obtiene el recaudo esperado; después se cierra y se guarda el
+    # efectivo contado para que ambos valores queden disponibles en el historial.
     summary = resumir_turno_conductor(session, driver)
     if summary is None:
         raise ErrorDominio(409, "No hay un turno activo para cerrar.")

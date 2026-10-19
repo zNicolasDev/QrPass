@@ -1,4 +1,5 @@
 from __future__ import annotations
+# Este módulo configura FastAPI, conecta la base de datos y carga el router principal.
 
 import os
 import logging
@@ -11,16 +12,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.database import BaseDatos
-from app.routes import router
+from app.controllers import router
 from app.services import ErrorDominio
 
 logger = logging.getLogger(__name__)
 
 
+# Construye una instancia de FastAPI lista para desarrollo o para pruebas.
 def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes | None = None) -> FastAPI:
     # Este es el punto de entrada de cada entorno: reúne configuración,
     # conexión y rutas para que las pruebas también puedan crear una app aislada.
     database = BaseDatos(database_url)
+
+    # En desarrollo se genera un secreto temporal si falta. En producción se
+    # exige configurar uno estable para que los tokens no cambien al reiniciar.
     configured_secret = auth_secret or os.getenv("QR_PASS_AUTH_SECRET")
     is_production = os.getenv("QR_PASS_ENV", "").lower() == "production"
     if configured_secret is None:
@@ -58,6 +63,7 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
     application.state.database = database
     application.state.auth_secret = secret_bytes
 
+    # CORS define desde qué direcciones web puede llamar el navegador a la API.
     cors_origins = [
         origin.strip()
         for origin in os.getenv(
@@ -81,8 +87,10 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
         return JSONResponse(
             status_code=error.status_code,
             content={"detail": error.detail},
+            headers={"WWW-Authenticate": "Bearer"} if error.status_code == 401 else None,
         )
 
+    # Los controladores se conectan al prefijo común /api/v1 aquí.
     application.include_router(router)
     return application
 

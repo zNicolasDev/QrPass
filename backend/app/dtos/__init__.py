@@ -1,3 +1,4 @@
+# Este paquete reexporta los esquemas de solicitud y respuesta por tema.
 """DTOs Pydantic para validar solicitudes y definir respuestas de la API."""
 
 # Reexporta los DTOs por tema para que las rutas los importen desde app.dtos.

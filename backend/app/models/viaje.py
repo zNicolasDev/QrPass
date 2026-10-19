@@ -16,15 +16,18 @@ if TYPE_CHECKING:
     from app.models.transbordo import Transbordo
 
 
+# Registro de un abordaje, su ruta, costo y pago relacionado.
 class Viaje(Base):
     # Viaje realizado: relaciona el pago con la ruta, tarifa y turno aplicados.
     __tablename__ = "trips"
 
+    # Un viaje enlaza un pago con la tarifa, ruta y, si aplica, turno utilizado.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     pago_id: Mapped[int] = mapped_column(
         # unique=True impone como máximo un viaje asociado a cada pago.
         "payment_id", ForeignKey("payments.id", ondelete="RESTRICT"), unique=True, nullable=False
     )
+    # El turno es opcional para pagos de pasajero que no pasan por el conductor.
     turno_id: Mapped[int | None] = mapped_column("shift_id", ForeignKey("shifts.id", ondelete="RESTRICT"))
     tarifa_id: Mapped[int] = mapped_column(
         "fare_id", ForeignKey("fares.id", ondelete="RESTRICT"), nullable=False
@@ -36,6 +39,7 @@ class Viaje(Base):
         "created_at", DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    # Estas relaciones permiten mostrar los datos asociados sin duplicarlos.
     pago: Mapped['Pago'] = relationship(back_populates="viaje")
     turno: Mapped["Turno | None"] = relationship(back_populates="viajes")
     tarifa: Mapped['Tarifa'] = relationship(back_populates="viajes")

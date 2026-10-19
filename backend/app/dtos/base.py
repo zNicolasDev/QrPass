@@ -1,10 +1,12 @@
 from pydantic import BaseModel, ConfigDict
 
 
+# Configuración compartida para validar y serializar los DTOs.
 class EsquemaBase(BaseModel):
     # Todos los DTOs heredan de BaseModel: Pydantic valida tipos y prepara JSON.
-    # En Field, validation_alias nombra la clave aceptada al leer el JSON;
-    # serialization_alias nombra la clave enviada al devolverlo.
+    # En cada DTO, Field puede poner límites y configurar nombres públicos.
+    # validation_alias indica la clave JSON que se acepta; serialization_alias
+    # indica la clave que se devuelve. Así usamos Python en español y JSON en inglés.
     model_config = ConfigDict(
         # Permite construir DTOs leyendo atributos de objetos, por ejemplo ORM.
         from_attributes=True,

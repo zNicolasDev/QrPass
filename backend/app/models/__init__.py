@@ -1,3 +1,4 @@
+# Este paquete importa y reexporta las entidades para registrar sus tablas.
 """Entidades SQLAlchemy que representan los datos persistidos de QrPass."""
 
 # Reexporta modelos desde app.models y los importa para registrar sus tablas

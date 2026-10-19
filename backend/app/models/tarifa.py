@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.viaje import Viaje
 
 
+# Valor del viaje para una ruta y tipo de día.
 class Tarifa(Base):
     # Precio de una ruta según tipo de día; cada viaje guarda qué tarifa usó.
     __tablename__ = "fares"
@@ -20,6 +21,7 @@ class Tarifa(Base):
         UniqueConstraint("route_id", "day_type", name="uq_fares_route_day_type"),
     )
 
+    # La tarifa pertenece a una ruta y define tipo de día, valor y disponibilidad.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ruta_id: Mapped[int] = mapped_column(
         "route_id", ForeignKey("routes.id", ondelete="RESTRICT"), nullable=False
@@ -28,5 +30,6 @@ class Tarifa(Base):
     monto: Mapped[int] = mapped_column("amount", Integer, nullable=False)
     activa: Mapped[bool] = mapped_column("active", Boolean, nullable=False, default=True)
 
+    # Una tarifa se usa en los viajes que se cobran con ese valor.
     ruta: Mapped['Ruta'] = relationship(back_populates="tarifas")
     viajes: Mapped[list['Viaje']] = relationship(back_populates="tarifa")

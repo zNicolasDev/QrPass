@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.usuario import Usuario
 
 
+# Relaciona una cuenta con uno de sus roles.
 class RolUsuario(Base):
     # Tabla de asociación: permite varios roles por usuario y varios usuarios por rol.
     __tablename__ = "user_roles"
@@ -18,6 +19,7 @@ class RolUsuario(Base):
         UniqueConstraint("user_id", "role_id", name="uq_user_roles_user_role"),
     )
 
+    # Cada fila une una cuenta con un rol; las dos claves apuntan a sus tablas.
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(
         "user_id", ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -26,5 +28,6 @@ class RolUsuario(Base):
         "role_id", ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False
     )
 
+    # Estas relaciones permiten acceder a ambos lados de la asociación.
     usuario: Mapped['Usuario'] = relationship(back_populates="roles")
     rol: Mapped['Rol'] = relationship(back_populates="usuarios")
