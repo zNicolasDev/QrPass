@@ -1,6 +1,6 @@
 # MVC y entregables UML de QrPass
 
-Este documento conecta los procesos que ya existen en QrPass con sus controladores, servicios y modelos. Los diagramas están escritos en Mermaid para poder revisarlos en GitHub o copiarlos a una herramienta UML.
+Este documento muestra cómo funcionan dos procesos de QrPass: pagar un pasaje y validar un QR. Los diagramas explican el recorrido del proceso con palabras sencillas; no son diagramas de la arquitectura del backend. Debajo de cada uno se indica qué funciones de Python realizan esos pasos. Están escritos en Mermaid para poder revisarlos en GitHub o copiarlos a una herramienta UML.
 
 ## Decisión de arquitectura
 
@@ -22,95 +22,90 @@ La separación es por responsabilidad, no por endpoint: `sistema.py`, `autentica
 ```mermaid
 sequenceDiagram
     actor Pasajero
-    participant Vista as Frontend
-    participant Controlador as pasajero.py
-    participant DTO as CrearPagoSolicitud
-    participant Servicio as services.crear_pago
-    participant Modelo as Usuario, Ruta, Tarifa, Pago, Viaje
-    participant BD as SQLite
-    Pasajero->>Vista: Elige ruta y saldo
-    Vista->>Controlador: POST /api/v1/demo/account/payments
-    Controlador->>DTO: Validar JSON
-    DTO-->>Controlador: Solicitud validada
-    Controlador->>Servicio: crear_pago(session, usuario, solicitud)
-    Servicio->>Modelo: Consultar ruta, tarifa y saldo
-    Modelo->>BD: SELECT ruta, tarifa y usuario
-    BD-->>Servicio: Datos encontrados
-    Servicio->>Modelo: Descontar saldo y crear Pago + Viaje
-    Modelo->>BD: UPDATE condicional e INSERT transaccional
+    participant Aplicacion as Aplicación QrPass
+    participant Controlador as Atención del pago
+    participant Solicitud as Datos enviados por el formulario
+    participant Servicio as Proceso de cobro
+    participant Datos as Datos de la cuenta y del viaje
+    Pasajero->>Aplicacion: Elige ruta y método de pago
+    Aplicacion->>Controlador: Solicita pagar el pasaje
+    Controlador->>Solicitud: Revisa los datos recibidos
+    Solicitud-->>Controlador: Confirma que tienen el formato esperado
+    Controlador->>Servicio: Envía los datos del pago
+    Servicio->>Datos: Busca cuenta, ruta y tarifa
+    Datos-->>Servicio: Devuelve la información encontrada
+    Servicio->>Datos: Revisa el saldo y registra pago y viaje
     alt Saldo insuficiente
-        BD-->>Servicio: No se actualizó el saldo
-        Servicio-->>Controlador: ErrorDominio 409
-        Controlador-->>Vista: HTTP 409, saldo insuficiente
-        Vista-->>Pasajero: Mostrar error
+        Datos-->>Servicio: El saldo no alcanza para la tarifa
+        Servicio-->>Controlador: Rechaza el pago
+        Controlador-->>Aplicacion: Informa que falta saldo
+        Aplicacion-->>Pasajero: Muestra el mensaje de error
     else Saldo suficiente
-        BD-->>Servicio: Transacción confirmada
-        Servicio-->>Controlador: Pago, viaje y saldo restante
-        Controlador-->>Vista: ReciboPago, HTTP 201
-        Vista-->>Pasajero: Mostrar recibo
+        Datos-->>Servicio: Confirma que guardó el pago y el viaje
+        Servicio-->>Controlador: Devuelve el resultado del cobro
+        Controlador-->>Aplicacion: Entrega el recibo
+        Aplicacion-->>Pasajero: Muestra el recibo del viaje
     end
 ```
 
-**Orden ejecutable:** `endpoint_pagar_viaje` → DTO `CrearPagoSolicitud` → `crear_pago` → consultas/actualizaciones ORM → `ReciboPago`. La ruta comprueba saldo de nuevo en la actualización condicional para no gastar dos veces el mismo saldo.
+**Cómo se relaciona con Python:** FastAPI valida los datos con `CrearPagoSolicitud` y luego llama a `endpoint_pagar_viaje`; el controlador llama a `crear_pago`; finalmente, `ReciboPago` forma la respuesta. Si falta saldo, el servicio rechaza el cobro. Si alcanza, guarda el pago y el viaje juntos.
 
 ## Secuencia 2: conductor valida un QR
 
 ```mermaid
 sequenceDiagram
     actor Conductor
-    participant Vista as Frontend
-    participant Controlador as conductor.py
-    participant Auth as UsuarioAutenticado + rol DRIVER
-    participant DTO as ValidacionQrConductorSolicitud
-    participant Servicio as services.validar_y_canjear_qr
-    participant Modelo as Turno, CodigoQr, Usuario, Pago, Viaje
-    participant BD as SQLite
-    Conductor->>Vista: Escanea el QR
-    Vista->>Controlador: POST /api/v1/driver/qr/validate
-    Controlador->>Auth: Verificar sesión y rol
-    Auth-->>Controlador: Conductor autorizado
-    Controlador->>DTO: Validar token e idempotencia
-    DTO-->>Controlador: Solicitud válida
-    Controlador->>Servicio: validar_y_canjear_qr(session, conductor, token, secreto, clave)
-    Servicio->>Modelo: Verificar turno, firma, vencimiento y ruta
-    Modelo->>BD: Consultar turno, QR, ruta y tarifa
-    BD-->>Servicio: Datos del viaje
-    alt QR vencido, alterado o de otra ruta
-        Servicio-->>Controlador: Error de dominio
-        Controlador-->>Vista: HTTP 4xx/409 con detalle
-        Vista-->>Conductor: Mostrar rechazo
-    else QR válido
-        Servicio->>Modelo: Consumir QR, debitar y registrar Pago + Viaje
-        Modelo->>BD: Actualización e inserciones
-        BD-->>Servicio: Transacción confirmada
-        Servicio-->>Controlador: Pago, viaje y saldo
-        Controlador-->>Vista: ReciboPago, HTTP 201
-        Vista-->>Conductor: Mostrar validación aprobada
+    participant Aplicacion as Aplicación QrPass
+    participant Controlador as Atención de la validación
+    participant Acceso as Revisión de sesión y permiso
+    participant Solicitud as Código enviado por el formulario
+    participant Servicio as Proceso de revisión del QR
+    participant Datos as Cuenta, turno y viaje
+    Conductor->>Aplicacion: Escanea el código del pasajero
+    Aplicacion->>Controlador: Envía el código para revisión
+    Controlador->>Acceso: Comprueba sesión y permiso de conductor
+    Acceso-->>Controlador: Autoriza la operación
+    Controlador->>Solicitud: Revisa el código y la clave de reintento
+    Solicitud-->>Controlador: Confirma que los datos tienen el formato esperado
+    Controlador->>Servicio: Envía el código y los datos de la solicitud
+    Servicio->>Datos: Busca el QR, la cuenta, el turno y la tarifa
+    Datos-->>Servicio: Devuelve la información encontrada
+    Servicio->>Servicio: Revisa firma, vencimiento, ruta y saldo
+    alt Código vencido, alterado o no permitido
+        Servicio-->>Controlador: Rechaza la validación
+        Controlador-->>Aplicacion: Informa el motivo del rechazo
+        Aplicacion-->>Conductor: Muestra que el viaje no fue aprobado
+    else Código válido y saldo suficiente
+        Servicio->>Datos: Marca el QR como usado y registra pago y viaje
+        Datos-->>Servicio: Confirma que guardó la operación
+        Servicio-->>Controlador: Devuelve el resultado de la validación
+        Controlador-->>Aplicacion: Entrega el recibo
+        Aplicacion-->>Conductor: Muestra que el viaje fue aprobado
     end
 ```
 
-**Orden ejecutable:** dependencia de rol → `endpoint_validar_qr_pasajero` → DTO → `validar_y_canjear_qr` → lectura y validación ORM → consumo y escritura → `ReciboPago`. La misma clave de idempotencia permite responder a un reintento sin cobrar dos veces.
+**Cómo se relaciona con Python:** la sesión y el rol se comprueban con `requerir_rol("DRIVER")`; `ValidacionQrConductorSolicitud` revisa los datos recibidos; `validar_y_canjear_qr` aplica las reglas; y `ReciboPago` representa la respuesta. El servicio rechaza códigos inválidos y registra el pago solo si todas las condiciones se cumplen.
 
 ## Actividad 1: pago de un viaje
 
 ```mermaid
 flowchart TD
     A([Inicio]) --> B[Recibir solicitud de pago]
-    B --> C{DTO válido?}
-    C -- No --> X[Responder 422]
-    C -- Sí --> D[Buscar ruta activa y tarifa vigente]
-    D --> E{Ruta y tarifa existen?}
-    E -- No --> Y[Responder 404]
-    E -- Sí --> F{Medio de pago}
-    F -- Billetera --> G{Saldo suficiente?}
-    G -- No --> Z[Rollback y responder 409]
-    G -- Sí --> H[Descontar saldo condicionalmente]
-    F -- Efectivo/tarjeta --> I[Conservar saldo]
-    H --> J[Crear pago y viaje]
+    B --> C{¿Los datos del pago son válidos?}
+    C -- No --> X[Mostrar error de solicitud]
+    C -- Sí --> D[Buscar la ruta y su tarifa]
+    D --> E{¿Ruta y tarifa disponibles?}
+    E -- No --> Y[Informar que no están disponibles]
+    E -- Sí --> F{¿Cómo se pagará?}
+    F -- Saldo --> G{¿Alcanza el saldo?}
+    G -- No --> Z[Rechazar por saldo insuficiente]
+    G -- Sí --> H[Descontar el valor del pasaje]
+    F -- Efectivo o tarjeta --> I[No cambiar el saldo de la billetera]
+    H --> J[Registrar el pago y el viaje]
     I --> J
-    J --> K{Commit correcto?}
-    K -- No --> L[Rollback y propagar error]
-    K -- Sí --> M[Responder recibo 201]
+    J --> K{¿Se pudo guardar todo?}
+    K -- No --> L[Cancelar los cambios]
+    K -- Sí --> M[Entregar el recibo]
     X --> N([Fin])
     Y --> N
     Z --> N
@@ -123,26 +118,24 @@ flowchart TD
 ```mermaid
 flowchart TD
     A([Inicio]) --> B[Conductor envía token]
-    B --> C{Sesión con rol DRIVER?}
-    C -- No --> X[Responder 401 o 403]
-    C -- Sí --> D{Token bien formado y firma válida?}
-    D -- No --> Y[Rechazar QR]
-    D -- Sí --> E{QR registrado, activo y vigente?}
+    B --> C{¿La cuenta tiene permiso de conductor?}
+    C -- No --> X[Rechazar el acceso]
+    C -- Sí --> D{¿El código es auténtico y vigente?}
+    D -- No --> Y[Rechazar el código]
+    D -- Sí --> E{¿Tiene turno activo en esta ruta?}
     E -- No --> Y
-    E -- Sí --> F{Turno activo y ruta coincidente?}
-    F -- No --> Y
-    F -- Sí --> G{Saldo cubre tarifa?}
-    G -- No --> Z[Rechazar por saldo insuficiente]
-    G -- Sí --> H[Consumir QR y debitar saldo]
-    H --> I[Crear pago y viaje asociado al turno]
-    I --> J{Commit correcto?}
-    J -- No --> K[Rollback: QR y saldo quedan sin cambios]
-    J -- Sí --> L[Responder recibo 201]
-    X --> M([Fin])
-    Y --> M
-    Z --> M
-    K --> M
-    L --> M
+    E -- Sí --> F{¿La cuenta del pasajero tiene saldo?}
+    F -- No --> Z[Rechazar por saldo insuficiente]
+    F -- Sí --> G[Marcar el código como usado]
+    G --> H[Descontar el saldo y registrar el viaje]
+    H --> I{¿Se guardaron todos los cambios?}
+    I -- No --> J[Cancelar los cambios]
+    I -- Sí --> K[Informar que el viaje fue aprobado]
+    X --> L([Fin])
+    Y --> L
+    Z --> L
+    J --> L
+    K --> L
 ```
 
 ## Matriz de correspondencia UML y Python
