@@ -138,3 +138,28 @@ def test_dto_validates_requests_and_serializes_model_output() -> None:
                 "consentimiento_privacidad": False,
             }
         )
+
+
+def test_metricas_gerenciales_dto_and_service() -> None:
+    from app.dtos import MetricasGerencialesRespuesta, ReinicioDemoRespuesta
+    from app.services import obtener_metricas_gerenciales, reiniciar_datos_demo
+    from app.database import BaseDatos
+
+    db = BaseDatos('sqlite://')
+    db.initialize()
+    with db.session_factory() as session:
+        metricas = obtener_metricas_gerenciales(session)
+        assert 'total_collected' in metricas
+        assert metricas['total_routes'] == 32
+        assert metricas['total_users'] == 2
+
+        dto = MetricasGerencialesRespuesta.model_validate(metricas)
+        assert dto.total_rutas == 32
+        assert dto.total_usuarios == 2
+
+        res = reiniciar_datos_demo(session)
+        assert res['status'] == 'ok'
+        reinicio_dto = ReinicioDemoRespuesta.model_validate(res)
+        assert reinicio_dto.estado == 'ok'
+        assert reinicio_dto.saldo_pasajero == 50000
+    db.close()

@@ -1,6 +1,6 @@
 // La pantalla sigue el recorrido de la persona; el servidor conserva las
 // decisiones y el historial. Si algo cambia dinero o un viaje, se confirma allí.
-// CONFIGURACION Y ESTADO DE LA PANTALLA
+// Arrancamos con lo que la interfaz necesita y guardamos aquí su estado.
 const ACCESS_TOKEN_KEY = "qrpass-access-token-v1";
 const SESSION_EXPIRY_KEY = "qrpass-session-expiry-v1";
 const API_BASE_URL = globalThis.QRPASS_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -29,7 +29,7 @@ let driverAssignment = null;
 let activeCameraStream = null;
 let scanLoopTimer = null;
 
-// FUNCIONES GENERALES Y COMUNICACION CON LA API
+// Herramientas compartidas: formato, seguridad y comunicación con el servidor.
 function createIdempotencyKey() {
   // Una misma acción conserva su clave mientras se reintenta; al empezar otra
   // acción se crea otra. Así un toque lento no se convierte en dos cobros.
@@ -121,16 +121,42 @@ function mapTripFromApi(trip) {
   };
 }
 
+function mapPaymentFromApi(payment) {
+  const methodLabels = {
+    wallet: "Saldo QR",
+    cash: "Efectivo",
+    card_debit: "Tarjeta débito",
+    card_credit: "Tarjeta crédito",
+  };
+  return {
+    id: String(payment.payment_id),
+    type: payment.movement_type,
+    method: payment.movement_type === "top_up"
+      ? "Billetera"
+      : methodLabels[payment.method] ?? payment.method,
+    amount: payment.amount,
+    balanceBefore: payment.balance_before,
+    balanceAfter: payment.balance_after,
+    route: payment.route_name,
+    tripId: payment.trip_id,
+    status: payment.status === "completed_demo" ? "Registrado en demo" : payment.status,
+    createdAt: payment.created_at,
+    reference: `PAGO-${payment.payment_id}`,
+  };
+}
+
 async function refreshPassengerData() {
   // Al volver de una operación, reconstruimos saldo e historial desde el
   // servidor: la memoria de esta pestaña no es el registro oficial.
   // Saldo e historial se piden en paralelo para que la pantalla muestre datos actuales.
-  const [account, trips] = await Promise.all([
+  const [account, trips, history] = await Promise.all([
     apiRequest("/demo/account"),
     apiRequest("/demo/account/trips"),
+    apiRequest("/payments/history"),
   ]);
   state = {
     balance: account.wallet_balance,
+    payments: history.map(mapPaymentFromApi),
     trips: trips.flatMap((trip) => {
       const movement = mapTripFromApi(trip);
       if (!trip.transferred_to) return [movement];
@@ -257,7 +283,7 @@ function logout() {
   driverAssignment = null;
   activeBusQr = null;
   routeCatalog = [];
-  state = { balance: 0, trips: [] };
+  state = { balance: 0, trips: [], payments: [] };
   driverState = { activeShift: null, completedShifts: [] };
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   sessionStorage.removeItem(SESSION_EXPIRY_KEY);
@@ -291,11 +317,11 @@ async function bootstrapAuthentication() {
   }
 }
 
-let state = { balance: 0, trips: [] };
+let state = { balance: 0, trips: [], payments: [] };
 
 let driverState = { activeShift: null, completedShifts: [] };
 
-// FORMATO DE DATOS Y PIEZAS HTML REUTILIZABLES
+// Formato de fechas y piezas pequeñas que se repiten en las pantallas.
 function icon(name, className = "icon") {
   return `<svg class="${className}" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 }
@@ -319,8 +345,8 @@ function pageHeading(eyebrow, title, description, action = "") {
   </div>`;
 }
 
-function emptyTrips(message) {
-  return `<tr><td class="empty-row" colspan="5">${message}</td></tr>`;
+function emptyTrips(message, columns = 5) {
+  return `<tr><td class="empty-row" colspan="${columns}">${message}</td></tr>`;
 }
 
 function tripRow(trip) {
@@ -345,7 +371,7 @@ function pageTable(trips, className = "") {
   </div>`;
 }
 
-// VISTA DEL PASAJERO: RESUMEN E HISTORIAL
+// Pantallas del pasajero: resumen, actividad y accesos rápidos.
 function getRecentTrips() {
   return [...state.trips].reverse().slice(0, 4);
 }
@@ -454,7 +480,7 @@ function renderDashboard() {
   </section>`;
 }
 
-// VISTA DEL CONDUCTOR Y SU TURNO
+// Pantalla del conductor y controles de su turno.
 function renderDriverDashboard() {
   const shift = driverState.activeShift;
   const latestShift = driverState.completedShifts.at(-1);
@@ -578,7 +604,7 @@ function renderQr() {
       <h2>Escanea para abordar</h2>
       <p>El código identifica la ruta y el turno del bus. El valor se descuenta de tu billetera cuando el servidor lo valida.</p>
       <form id="passenger-qr-form" data-idempotency-key="${createIdempotencyKey()}">
-        <div class="form-field"><label for="passenger-qr-token">Código del bus</label><input class="input" id="passenger-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" required /></div>
+        <div class="form-field"><label for="passenger-qr-token">Código del bus</label><input class="input" id="passenger-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" autocapitalize="off" spellcheck="false" required /></div>
         <video id="passenger-qr-video" class="qr-camera-preview" playsinline muted hidden></video>
         <div class="modal-actions"><button class="button button-outline" type="button" data-action="scan-passenger-camera">Usar cámara</button><button class="button" type="submit">Pagar y abordar</button></div>
       </form>
@@ -595,17 +621,64 @@ function renderTopUp() {
 }
 
 function renderHistory() {
-  const matches = activeFilter === "todos" ? state.trips : state.trips.filter((trip) => trip.method.toLowerCase().includes(activeFilter));
-  const paidTotal = matches.reduce((sum, trip) => sum + trip.amount, 0);
-  const rows = [...matches].reverse();
-  return `${pageHeading(`${icon("clock")} TU ACTIVIDAD`, "Mis viajes", "Consulta los pagos y traspasos registrados en este navegador.")}
-  <div class="history-summary"><div><span>Movimientos registrados</span><br /><strong>${matches.length}</strong></div><div><span>Total simulado</span><br /><strong>${money(paidTotal)}</strong></div><label class="sr-only" for="history-filter">Filtrar viajes por método de pago</label><select class="select filter-select" id="history-filter"><option value="todos" ${activeFilter === "todos" ? "selected" : ""}>Todos los métodos</option><option value="saldo" ${activeFilter === "saldo" ? "selected" : ""}>Saldo QR</option><option value="efectivo" ${activeFilter === "efectivo" ? "selected" : ""}>Efectivo</option><option value="tarjeta" ${activeFilter === "tarjeta" ? "selected" : ""}>Tarjeta</option><option value="traspaso" ${activeFilter === "traspaso" ? "selected" : ""}>Traspasos</option></select></div>
-  <div class="surface"><div class="surface-header"><div><h2>Todos tus movimientos</h2><p>Más reciente primero · Registros de demostración</p></div></div><div class="table-wrap"><table class="trip-table history-table"><thead><tr><th>Ruta</th><th>Fecha</th><th>Hora</th><th>Medio de pago</th><th>Valor</th><th>Estado</th></tr></thead><tbody>${rows.length ? rows.map((trip) => `<tr><td class="trip-route"><span class="route-token">${escapeHtml(trip.route.slice(0, 2))}</span>Ruta ${escapeHtml(trip.route)}</td><td>${escapeHtml(formatDate(new Date(trip.createdAt)))}</td><td>${escapeHtml(formatTime(new Date(trip.createdAt)))}</td><td><span class="payment-tag">${escapeHtml(trip.method)}</span></td><td>${trip.amount === 0 ? "Sin costo" : money(trip.amount)}</td><td><span class="status-pill">Registrado</span></td></tr>`).join("") : emptyTrips("No hay movimientos con este filtro.")}</tbody></table></div></div>`;
+  const allMovements = state.payments
+    .map((payment) => {
+      const trip = state.trips.find((item) => item.tripId === payment.tripId);
+      return { ...payment, transferDestination: trip?.transferredTo ?? null };
+    })
+    .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt));
+  const matches = allMovements.filter((movement) => {
+    if (activeFilter === "todos") return true;
+    if (activeFilter === "recargas") return movement.type === "top_up";
+    if (activeFilter === "traspasos") return Boolean(movement.transferDestination);
+    if (activeFilter === "saldo") return movement.method === "Saldo QR";
+    if (activeFilter === "efectivo") return movement.method === "Efectivo";
+    if (activeFilter === "tarjeta") return movement.method.startsWith("Tarjeta");
+    return true;
+  });
+  const fareTotal = matches
+    .filter((movement) => movement.type === "fare_payment")
+    .reduce((sum, movement) => sum + movement.amount, 0);
+  const rows = matches.map((movement) => {
+    const route = movement.route ? `Ruta ${escapeHtml(movement.route)}` : "&mdash;";
+    const title = movement.type === "top_up" ? "Recarga"
+      : movement.transferDestination ? "Pasaje transbordado"
+      : "Pasaje";
+    return `<tr>
+      <td class="trip-route"><span class="route-token">${escapeHtml(title.slice(0, 2))}</span>${title}</td>
+      <td>${escapeHtml(formatDate(new Date(movement.createdAt)))} &middot; ${escapeHtml(formatTime(new Date(movement.createdAt)))}</td>
+      <td><span class="payment-tag">${escapeHtml(movement.method)}</span></td>
+      <td>${route}</td>
+      <td>${movement.amount ? money(movement.amount) : "Sin costo"}</td>
+      <td><button class="text-link" type="button" data-action="payment-detail" data-payment-id="${escapeHtml(movement.id)}">Ver detalle ${icon("arrow")}</button></td>
+    </tr>`;
+  });
+
+  return `${pageHeading(`${icon("clock")} TU ACTIVIDAD`, "Movimientos y viajes", "Consulta pagos, recargas y traspasos registrados en tu cuenta.")}
+  <div class="history-summary">
+    <div><span>Movimientos</span><br /><strong>${matches.length}</strong></div>
+    <div><span>Pasajes pagados</span><br /><strong>${money(fareTotal)}</strong></div>
+    <label class="sr-only" for="history-filter">Filtrar movimientos</label>
+    <select class="select filter-select" id="history-filter">
+      <option value="todos" ${activeFilter === "todos" ? "selected" : ""}>Todos los movimientos</option>
+      <option value="recargas" ${activeFilter === "recargas" ? "selected" : ""}>Recargas</option>
+      <option value="saldo" ${activeFilter === "saldo" ? "selected" : ""}>Saldo QR</option>
+      <option value="efectivo" ${activeFilter === "efectivo" ? "selected" : ""}>Efectivo</option>
+      <option value="tarjeta" ${activeFilter === "tarjeta" ? "selected" : ""}>Tarjeta</option>
+      <option value="traspasos" ${activeFilter === "traspasos" ? "selected" : ""}>Traspasos</option>
+    </select>
+  </div>
+  <div class="surface"><div class="surface-header"><div><h2>Actividad de tu cuenta</h2><p>Ordenada de la m&aacute;s reciente a la m&aacute;s antigua. Incluye el saldo antes y despu&eacute;s de cada movimiento.</p></div></div>
+    <div class="table-wrap"><table class="trip-table history-table">
+      <thead><tr><th>Tipo</th><th>Fecha y hora</th><th>Medio</th><th>Ruta</th><th>Valor</th><th>Detalle</th></tr></thead>
+      <tbody>${rows.length ? rows.join("") : emptyTrips("No hay movimientos con este filtro.", 6)}</tbody>
+    </table></div>
+  </div>`;
 }
 
 const VIEW_LABELS = { inicio: "Resumen", qr: "Escanear QR del bus", historial: "Mis viajes", recarga: "Recargar saldo" };
 
-// ELECCION Y ACTUALIZACION DE LA VISTA
+// Elegimos la pantalla actual y dejamos la navegación al día.
 function renderCurrentView() {
   // Esta función central decide qué contenido va dentro del área principal.
   // Los datos se preparan en otras funciones; aquí solo se elige y dibuja la vista.
@@ -651,7 +724,7 @@ function renderCurrentView() {
   document.querySelector("#today-date").textContent = currentDateLong();
 }
 
-// ACCIONES DEL CONDUCTOR Y NAVEGACION
+// Cambios de perfil, turno y menú de navegación.
 async function setProfile(profile) {
   // Cambia entre los espacios que el usuario realmente puede usar.
   // Si entra al conductor, primero vuelve a pedir sus datos al servidor.
@@ -804,6 +877,7 @@ async function closeDriverShift(cashCounted) {
     driverAssignment = null;
     activeBusQr = null;
     renderCurrentView();
+    openShiftReceipt(closed);
     showToast(cashDifference
       ? `Cierre guardado. Diferencia de efectivo: ${money(Math.abs(cashDifference))} ${cashDifference > 0 ? "de más" : "faltante"}.`
       : "Cierre guardado: el efectivo declarado coincide con el registro del servidor.");
@@ -813,10 +887,36 @@ async function closeDriverShift(cashCounted) {
   }
 }
 
+function openShiftReceipt(shift) {
+  const total = shift.cash_total + shift.qr_total + shift.card_total;
+  const difference = shift.cash_difference ?? 0;
+  modalContent.innerHTML = `<div class="modal-body">
+    <div class="receipt-mark">${icon("check")}</div>
+    <div class="modal-kicker">CIERRE DE DEMOSTRACIÓN</div>
+    <h2 id="modal-title">Turno consolidado</h2>
+    <p>El servidor guardó este cierre y dejó el turno inactivo.</p>
+    <div class="receipt-list">
+      <div class="detail-row"><span>Referencia del turno</span><strong>${escapeHtml(`TUR-${shift.shift_id}`)}</strong></div>
+      <div class="detail-row"><span>Ruta</span><strong>${escapeHtml(shift.route_name)}</strong></div>
+      <div class="detail-row"><span>Pasajes registrados</span><strong>${shift.payment_count}</strong></div>
+      <div class="detail-row"><span>QR / saldo</span><strong>${money(shift.qr_total)}</strong></div>
+      <div class="detail-row"><span>Efectivo anotado</span><strong>${money(shift.cash_total)}</strong></div>
+      <div class="detail-row"><span>Tarjeta simulada</span><strong>${money(shift.card_total)}</strong></div>
+      <div class="detail-row"><span>Total recaudado</span><strong>${money(total)}</strong></div>
+      <div class="detail-row"><span>Efectivo contado</span><strong>${money(shift.cash_counted)}</strong></div>
+      <div class="detail-row"><span>Diferencia de caja</span><strong>${difference ? money(Math.abs(difference)) : "Cuadra"}</strong></div>
+    </div>
+    <div class="modal-actions"><button class="button" type="button" data-action="close-modal">Entendido</button></div>
+  </div>`;
+  modal.showModal();
+}
+
 function setMenuOpen(isOpen) {
   sidebar.classList.toggle("is-open", isOpen);
   sidebarBackdrop.classList.toggle("is-visible", isOpen);
-  document.querySelector("#menu-toggle").setAttribute("aria-expanded", String(isOpen));
+  const menuToggle = document.querySelector("#menu-toggle");
+  menuToggle.setAttribute("aria-expanded", String(isOpen));
+  menuToggle.setAttribute("aria-label", isOpen ? "Cerrar menú" : "Abrir menú");
   document.body.classList.toggle("menu-open", isOpen);
 }
 
@@ -841,7 +941,7 @@ function updateInstallButton() {
   installButton.hidden = isStandalone || (!deferredInstallPrompt && window.innerWidth > 760);
 }
 
-// VENTANAS, MENSAJES Y ACCIONES DEL PASAJERO
+// Diálogos, avisos y acciones que acompañan el recorrido.
 function openDemoInfo() {
   modal.classList.add("demo-info-open");
   modalContent.innerHTML = `<article class="demo-info-container">
@@ -859,10 +959,84 @@ function openDemoInfo() {
       <ul><li>No procesa dinero real ni se conecta a un POS o pasarela de pago.</li><li>El QR de abordaje es una demostración firmada por el servidor y requiere conexión para pagar; aún no está integrado con un dispositivo físico instalado en el bus.</li><li>El funcionamiento sin conexión solo conserva la interfaz PWA; no autoriza, valida ni sincroniza pagos offline.</li><li>La tarifa, asignación y reglas operacionales son datos de demostración, no una integración con el operador de transporte.</li></ul>
       <h3>Acerca de tus datos de prueba</h3>
       <p>La API guarda los movimientos de prueba en su base de datos local de desarrollo. No introduzcas información bancaria ni utilices estas credenciales fuera del entorno de demostración.</p>
-      <div class="demo-info-notice">${icon("shield")}<span>Antes de producción faltan proveedor de pagos, POS, TLS 1.3 en el alojamiento, seguridad de claves y QR offline con firma asimétrica, sincronización y reconciliación, pruebas de carga y revisión legal.</span></div>
+      <h3>Herramientas de demostración</h3>
+      <div style="display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap;">
+        <button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver Métricas Globales (Gerente)</button>
+        <button class="button button-outline" type="button" data-action="reset-demo-data"><svg class="icon"><use href="#icon-arrows"></use></svg> Restablecer Datos de Prueba</button>
+      </div>
+      <div class="demo-info-notice" style="margin-top:1rem;">${icon("shield")}<span>Antes de producción faltan proveedor de pagos, POS, TLS 1.3 en el alojamiento, seguridad de claves y QR offline con firma asimétrica, sincronización y reconciliación, pruebas de carga y revisión legal.</span></div>
     </section>
     <footer class="demo-info-footer"><span>Esta ventana es informativa; cerrarla no representa aceptar términos ni realizar una transacción.</span><button class="button" type="button" data-action="close-modal">Entendido</button></footer>
   </article>`;
+  modal.showModal();
+}
+
+
+async function openGlobalMetrics() {
+  modal.classList.remove("demo-info-open");
+  try {
+    const metrics = await apiRequest("/admin/metrics");
+    modalContent.innerHTML = `<div class="modal-body">
+      <div class="modal-kicker">CONSOLIDADO · GERENCIA DE TRANSPORTE</div>
+      <h2 id="modal-title">Métricas Globales de Recaudo</h2>
+      <p>Consolidación de todo el recaudo y operación del transporte urbano de Ibagué.</p>
+      <div class="receipt-list">
+        <div class="receipt-row"><span>Total recaudado</span><strong>${money(metrics.total_collected)}</strong></div>
+        <div class="receipt-row"><span>Recaudo en efectivo</span><span>${money(metrics.cash_collected)}</span></div>
+        <div class="receipt-row"><span>Recaudo código QR</span><span>${money(metrics.qr_collected)}</span></div>
+        <div class="receipt-row"><span>Recaudo tarjeta simulada</span><span>${money(metrics.card_collected)}</span></div>
+        <div class="receipt-row"><span>Total viajes</span><span>${metrics.total_trips} abordajes</span></div>
+        <div class="receipt-row"><span>Transbordos ($0 COP)</span><span>${metrics.total_transfers} transbordos</span></div>
+        <div class="receipt-row"><span>Turnos activos de bus</span><span>${metrics.active_shifts} en servicio</span></div>
+        <div class="receipt-row"><span>Rutas habilitadas</span><span>${metrics.total_routes} rutas</span></div>
+        <div class="receipt-row"><span>Usuarios en el sistema</span><span>${metrics.total_users} usuarios</span></div>
+      </div>
+      <div class="modal-actions" style="margin-top: 1.5rem;">
+        <button class="button" type="button" data-action="close-modal">Cerrar</button>
+      </div>
+    </div>`;
+    modal.showModal();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function resetDemoData() {
+  try {
+    const res = await apiRequest("/admin/demo/reset", { method: "POST" });
+    showToast(res.message || "Datos de demostración restablecidos.", "success");
+    modal.close();
+    await refreshPassengerData();
+    if (hasProfileRole("conductor")) {
+      try {
+        await refreshDriverShift();
+      } catch (e) {
+        driverState.activeShift = null;
+      }
+      await refreshDriverShiftHistory();
+    }
+    renderCurrentView();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function openPrivacyInfo() {
+  modal.classList.remove("demo-info-open");
+  modalContent.innerHTML = `<div class="modal-body">
+    <div class="modal-kicker">PRIVACIDAD · PROTOTIPO</div>
+    <h2 id="modal-title">Aviso de privacidad de la demostración</h2>
+    <p>Este aviso explica el uso de datos en el prototipo. No es una política de tratamiento aprobada ni reemplaza la revisión legal antes de una operación real.</p>
+    <div class="receipt-list">
+      <div class="detail-row"><span>Datos de registro</span><strong>Nombre, correo y contraseña</strong></div>
+      <div class="detail-row"><span>Datos de uso</span><strong>Saldo, pagos y viajes de prueba</strong></div>
+      <div class="detail-row"><span>Para qué se usan</span><strong>Acceso a la cuenta y pruebas de los flujos</strong></div>
+      <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos local de demostración</strong></div>
+    </div>
+    <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer derechos sobre datos del prototipo, contacta al responsable del proyecto que te dio acceso.</p>
+    <div class="demo-info-notice">${icon("shield")}<span>Antes de usar datos reales se necesita identificar al responsable, definir finalidades y retención, habilitar canales para solicitudes y aprobar el aviso conforme a la normativa aplicable.</span></div>
+    <div class="modal-actions"><button class="button" type="button" data-action="close-modal">Cerrar aviso</button></div>
+  </div>`;
   modal.showModal();
 }
 
@@ -896,7 +1070,7 @@ function openReceipt(trip, isTransfer = false) {
   // que este prototipo no es un comprobante financiero oficial.
   modalContent.innerHTML = `<div class="modal-body">
     <div class="receipt-mark">${icon("check")}</div><div class="modal-kicker">${isTransfer ? "TRASPASO REGISTRADO" : "MOVIMIENTO REGISTRADO"}</div>
-    <h2 id="modal-title">${isTransfer ? "Tu pago fue transferido" : "¡Listo para seguir!"}</h2>
+    <h2 id="modal-title">${isTransfer ? "Tu pago fue transferido" : trip.movementType === "top_up" ? "Recarga registrada" : "&iexcl;Listo para seguir!"}</h2>
     <p>Movimiento de demostración registrado por la API. No representa dinero real ni sustituye un comprobante oficial.</p>
     <div class="receipt-list">
       <div class="detail-row"><span>Ruta</span><strong>${escapeHtml(trip.route)}</strong></div>
@@ -906,6 +1080,48 @@ function openReceipt(trip, isTransfer = false) {
       <div class="detail-row"><span>Fecha y hora</span><strong>${escapeHtml(formatDate(new Date(trip.createdAt)))} · ${escapeHtml(formatTime(new Date(trip.createdAt)))}</strong></div>
     </div>
     <div class="modal-actions"><button class="button" data-action="close-modal">Entendido</button></div>
+  </div>`;
+  modal.showModal();
+}
+
+function openMovementDetails(movementId) {
+  const payment = state.payments.find((item) => item.id === movementId);
+  const trip = state.trips.find((item) => item.tripId === payment?.tripId);
+  const movement = payment
+    ? { ...payment, transferDestination: trip?.transferredTo ?? null }
+    : null;
+  if (!movement) {
+    showToast("No encontramos el detalle de ese movimiento.", true);
+    return;
+  }
+
+  const isTopUp = movement.type === "top_up";
+  const kind = isTopUp ? "Recarga" : "Pago de pasaje";
+  const amountLabel = isTopUp ? "Valor recargado" : "Valor del movimiento";
+  const balanceRows = movement.balanceBefore === undefined ? "" : `
+    <div class="detail-row"><span>Saldo anterior</span><strong>${money(movement.balanceBefore)}</strong></div>
+    <div class="detail-row"><span>Saldo posterior</span><strong>${money(movement.balanceAfter)}</strong></div>`;
+  const routeRows = movement.route ? `
+    <div class="detail-row"><span>Ruta</span><strong>${escapeHtml(movement.route)}</strong></div>` : "";
+  const transferRows = movement.transferDestination ? `
+    <div class="detail-row"><span>Transbordo a</span><strong>${escapeHtml(movement.transferDestination)}</strong></div>
+    <div class="detail-row"><span>Tarifa adicional</span><strong>Sin costo</strong></div>` : "";
+
+  modalContent.innerHTML = `<div class="modal-body">
+    <div class="receipt-mark">${icon("document")}</div>
+    <div class="modal-kicker">DETALLE DE DEMOSTRACI&Oacute;N</div>
+    <h2 id="modal-title">${kind}</h2>
+    <p>Este registro es informativo y no sustituye un comprobante financiero oficial.</p>
+    <div class="receipt-list">
+      <div class="detail-row"><span>Referencia</span><strong>${escapeHtml(movement.reference)}</strong></div>
+      <div class="detail-row"><span>M&eacute;todo</span><strong>${escapeHtml(movement.method)}</strong></div>
+      ${routeRows}${transferRows}
+      <div class="detail-row"><span>${amountLabel}</span><strong>${movement.amount ? money(movement.amount) : "Sin costo"}</strong></div>
+      ${balanceRows}
+      <div class="detail-row"><span>Estado</span><strong>${escapeHtml(movement.status)}</strong></div>
+      <div class="detail-row"><span>Fecha y hora</span><strong>${escapeHtml(formatDate(new Date(movement.createdAt)))} &middot; ${escapeHtml(formatTime(new Date(movement.createdAt)))}</strong></div>
+    </div>
+    <div class="modal-actions"><button class="button" type="button" data-action="close-modal">Cerrar</button></div>
   </div>`;
   modal.showModal();
 }
@@ -1004,7 +1220,14 @@ async function topUp(amount, trigger) {
     if (trigger) delete trigger.dataset.idempotencyKey;
     await refreshPassengerData();
     renderCurrentView();
-    showToast(`Recarga de demostración registrada: ${money(receipt.amount)}. No se procesó dinero real.`);
+    openReceipt({
+      route: "Billetera",
+      method: "Recarga",
+      movementType: "top_up",
+      amount: receipt.amount,
+      code: `REC-${receipt.payment_id}`,
+      createdAt: receipt.created_at,
+    });
   } catch (error) {
     showToast(error.message, true);
     if (error.status === 401) logout();
@@ -1013,7 +1236,7 @@ async function topUp(amount, trigger) {
   }
 }
 
-// EVENTOS: BOTONES, FORMULARIOS Y CONTROLES
+// Conectamos los controles una sola vez, incluso los que aparecen después.
 document.addEventListener("click", async (event) => {
   // La mayoría de las pantallas se vuelve a dibujar; escuchar en el documento
   // permite que los botones recién creados sigan respondiendo.
@@ -1035,6 +1258,9 @@ document.addEventListener("click", async (event) => {
   if (action === "payment") openPayment(method || "saldo");
   if (action === "transfer") openTransfer();
   if (action === "demo-info") openDemoInfo();
+  if (action === "privacy-info") openPrivacyInfo();
+  if (action === "view-global-metrics") openGlobalMetrics();
+  if (action === "reset-demo-data") resetDemoData();
   if (action === "logout") logout();
   if (action === "start-driver-shift") startDriverShift();
   if (action === "refresh-bus-qr") {
@@ -1064,6 +1290,7 @@ document.addEventListener("click", async (event) => {
     startQrCamera("passenger-qr-form", "passenger-qr-token", "passenger-qr-video");
   }
   if (action === "close-modal") modal.close();
+  if (action === "payment-detail") openMovementDetails(target.dataset.paymentId);
   if (action === "top-up") topUp(Number(amount), target);
 });
 
@@ -1179,7 +1406,13 @@ document.addEventListener("submit", async (event) => {
       });
       await refreshPassengerData();
       renderCurrentView();
-      showToast(`Abordaje pagado · Ruta ${result.route_name} · ${money(result.amount)}.`);
+      openReceipt({
+        route: result.route_name,
+        method: "Saldo QR",
+        amount: result.amount,
+        code: `VIA-${result.trip_id}`,
+        createdAt: result.created_at,
+      });
     } catch (error) {
       showToast(error.message, true);
       if (error.status === 401) logout();

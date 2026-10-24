@@ -26,7 +26,7 @@
     <script src="app.js" defer></script>
   </head>
   <body>
-    <!-- Simbolos SVG reutilizados por botones e iconos de toda la pagina. -->
+    <!-- Guardamos aquí los iconos para poder reutilizarlos en toda la app. -->
     <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <symbol id="icon-grid" viewBox="0 0 24 24">
         <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
@@ -97,7 +97,7 @@
 
     <!-- La entrada y la app viven en la misma página; JavaScript muestra una
          u otra según la sesión que el servidor reconoce. -->
-    <!-- Acceso y registro: se muestra antes de iniciar sesion. -->
+    <!-- Primero mostramos el acceso; el espacio de trabajo aparece al validar la sesión. -->
     <main class="login-gate" id="login-gate">
       <section class="login-card" aria-labelledby="login-title">
         <a class="brand login-brand" href="#login" aria-label="QrPass">
@@ -169,7 +169,8 @@
             maxlength="256"
             required
           />
-          <label class="login-consent"><input name="privacy_consent" type="checkbox" required /><span>Autorizo el tratamiento de mis datos para esta demostración y acepto su política de privacidad.</span></label>
+          <label class="login-consent"><input name="privacy_consent" type="checkbox" required /><span>Autorizo el uso de mis datos para esta demostración.</span></label>
+          <button class="login-privacy-link" type="button" data-action="privacy-info">Leer aviso de privacidad del prototipo</button>
           <p class="login-error" id="registration-error" role="alert" hidden></p>
           <button class="button login-submit" type="submit">Crear cuenta pasajera <svg class="icon"><use href="#icon-arrow" /></svg></button>
         </form>
@@ -182,7 +183,7 @@
     <!-- Este contenedor se mantiene oculto hasta validar la cuenta y sus roles. -->
     <div class="app-shell">
       <!-- Navegacion lateral y opciones disponibles por perfil. -->
-      <aside class="sidebar" id="sidebar">
+      <aside class="sidebar" id="sidebar" aria-label="Menú de QrPass">
         <a class="brand" href="#inicio" data-view="inicio" aria-label="QrPass, inicio">
           <span class="brand-mark" aria-hidden="true">
             <svg class="icon"><use href="#icon-qr" /></svg>
@@ -251,6 +252,7 @@
             id="menu-toggle"
             aria-label="Abrir menú"
             aria-expanded="false"
+            aria-controls="sidebar"
           >
             <svg class="icon"><use href="#icon-menu" /></svg>
           </button>
@@ -285,7 +287,7 @@
           <button class="demo-info-link" type="button" data-action="demo-info">¿Qué significa?</button>
         </div>
         <!-- JavaScript coloca aqui la pantalla seleccionada. -->
-        <section id="app-content" class="page-content" aria-live="polite"></section>
+        <section id="app-content" class="page-content" aria-label="Contenido de la página" aria-live="polite"></section>
         <footer class="site-footer">
           <span>QrPass <span class="footer-dot">·</span> Hecho para moverte mejor.</span>
           <button class="footer-info-link" type="button" data-action="demo-info"><svg class="icon"><use href="#icon-document" /></svg> Acerca de la demostración</button>

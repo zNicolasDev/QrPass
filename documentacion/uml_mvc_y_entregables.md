@@ -6,10 +6,10 @@ Cada diagrama tiene un ejemplo Python propio, independiente de la API y de la ba
 
 | Diagrama | Archivo Python | Comando |
 |---|---|---|
-| Secuencia 1: pago manual | `backend/docs/secuencia_pago_manual.py` | `python backend/docs/secuencia_pago_manual.py` |
-| Secuencia 2: QR del bus | `backend/docs/secuencia_qr_bus.py` | `python backend/docs/secuencia_qr_bus.py` |
-| Actividad 1: pago con QR | `backend/docs/actividad_pago_qr.py` | `python backend/docs/actividad_pago_qr.py` |
-| Actividad 2: transbordo | `backend/docs/actividad_transbordo.py` | `python backend/docs/actividad_transbordo.py` |
+| Secuencia 1: pago manual | `documentacion/secuencia_pago_manual.py` | `python documentacion/secuencia_pago_manual.py` |
+| Secuencia 2: QR del bus | `documentacion/secuencia_qr_bus.py` | `python documentacion/secuencia_qr_bus.py` |
+| Actividad 1: pago con QR | `documentacion/actividad_pago_qr.py` | `python documentacion/actividad_pago_qr.py` |
+| Actividad 2: transbordo | `documentacion/actividad_transbordo.py` | `python documentacion/actividad_transbordo.py` |
 
 Estos archivos son implementaciones didacticas para la asignatura. No reemplazan el backend real, que conserva sus controladores, servicios, modelos, autenticacion y persistencia.
 

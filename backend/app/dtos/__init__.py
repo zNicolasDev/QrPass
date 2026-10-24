@@ -25,6 +25,7 @@ from app.dtos.ruta import TarifaRespuesta, RutaRespuesta
 from app.dtos.sistema import EstadoServicioRespuesta
 from app.dtos.transbordo import CrearTransbordoSolicitud, TransbordoRespuesta
 from app.dtos.viaje import ViajeRespuesta
+from app.dtos.administracion import MetricasGerencialesRespuesta, ReinicioDemoRespuesta
 
 __all__ = [
     'CuentaRespuesta',
@@ -53,4 +54,6 @@ __all__ = [
     'CrearTransbordoSolicitud',
     'TransbordoRespuesta',
     'ViajeRespuesta',
+    'MetricasGerencialesRespuesta',
+    'ReinicioDemoRespuesta',
 ]
