@@ -1,63 +1,92 @@
-from __future__ import annotations
-
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import Annotated
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import Field, model_validator
 
-from app.models.base import Base
-
-if TYPE_CHECKING:
-    from app.models.tarjeta import Tarjeta
-    from app.models.codigo_qr import CodigoQr
-    from app.models.viaje import Viaje
-    from app.models.usuario import Usuario
+from app.dtos.enumeraciones import TipoTarjeta, MedioPago
+from app.dtos.base import EsquemaBase
 
 
-# Movimiento de dinero o recaudo generado por un viaje o una recarga.
-class Pago(Base):
-    # Registro financiero interno: conserva importe, saldos y medio utilizado.
-    __tablename__ = "payments"
-    __table_args__ = (
-        # Constraints hacen que la base también proteja invariantes importantes.
-        CheckConstraint("amount >= 0", name="ck_payments_amount_nonnegative"),
-        CheckConstraint("balance_before >= 0", name="ck_payments_balance_before_nonnegative"),
-        CheckConstraint("balance_after >= 0", name="ck_payments_balance_after_nonnegative"),
-        # El mismo usuario no puede registrar dos veces una misma clave de reintento.
-        UniqueConstraint("user_id", "idempotency_key", name="uq_payments_user_idempotency_key"),
-    )
+# Ruta y medio de pago solicitados para registrar un viaje.
+class CrearPagoSolicitud(EsquemaBase):
+    # Datos que el cliente necesita para solicitar un viaje pagado.
+    # Annotated combina el tipo int con restricciones extra definidas por Field.
+    # route_id debe ser positivo; method y card_type deben formar una combinación válida.
+    ruta_id: Annotated[int, Field(gt=0, validation_alias="route_id", serialization_alias="route_id")]
+    medio: MedioPago = Field(validation_alias="method", serialization_alias="method")
+    tipo_tarjeta: TipoTarjeta | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
+    clave_idempotencia: Annotated[str | None, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")] = None
+    # Solo las rutas con destinos (como la 48) lo exigen; el servicio lo valida.
+    destino: Annotated[str | None, Field(min_length=1, max_length=60, validation_alias="destination", serialization_alias="destination")] = None
 
-    # Identificador y cuenta a la que se atribuye este movimiento.
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    usuario_id: Mapped[int] = mapped_column(
-        # El primer argumento conserva el nombre físico en inglés en la tabla.
-        "user_id", ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
-    # La clave reconoce reintentos; tarjeta y QR son opcionales según el medio.
-    clave_idempotencia: Mapped[str | None] = mapped_column("idempotency_key", String(80))
-    tarjeta_id: Mapped[int | None] = mapped_column(
-        "card_id", ForeignKey("cards.id", ondelete="RESTRICT")
-    )
-    codigo_qr_id: Mapped[int | None] = mapped_column(
-        "qr_code_id", ForeignKey("qr_codes.id", ondelete="RESTRICT")
-    )
-    # Datos del movimiento: medio, clase de operación, monto y estado.
-    medio: Mapped[str] = mapped_column("method", String(20), nullable=False)
-    tipo_movimiento: Mapped[str] = mapped_column("movement_type", String(20), nullable=False)
-    monto: Mapped[int] = mapped_column("amount", Integer, nullable=False)
-    # Se guardan ambos saldos para que el historial muestre el efecto del pago.
-    saldo_anterior: Mapped[int] = mapped_column("balance_before", Integer, nullable=False)
-    saldo_posterior: Mapped[int] = mapped_column("balance_after", Integer, nullable=False)
-    estado: Mapped[str] = mapped_column("status", String(20), nullable=False, default="completed")
-    creado_en: Mapped[datetime] = mapped_column(
-        "created_at", DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    @model_validator(mode="after")
+    def validar_tipo_tarjeta(self) -> 'CrearPagoSolicitud':
+        # Valida la combinación entre medio y tipo de tarjeta, no cada campo aislado.
+        if self.medio == MedioPago.WALLET:
+            raise ValueError("Para pagar con saldo, escanea el QR que muestra el bus.")
+        if self.medio == MedioPago.CARD and self.tipo_tarjeta is None:
+            raise ValueError("card_type es obligatorio para pagos con tarjeta.")
+        if self.medio != MedioPago.CARD and self.tipo_tarjeta is not None:
+            raise ValueError("card_type solo se admite para pagos con tarjeta.")
+        return self
 
-    # El usuario puede tener muchos pagos; un pago de pasaje puede originar
-    # como máximo un viaje, mientras una recarga no tiene viaje asociado.
-    usuario: Mapped['Usuario'] = relationship(back_populates="pagos")
-    tarjeta: Mapped["Tarjeta | None"] = relationship(back_populates="pagos")
-    codigo_qr: Mapped["CodigoQr | None"] = relationship(back_populates="pagos")
-    # Un pago puede no ser un viaje (p. ej., una recarga); si lo es, es único.
-    viaje: Mapped["Viaje | None"] = relationship(back_populates="pago", uselist=False)
+
+# Resumen del pago y del viaje creado por la API.
+class ReciboPago(EsquemaBase):
+    # Comprobante de un pago y del viaje que produjo.
+    # IDs conectan el pago con su viaje y su ruta.
+    pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
+    viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
+    ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
+    nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
+    # Destino elegido; solo aparece en las rutas que cobran según el destino.
+    destino: str | None = Field(default=None, validation_alias="destination", serialization_alias="destination")
+    # Datos del cobro y saldo resultante que se muestran después de confirmar.
+    medio: str = Field(validation_alias="method", serialization_alias="method")
+    tipo_tarjeta: str | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
+    tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    saldo_billetera: int = Field(validation_alias="wallet_balance", serialization_alias="wallet_balance")
+    estado: str = Field(validation_alias="status", serialization_alias="status")
+    creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
+    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
+
+
+# Movimiento de pago o recarga presentado en el historial.
+class HistorialPagosRespuesta(EsquemaBase):
+    # Elemento del historial; ruta/viaje pueden faltar en movimientos de recarga.
+    # El saldo anterior y posterior permiten ver cómo afectó el movimiento a la billetera.
+    pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
+    tipo_movimiento: str = Field(validation_alias="movement_type", serialization_alias="movement_type")
+    medio: str = Field(validation_alias="method", serialization_alias="method")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    saldo_anterior: int = Field(validation_alias="balance_before", serialization_alias="balance_before")
+    saldo_posterior: int = Field(validation_alias="balance_after", serialization_alias="balance_after")
+    estado: str = Field(validation_alias="status", serialization_alias="status")
+    creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
+    viaje_id: int | None = Field(default=None, validation_alias="trip_id", serialization_alias="trip_id")
+    ruta_id: int | None = Field(default=None, validation_alias="route_id", serialization_alias="route_id")
+    nombre_ruta: str | None = Field(default=None, validation_alias="route_name", serialization_alias="route_name")
+
+
+# Monto y clave que identifican una solicitud de recarga.
+class CrearRecargaSolicitud(EsquemaBase):
+    # Solicitud de recarga con monto acotado y clave para evitar duplicados.
+    # amount está expresado en pesos y no puede superar el límite de demostración.
+    monto: Annotated[int, Field(gt=0, le=500000, validation_alias="amount", serialization_alias="amount")]
+    clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
+
+
+# Resultado de la recarga y saldo que queda en la cuenta.
+class ReciboRecarga(EsquemaBase):
+    # Comprobante de recarga con el saldo resultante.
+    pago_id: int = Field(validation_alias="payment_id", serialization_alias="payment_id")
+    tipo_movimiento: str = Field(default="top_up", validation_alias="movement_type", serialization_alias="movement_type")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    saldo_billetera: int = Field(validation_alias="wallet_balance", serialization_alias="wallet_balance")
+    estado: str = Field(validation_alias="status", serialization_alias="status")
+    creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
+    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
