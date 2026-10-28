@@ -36,6 +36,20 @@ DEMO_ROUTES = (
     "18", "19", "20", "21", "22", "23", "24", "28", "29", "31",
     "33", "35", "37", "40", "43", "48", "50", "53", "82", "90", "ALIMENTADOR CHUCHUNI", "SAN BERNARDO-SALADO",
 )
+
+# Pasaje ordinario: "weekday" es de lunes a sábado y "weekend" es domingo o festivo.
+TARIFA_ORDINARIA = {"weekday": 3300, "weekend": 3400}
+
+# Rutas cuyo valor depende del destino que elige el pasajero. Los tres primeros
+# destinos de la ruta 48 cuestan lo mismo que el pasaje ordinario; Juntas cuesta más.
+DEMO_ROUTE_DESTINATIONS = {
+    "48": {
+        "Tres Esquinas - Llanitos": TARIFA_ORDINARIA,
+        "Puerto Peru - Pastales": TARIFA_ORDINARIA,
+        "Villa Restrepo": TARIFA_ORDINARIA,
+        "Juntas": {"weekday": 3800, "weekend": 3900},
+    },
+}
 logger = logging.getLogger(__name__)
 DEMO_PASSENGER_USERNAME = "pasajero.demo"
 DEMO_DRIVER_USERNAME = "conductor.demo"
@@ -79,6 +93,7 @@ class BaseDatos:
         # Primero crea las tablas que falten y adapta bases SQLite antiguas.
         Base.metadata.create_all(bind=self.engine)
         self._upgrade_sqlite_user_columns()
+        self._upgrade_sqlite_fare_destinations()
 
         # Después prepara los roles, las dos cuentas demo, la ruta y el turno.
         # Las comprobaciones evitan duplicar estos registros al reiniciar la API.
@@ -145,10 +160,11 @@ class BaseDatos:
                     route = Ruta(id=route_id, nombre=route_name)
                     session.add(route)
                     session.flush()
-                for day_type, amount in (("weekday", 3300), ("weekend", 3400)):
+                for day_type, amount in TARIFA_ORDINARIA.items():
                     fare = session.query(Tarifa).filter_by(
                         ruta_id=route_id,
                         tipo_dia=day_type,
+                        destino=None,
                     ).first()
                     if fare is None:
                         session.add(Tarifa(
@@ -157,6 +173,23 @@ class BaseDatos:
                             monto=amount,
                             activa=True,
                         ))
+
+                # Las rutas con destinos tienen además una tarifa por destino y día.
+                for destination, amounts in DEMO_ROUTE_DESTINATIONS.get(route_name, {}).items():
+                    for day_type, amount in amounts.items():
+                        fare = session.query(Tarifa).filter_by(
+                            ruta_id=route_id,
+                            tipo_dia=day_type,
+                            destino=destination,
+                        ).first()
+                        if fare is None:
+                            session.add(Tarifa(
+                                ruta_id=route_id,
+                                tipo_dia=day_type,
+                                destino=destination,
+                                monto=amount,
+                                activa=True,
+                            ))
 
             session.flush()
             assigned_route = session.query(Ruta).filter_by(nombre="24").first()
@@ -222,6 +255,62 @@ class BaseDatos:
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_payments_user_idempotency "
                 "ON payments (user_id, idempotency_key)"
             )
+
+    def _upgrade_sqlite_fare_destinations(self) -> None:
+        # Las bases SQLite creadas antes de los destinos tienen la tabla fares sin
+        # la columna destination y con una restricción única (ruta, tipo de día)
+        # que ALTER TABLE no puede cambiar. Se reconstruye la tabla conservando
+        # los id, para que los viajes ya guardados sigan apuntando a su tarifa.
+        if not self.url.startswith("sqlite") or "://" not in self.url:
+            return
+        inspector = inspect(self.engine)
+        if "fares" not in inspector.get_table_names():
+            return
+        if "destination" in {column["name"] for column in inspector.get_columns("fares")}:
+            return
+
+        connection = self.engine.raw_connection()
+        try:
+            cursor = connection.cursor()
+            # Con las claves foráneas activas SQLite no deja reemplazar una tabla
+            # a la que apuntan los viajes; se apagan solo durante la reconstrucción.
+            cursor.execute("PRAGMA foreign_keys=OFF")
+            try:
+                cursor.execute("BEGIN")
+                cursor.execute(
+                    "CREATE TABLE fares_new ("
+                    "id INTEGER NOT NULL, "
+                    "route_id INTEGER NOT NULL, "
+                    "day_type VARCHAR(12) NOT NULL, "
+                    "destination VARCHAR(60), "
+                    "amount INTEGER NOT NULL, "
+                    "active BOOLEAN NOT NULL, "
+                    "PRIMARY KEY (id), "
+                    "CONSTRAINT ck_fares_amount_positive CHECK (amount > 0), "
+                    "CONSTRAINT ck_fares_day_type CHECK (day_type IN ('weekday', 'weekend')), "
+                    "CONSTRAINT uq_fares_route_day_type_destination UNIQUE (route_id, day_type, destination), "
+                    "FOREIGN KEY(route_id) REFERENCES routes (id) ON DELETE RESTRICT)"
+                )
+                cursor.execute(
+                    "INSERT INTO fares_new (id, route_id, day_type, destination, amount, active) "
+                    "SELECT id, route_id, day_type, NULL, amount, active FROM fares"
+                )
+                cursor.execute("DROP TABLE fares")
+                cursor.execute("ALTER TABLE fares_new RENAME TO fares")
+                cursor.execute(
+                    "CREATE UNIQUE INDEX uq_fares_route_day_type_ordinary "
+                    "ON fares (route_id, day_type) WHERE destination IS NULL"
+                )
+                if cursor.execute("PRAGMA foreign_key_check").fetchall():
+                    raise RuntimeError("La actualización de la tabla de tarifas dejó viajes sin tarifa.")
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                cursor.execute("PRAGMA foreign_keys=ON")
+        finally:
+            connection.close()
 
     @staticmethod
     # Busca un rol por codigo y lo crea solo si aun no existe.
