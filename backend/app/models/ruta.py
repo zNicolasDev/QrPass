@@ -1,29 +1,26 @@
-from typing import TYPE_CHECKING
+from datetime import date
 
-from sqlalchemy import Boolean, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import Field
 
-from app.models.base import Base
-
-if TYPE_CHECKING:
-    from app.models.tarifa import Tarifa
-    from app.models.turno import Turno
-    from app.models.transbordo import Transbordo
-    from app.models.viaje import Viaje
+from app.dtos.base import EsquemaBase
 
 
-# Ruta activa que puede elegirse para un viaje.
-class Ruta(Base):
-    # Catálogo de recorridos; sus relaciones permiten llegar a tarifas y viajes.
-    __tablename__ = "routes"
+# Identificador y nombre de una ruta.
+class RutaRespuesta(EsquemaBase):
+    # Información pública mínima de una ruta.
+    id: int
+    nombre: str = Field(validation_alias="name", serialization_alias="name")
 
-    # La ruta tiene un identificador, un nombre visible y un estado de uso.
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    nombre: Mapped[str] = mapped_column("name", String(30), unique=True, nullable=False)
-    activa: Mapped[bool] = mapped_column("active", Boolean, nullable=False, default=True)
 
-    # Desde una ruta se consultan sus tarifas, turnos, viajes y transbordos.
-    tarifas: Mapped[list['Tarifa']] = relationship(back_populates="ruta")
-    turnos: Mapped[list['Turno']] = relationship(back_populates="ruta")
-    viajes: Mapped[list['Viaje']] = relationship(back_populates="ruta")
-    transbordos_destino: Mapped[list['Transbordo']] = relationship(back_populates="ruta_destino")
+# Ruta, fecha y valor de la tarifa vigente.
+class TarifaRespuesta(EsquemaBase):
+    # Tarifa aplicable a una ruta en una fecha y tipo de día determinados.
+    # Incluye la ruta, la categoría del día y el valor cobrado en esa fecha.
+    ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
+    nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
+    tipo_dia: str = Field(validation_alias="day_type", serialization_alias="day_type")
+    # Destino al que aplica el valor; vacío en la tarifa ordinaria de la ruta.
+    destino: str | None = Field(default=None, validation_alias="destination", serialization_alias="destination")
+    monto: int = Field(validation_alias="amount", serialization_alias="amount")
+    moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
+    fecha_servicio: date
