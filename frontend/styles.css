@@ -2634,6 +2634,27 @@ h1 {
   min-height: 43px;
 }
 
+/* Ruta y, si la ruta tiene destinos (como la 48), el menú de destino al lado. */
+.payment-route-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 10px;
+}
+
+.payment-route-row.has-destination {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+}
+
+.payment-route-row > :empty {
+  display: none;
+}
+
+@media (max-width: 450px) {
+  .payment-route-row.has-destination {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .payment-fieldset {
   min-width: 0;
   margin: 0 0 14px;
