@@ -155,7 +155,7 @@ def obtener_tarifa_vigente(session: Session, route_id: int | None, on_date: date
         .options(joinedload(Tarifa.ruta))
         .join(Tarifa.ruta)
         .where(Tarifa.activa.is_(True), Ruta.activa.is_(True), Tarifa.tipo_dia == day_type)
-        .order_by(Ruta.id)
+        .order_by(Ruta.id, Tarifa.id)
     )
     if route_id is not None:
         statement = statement.where(Tarifa.ruta_id == route_id)
@@ -168,6 +168,7 @@ def obtener_tarifa_vigente(session: Session, route_id: int | None, on_date: date
             "route_id": fare.ruta_id,
             "route_name": fare.ruta.nombre,
             "day_type": fare.tipo_dia,
+            "destination": fare.destino,
             "amount": fare.monto,
             'fecha_servicio': requested_date,
         }
@@ -388,18 +389,34 @@ def _obtener_ruta_activa(session: Session, route_id: int) -> Ruta:
     return route
 
 
-def _obtener_tarifa_ruta(session: Session, route_id: int) -> Tarifa:
+def _obtener_tarifa_ruta(session: Session, route_id: int, destination: str | None = None) -> Tarifa:
     # La tarifa se determina con la fecha y zona horaria del servicio, no con
-    # la hora local que envíe el navegador.
+    # la hora local que envíe el navegador. Sin destino se usa la tarifa
+    # ordinaria de la ruta; con destino, la tarifa propia de ese destino.
     day_type = tipo_dia(fecha_servicio())
     fare = session.scalar(select(Tarifa).where(
         Tarifa.ruta_id == route_id,
         Tarifa.tipo_dia == day_type,
+        Tarifa.destino == destination,
         Tarifa.activa.is_(True),
     ))
     if fare is None:
         raise ErrorDominio(404, "La ruta no tiene una tarifa vigente.")
     return fare
+
+
+def _validar_destino_ruta(session: Session, route_id: int, destination: str | None) -> None:
+    # Las rutas con destinos (como la 48) exigen elegir uno de ellos; las demás
+    # rutas no admiten destino. Los destinos válidos salen de las tarifas activas.
+    destinations = set(session.scalars(select(Tarifa.destino).where(
+        Tarifa.ruta_id == route_id,
+        Tarifa.destino.is_not(None),
+        Tarifa.activa.is_(True),
+    )))
+    if destinations and destination is None:
+        raise ErrorDominio(422, "Selecciona un destino para esta ruta.")
+    if destination is not None and destination not in destinations:
+        raise ErrorDominio(422, "El destino indicado no corresponde a la ruta seleccionada.")
 
 
 # Registra efectivo o tarjeta; los pagos con saldo entran por el QR del bus.
@@ -425,9 +442,12 @@ def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> 
                 raise ErrorDominio(409, "El pago previo no tiene un tiquete asociado.")
             if prior.viaje.ruta_id != request.ruta_id:
                 raise ErrorDominio(409, "La clave de idempotencia ya se usó para otra ruta.")
+            if prior.viaje.tarifa.destino != request.destino:
+                raise ErrorDominio(409, "La clave de idempotencia ya se usó para otro destino.")
             return prior, prior.viaje, prior.saldo_posterior
     route = _obtener_ruta_activa(session, request.ruta_id)
-    fare = _obtener_tarifa_ruta(session, route.id)
+    _validar_destino_ruta(session, route.id, request.destino)
+    fare = _obtener_tarifa_ruta(session, route.id, request.destino)
     now = ahora_servicio()
     balance_before = user.saldo_billetera
     balance_after = balance_before
