@@ -25,6 +25,7 @@ let selectedPaymentMethod = "saldo";
 let deferredInstallPrompt = null;
 let routeCatalog = [];
 let currentFare = 3300;
+let fareCatalog = [];
 let driverAssignment = null;
 let activeCameraStream = null;
 let scanLoopTimer = null;
@@ -60,6 +61,23 @@ function escapeHtml(value) {
 
 function getFare() {
   return currentFare;
+}
+
+// Destinos con tarifa propia para una ruta (por ejemplo la 48), en el orden
+// que entrega la API y sin repetirse entre días de semana y festivos.
+function routeDestinations(routeId) {
+  const names = fareCatalog
+    .filter((fare) => fare.route_id === routeId && fare.destination)
+    .map((fare) => fare.destination);
+  return [...new Set(names)];
+}
+
+// Valor vigente de una ruta; con destino usa la tarifa de ese destino.
+// El valor definitivo siempre lo calcula el servidor al registrar el pago.
+function getFareFor(routeId, destination) {
+  const match = fareCatalog.find((fare) => fare.route_id === routeId
+    && (fare.destination ?? null) === (destination || null));
+  return match?.amount ?? currentFare;
 }
 
 function hasProfileRole(profile) {
@@ -236,7 +254,9 @@ async function activateSession(user, token) {
     apiRequest("/fares/current"),
   ]);
   routeCatalog = routes;
-  currentFare = fares[0]?.amount ?? 3300;
+  // Se conserva la lista completa: incluye las tarifas por destino (ruta 48).
+  fareCatalog = fares;
+  currentFare = fares.find((fare) => !fare.destination)?.amount ?? 3300;
   await refreshPassengerData();
   driverState = { activeShift: null, completedShifts: [] };
   const preferredProfile = sessionStorage.getItem("qrpass-active-profile-v1");
@@ -1152,7 +1172,10 @@ function openPayment(method = "saldo") {
     <div class="modal-kicker">PAGO DE DEMOSTRACIÓN</div><h2 id="modal-title">Registra tu viaje</h2>
     <p>Elige la ruta y el método de pago para guardar un movimiento de prueba.</p>
     <form id="payment-form" data-idempotency-key="${createIdempotencyKey()}">
-      <div class="form-field"><label for="payment-route">Ruta que vas a abordar</label><select class="select" id="payment-route" name="route" required><option value="" disabled selected>Selecciona una ruta</option>${routeOptions()}</select></div>
+      <div class="payment-route-row" id="payment-route-row">
+        <div class="form-field"><label for="payment-route">Ruta que vas a abordar</label><select class="select" id="payment-route" name="route" required><option value="" disabled selected>Selecciona una ruta</option>${routeOptions()}</select></div>
+        <div class="form-field" id="payment-destination-field"></div>
+      </div>
       <fieldset class="payment-fieldset"><legend>Método de pago</legend>
         <div class="method-picker">${paymentMethods.map((option) => `<label class="method-choice">
           <input class="method-radio" type="radio" name="method" value="${option.value}"${method === option.value ? " checked" : ""} />
@@ -1160,7 +1183,7 @@ function openPayment(method = "saldo") {
         </label>`).join("")}</div>
       </fieldset>
       <div id="card-type-container">${cardTypeField}</div>
-      <div class="modal-total"><span>Valor del pasaje</span><strong>${money(fare)}</strong></div>
+      <div class="modal-total"><span>Valor del pasaje</span><strong id="payment-total">${money(fare)}</strong></div>
       <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Confirmar movimiento</button></div>
     </form>
   </div>`;
@@ -1169,9 +1192,42 @@ function openPayment(method = "saldo") {
 
 function choosePaymentMethod(method) {
   const route = document.querySelector("#payment-route")?.value ?? "";
+  const destination = document.querySelector("#payment-destination")?.value ?? "";
   openPayment(method);
   const routeInput = document.querySelector("#payment-route");
-  if (route && routeInput) routeInput.value = route;
+  if (route && routeInput) {
+    routeInput.value = route;
+    renderPaymentDestination(destination);
+  }
+}
+
+// Muestra el menú "Destino" al lado de la ruta solo cuando la ruta elegida
+// tiene destinos (hoy, la 48); en las demás rutas el menú no aparece.
+function renderPaymentDestination(selectedDestination = "") {
+  const row = document.querySelector("#payment-route-row");
+  const field = document.querySelector("#payment-destination-field");
+  if (!row || !field) return;
+  const routeId = Number(document.querySelector("#payment-route")?.value);
+  const destinations = routeDestinations(routeId);
+  row.classList.toggle("has-destination", destinations.length > 0);
+  field.innerHTML = destinations.length
+    ? `<label for="payment-destination">Destino</label><select class="select" id="payment-destination" name="destination" required><option value="" disabled selected>Selecciona un destino</option>${destinations.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select>`
+    : "";
+  if (selectedDestination && destinations.includes(selectedDestination)) {
+    field.querySelector("select").value = selectedDestination;
+  }
+  updatePaymentTotal();
+}
+
+// El valor mostrado cambia con la ruta y el destino elegidos.
+function updatePaymentTotal() {
+  const total = document.querySelector("#payment-total");
+  if (!total) return;
+  const routeId = Number(document.querySelector("#payment-route")?.value);
+  const destination = document.querySelector("#payment-destination")?.value ?? "";
+  total.textContent = routeDestinations(routeId).length && !destination
+    ? "Elige un destino"
+    : money(getFareFor(routeId, destination));
 }
 
 function updatePaymentMethod(method) {
@@ -1449,6 +1505,11 @@ document.addEventListener("submit", async (event) => {
       showToast("Selecciona una ruta disponible.", true);
       return;
     }
+    const destination = String(formData.get("destination") ?? "");
+    if (routeDestinations(routeId).length && !destination) {
+      showToast("Selecciona un destino para esta ruta.", true);
+      return;
+    }
     const cardType = formData.get("cardType");
     if (selectedPaymentMethod === "tarjeta" && !["Débito", "Crédito"].includes(cardType)) {
       showToast("Selecciona débito o crédito.", true);
@@ -1465,13 +1526,14 @@ document.addEventListener("submit", async (event) => {
         method: "POST",
         body: JSON.stringify({
           route_id: routeId,
+          ...(destination ? { destination } : {}),
           method: paymentMethods[selectedPaymentMethod],
           ...(selectedPaymentMethod === "tarjeta" ? { card_type: cardTypes[cardType] } : {}),
           idempotency_key: event.target.dataset.idempotencyKey,
         }),
       });
       const trip = {
-        route: receipt.route_name,
+        route: receipt.destination ? `${receipt.route_name} · ${receipt.destination}` : receipt.route_name,
         method: receipt.method === "wallet" ? "Saldo QR"
           : receipt.method === "cash" ? "Efectivo"
           : `Tarjeta ${receipt.card_type === "credit" ? "crédito" : "débito"}`,
@@ -1543,6 +1605,8 @@ document.addEventListener("change", (event) => {
   if (event.target.name === "method" && event.target.form?.id === "payment-form") {
     updatePaymentMethod(event.target.value);
   }
+  if (event.target.id === "payment-route") renderPaymentDestination();
+  if (event.target.id === "payment-destination") updatePaymentTotal();
 });
 
 document.querySelector("#menu-toggle").addEventListener("click", (event) => {
