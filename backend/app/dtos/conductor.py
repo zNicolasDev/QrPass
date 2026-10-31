@@ -68,7 +68,7 @@ class PagoConductorSolicitud(EsquemaBase):
     def validar_pago_conductor(self) -> 'PagoConductorSolicitud':
         # Esta regla depende de dos campos, por eso se valida después de leerlos.
         if self.medio == MedioPago.WALLET:
-            raise ValueError("Los pagos wallet/QR deben validarse escaneando un cÃ³digo.")
+            raise ValueError("Los pagos wallet/QR deben validarse escaneando un código.")
         if self.medio == MedioPago.CARD and self.tipo_tarjeta is None:
             raise ValueError("card_type es obligatorio para pagos con tarjeta.")
         if self.medio == MedioPago.CASH and self.tipo_tarjeta is not None:

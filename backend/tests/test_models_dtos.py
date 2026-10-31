@@ -109,11 +109,10 @@ def test_dto_validates_requests_and_serializes_model_output() -> None:
         {"ruta_id": 7, "medio": MedioPago.CARD, "tipo_tarjeta": TipoTarjeta.DEBIT}
     )
     assert payment_request.tipo_tarjeta == TipoTarjeta.DEBIT
-    assert payment_request.model_dump(mode="json") == {
+    assert payment_request.model_dump(mode="json", exclude_none=True) == {
         "route_id": 7,
         "method": "card",
         "card_type": "debit",
-        "idempotency_key": None,
     }
     assert CrearPagoSolicitud.model_validate(
         {"route_id": 7, "method": "cash"}
@@ -142,8 +141,8 @@ def test_dto_validates_requests_and_serializes_model_output() -> None:
 
 def test_metricas_gerenciales_dto_and_service() -> None:
     from app.dtos import MetricasGerencialesRespuesta, ReinicioDemoRespuesta
-    from app.services import obtener_metricas_gerenciales, reiniciar_datos_demo
-    from app.database import BaseDatos
+    from app.servicios.administracion import obtener_metricas_gerenciales, reiniciar_datos_demo
+    from app.core.database import BaseDatos
 
     db = BaseDatos('sqlite://')
     db.initialize()

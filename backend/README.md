@@ -10,7 +10,7 @@ Desde esta carpeta:
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload
+python -m uvicorn app.core.main:app --reload
 ```
 
 La API crea `qrpass.db` (SQLite local), carga rutas y tarifas de ejemplo y prepara las cuentas de demostración. Documentación interactiva: `http://127.0.0.1:8000/docs`.

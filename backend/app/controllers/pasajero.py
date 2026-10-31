@@ -7,8 +7,8 @@ from fastapi import Depends
 from fastapi import Request
 from fastapi import status
 from sqlalchemy.orm import Session
-from app.auth import UsuarioAutenticado
-from app.database import obtener_sesion
+from app.seguridad.auth import UsuarioAutenticado
+from app.core.database import obtener_sesion
 from app.dtos import CuentaRespuesta
 from app.dtos import CrearPagoSolicitud
 from app.dtos import HistorialPagosRespuesta
@@ -20,13 +20,13 @@ from app.dtos import CrearTransbordoSolicitud
 from app.dtos import TransbordoRespuesta
 from app.dtos import ViajeRespuesta
 from app.models import Viaje
-from app.services import crear_pago
-from app.services import validar_qr_de_abordaje
-from app.services import crear_recarga
-from app.services import crear_transbordo
-from app.services import obtener_viaje
-from app.services import listar_pagos
-from app.services import listar_viajes
+from app.servicios.pagos import crear_pago
+from app.servicios.qr import validar_qr_de_abordaje
+from app.servicios.pagos import crear_recarga
+from app.servicios.transbordos import crear_transbordo
+from app.servicios.viajes import obtener_viaje
+from app.servicios.viajes import listar_pagos
+from app.servicios.viajes import listar_viajes
 
 
 

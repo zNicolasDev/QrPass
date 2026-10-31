@@ -25,10 +25,10 @@ from app.models import (
     RolUsuario,
     Vehiculo,
 )
-from app.passwords import crear_hash_contrasena
+from app.seguridad.passwords import crear_hash_contrasena
 
 
-DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[1] / "qrpass.db"
+DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[2] / "qrpass.db"
 DEFAULT_DATABASE_URL = f"sqlite:///{DEFAULT_DATABASE_PATH.as_posix()}"
 
 DEMO_ROUTES = (
@@ -37,11 +37,8 @@ DEMO_ROUTES = (
     "33", "35", "37", "40", "43", "48", "50", "53", "82", "90", "ALIMENTADOR CHUCHUNI", "SAN BERNARDO-SALADO",
 )
 
-# Pasaje ordinario: "weekday" es de lunes a sábado y "weekend" es domingo o festivo.
 TARIFA_ORDINARIA = {"weekday": 3300, "weekend": 3400}
 
-# Rutas cuyo valor depende del destino que elige el pasajero. Los tres primeros
-# destinos de la ruta 48 cuestan lo mismo que el pasaje ordinario; Juntas cuesta más.
 DEMO_ROUTE_DESTINATIONS = {
     "48": {
         "Tres Esquinas - Llanitos": TARIFA_ORDINARIA,
@@ -57,16 +54,11 @@ DEMO_PASSENGER_PASSWORD = "QrPass-Pasajero-Demo-2026"
 DEMO_DRIVER_PASSWORD = "QrPass-Conductor-Demo-2026"
 
 
-# Mantiene la conexión SQLAlchemy y prepara los datos locales de la aplicación.
 class BaseDatos:
     def __init__(self, database_url: str | None = None) -> None:
-        # La URL puede venir de pruebas, de una variable de entorno o usar la
-        # base SQLite local por defecto.
         self.url = database_url or os.getenv("QR_PASS_DATABASE_URL", DEFAULT_DATABASE_URL)
         connect_args = {"check_same_thread": False} if self.url.startswith("sqlite") else {}
         engine_options: dict[str, object] = {"connect_args": connect_args}
-        # Las pruebas en memoria necesitan compartir una sola conexión entre
-        # la aplicación y el cliente de pruebas.
         if self.url in {"sqlite://", "sqlite:///:memory:"}:
             engine_options["poolclass"] = StaticPool
         self.engine: Engine = create_engine(self.url, **engine_options)
@@ -74,7 +66,6 @@ class BaseDatos:
         if self.url.startswith("sqlite"):
             event.listen(self.engine, "connect", self._enable_sqlite_foreign_keys)
 
-        # Cada petición abre una sesión nueva usando este mismo motor.
         self.session_factory = sessionmaker(
             bind=self.engine,
             autoflush=False,
@@ -82,21 +73,16 @@ class BaseDatos:
         )
 
     @staticmethod
-    # Activa las claves foraneas para que SQLite respete las relaciones entre tablas.
     def _enable_sqlite_foreign_keys(connection: sqlite3.Connection, _: object) -> None:
         cursor = connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    # Crea el esquema y carga lo minimo para probar pasajero y conductor.
     def initialize(self) -> None:
-        # Primero crea las tablas que falten y adapta bases SQLite antiguas.
         Base.metadata.create_all(bind=self.engine)
         self._upgrade_sqlite_user_columns()
         self._upgrade_sqlite_fare_destinations()
 
-        # Después prepara los roles, las dos cuentas demo, la ruta y el turno.
-        # Las comprobaciones evitan duplicar estos registros al reiniciar la API.
         with self.session_factory() as session:
             passenger_role = self._ensure_role(session, "PASSENGER", "Pasajero")
             driver_role = self._ensure_role(session, "DRIVER", "Conductor")
@@ -153,7 +139,6 @@ class BaseDatos:
                 )
                 session.add(driver)
 
-            # Cada ruta demo tiene tarifa de día hábil y de día festivo.
             for route_id, route_name in enumerate(DEMO_ROUTES, start=1):
                 route = session.get(Ruta, route_id)
                 if route is None:
@@ -174,7 +159,6 @@ class BaseDatos:
                             activa=True,
                         ))
 
-                # Las rutas con destinos tienen además una tarifa por destino y día.
                 for destination, amounts in DEMO_ROUTE_DESTINATIONS.get(route_name, {}).items():
                     for day_type, amount in amounts.items():
                         fare = session.query(Tarifa).filter_by(
@@ -210,12 +194,9 @@ class BaseDatos:
                     estado="assigned",
                 ))
 
-            # Se confirman juntos los datos iniciales que se acaban de preparar.
             session.commit()
 
     def _upgrade_sqlite_user_columns(self) -> None:
-        # Este ajuste solo conserva compatibilidad con bases SQLite locales
-        # creadas antes de agregar las columnas indicadas.
         if not self.url.startswith("sqlite") or "://" not in self.url:
             return
         inspector = inspect(self.engine)
@@ -257,10 +238,6 @@ class BaseDatos:
             )
 
     def _upgrade_sqlite_fare_destinations(self) -> None:
-        # Las bases SQLite creadas antes de los destinos tienen la tabla fares sin
-        # la columna destination y con una restricción única (ruta, tipo de día)
-        # que ALTER TABLE no puede cambiar. Se reconstruye la tabla conservando
-        # los id, para que los viajes ya guardados sigan apuntando a su tarifa.
         if not self.url.startswith("sqlite") or "://" not in self.url:
             return
         inspector = inspect(self.engine)
@@ -272,8 +249,6 @@ class BaseDatos:
         connection = self.engine.raw_connection()
         try:
             cursor = connection.cursor()
-            # Con las claves foráneas activas SQLite no deja reemplazar una tabla
-            # a la que apuntan los viajes; se apagan solo durante la reconstrucción.
             cursor.execute("PRAGMA foreign_keys=OFF")
             try:
                 cursor.execute("BEGIN")
@@ -313,7 +288,6 @@ class BaseDatos:
             connection.close()
 
     @staticmethod
-    # Busca un rol por codigo y lo crea solo si aun no existe.
     def _ensure_role(session: Session, code: str, name: str) -> Rol:
         role = session.query(Rol).filter_by(codigo=code).first()
         if role is None:
@@ -323,7 +297,6 @@ class BaseDatos:
         return role
 
     @staticmethod
-    # Evita duplicar la asignación entre una cuenta y un rol.
     def _ensure_user_role(session: Session, user: Usuario, role: Rol) -> None:
         assignment = session.query(RolUsuario).filter_by(
             usuario_id=user.id,
@@ -332,26 +305,20 @@ class BaseDatos:
         if assignment is None:
             session.add(RolUsuario(usuario=user, rol=role))
 
-    # Libera los recursos de la conexión al apagar la aplicación.
     def close(self) -> None:
-        # Se llama al apagar FastAPI para cerrar el pool de conexiones.
         self.engine.dispose()
 
 
-# Recupera la conexión configurada para esta aplicación.
 def obtener_base_datos(request: Request) -> BaseDatos:
     return request.app.state.database
 
 
-# Comprueba desde la capa de base de datos que el motor acepte una consulta.
 def verificar_conexion(database: BaseDatos) -> None:
     with database.engine.connect() as connection:
         connection.execute(text("SELECT 1"))
 
 
-# Abre una sesión SQLAlchemy para una solicitud y la cierra al terminar.
 def obtener_sesion(request: Request) -> Generator[Session, None, None]:
     database = obtener_base_datos(request)
-    # El bloque with garantiza que la sesión se cierre después de responder.
     with database.session_factory() as session:
         yield session

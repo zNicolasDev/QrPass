@@ -7,17 +7,17 @@ from fastapi import HTTPException
 from fastapi import Request
 from fastapi import status
 from sqlalchemy.orm import Session
-from app.auth import DURACION_TOKEN_SEGUNDOS
-from app.auth import UsuarioAutenticado
-from app.auth import crear_token_acceso
-from app.database import obtener_sesion
+from app.seguridad.auth import DURACION_TOKEN_SEGUNDOS
+from app.seguridad.auth import UsuarioAutenticado
+from app.seguridad.auth import crear_token_acceso
+from app.core.database import obtener_sesion
 from app.dtos import UsuarioAutenticadoRespuesta
 from app.dtos import InicioSesionSolicitud
 from app.dtos import InicioSesionRespuesta
 from app.dtos import RegistroPasajeroSolicitud
 from app.models import Usuario
-from app.services import autenticar_usuario
-from app.services import registrar_pasajero
+from app.servicios.usuarios import autenticar_usuario
+from app.servicios.usuarios import registrar_pasajero
 
 
 

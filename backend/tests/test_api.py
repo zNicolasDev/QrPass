@@ -10,8 +10,8 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-import app.services as services
-from app.main import crear_aplicacion
+import app.servicios as services
+from app.core.main import crear_aplicacion
 
 
 def auth_headers(client: TestClient, username: str = "pasajero.demo") -> dict[str, str]:

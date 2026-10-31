@@ -1,6 +1,6 @@
 # Interfaz QrPass
 
-Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos. No necesita compilación ni paquetes de interfaz. Se conecta con la API de demostración; no procesa dinero real.
+Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos. No necesita compilación ni paquetes de interfaz. Se conecta con la API de plataforma; no procesa dinero real.
 
 ## Ejecutar localmente
 
@@ -11,7 +11,7 @@ Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos.
    py -m http.server 5500 --directory frontend
    ```
 
-3. Abre `http://127.0.0.1:5500` e inicia sesión con una cuenta de demostración o registra una cuenta de pasajero.
+3. Abre `http://127.0.0.1:5500` e inicia sesión con una cuenta de plataforma o registra una cuenta de pasajero.
 4. La documentación interactiva de la API está en `http://127.0.0.1:8000/docs`.
 
 La dirección de la API puede establecerse con `window.QRPASS_API_BASE_URL` antes de cargar `app.js`; el origen del sitio debe estar permitido en `QR_PASS_CORS_ORIGINS`.
@@ -27,13 +27,13 @@ La dirección de la API puede establecerse con `window.QRPASS_API_BASE_URL` ante
 
 ## Cobertura de la interfaz frente a los requisitos
 
-La interfaz permite recorrer los flujos de demostración de registro e inicio de sesión (RF-01 y RF-02), pagos (RF-03), tarifa vigente (RF-05), registro de efectivo y cierre de turno (RF-06, RF-10 y RF-11), recarga (RF-07), transbordo (RF-08) e historial con comprobantes y detalle (RF-09). El registro unificado muestra pagos, recargas, viajes transferidos y, cuando la API lo devuelve, el saldo anterior y posterior.
+La interfaz permite recorrer los flujos de plataforma de registro e inicio de sesión (RF-01 y RF-02), pagos (RF-03), tarifa vigente (RF-05), registro de efectivo y cierre de turno (RF-06, RF-10 y RF-11), recarga (RF-07), transbordo (RF-08) e historial con comprobantes y detalle (RF-09). El registro unificado muestra pagos, recargas, viajes transferidos y, cuando la API lo devuelve, el saldo anterior y posterior.
 
 RF-02 usa la ruta que el servidor asignó al conductor; la interfaz todavía no permite escoger una ruta entre varias. RF-04 requiere aclarar el sentido del QR: el documento pide que lo genere el pasajero, mientras que el contrato actual hace que el bus muestre un QR y que el pasajero lo escanee. La interfaz sigue el contrato disponible; no inventa códigos que la API no pueda validar.
 
-El registro enlaza un aviso de privacidad de demostración que describe los datos, su uso y almacenamiento. No existe todavía un panel administrativo o de auditoría, y ese aviso no reemplaza una política aprobada ni cubre las obligaciones legales de producción.
+El registro enlaza un aviso de privacidad de plataforma que describe los datos, su uso y almacenamiento. No existe todavía un panel administrativo o de auditoría, y ese aviso no reemplaza una política aprobada ni cubre las obligaciones legales de producción.
 
-Esta cobertura es de interfaz y demostración. El backend aún no integra pasarela bancaria ni POS, las recargas son ficticias y el prototipo no autoriza pagos o sincroniza movimientos sin conexión. RNF-02 y RNF-05 necesitan mediciones en dispositivos reales; TLS 1.3 y la escalabilidad dependen del despliegue; los aspectos de dominio y privacidad necesitan validación externa. Consulta la [trazabilidad completa](../documentacion/trazabilidad.md) para los límites técnicos y operativos.
+Esta cobertura es de interfaz y plataforma. El backend aún no integra pasarela bancaria ni POS, las recargas son ficticias y el prototipo no autoriza pagos o sincroniza movimientos sin conexión. RNF-02 y RNF-05 necesitan mediciones en dispositivos reales; TLS 1.3 y la escalabilidad dependen del despliegue; los aspectos de dominio y privacidad necesitan validación externa. Consulta la [trazabilidad completa](../documentacion/trazabilidad.md) para los límites técnicos y operativos.
 
 ## Flujos y límites
 

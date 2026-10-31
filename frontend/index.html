@@ -15,7 +15,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="iconos/qrpass.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="iconos/apple-touch-icon.png" />
-    <title>QrPass · Tu ciudad, en movimiento</title>
+    <title>QrPass · Movilidad en Ibagué</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -23,6 +23,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="premium.css" />
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -106,7 +107,7 @@
         </a>
         <div class="login-intro">
           <span class="eyebrow"><svg class="icon"><use href="#icon-route" /></svg> TRANSPORTE PÚBLICO · IBAGUÉ</span>
-          <h1 id="login-title">Tu ciudad, en movimiento.</h1>
+          <h1 id="login-title">Movilidad inteligente en Ibagué.</h1>
           <p>Inicia sesión para entrar al espacio permitido por los roles de tu cuenta.</p>
         </div>
         <form id="login-form" class="login-form">
@@ -169,15 +170,15 @@
             maxlength="256"
             required
           />
-          <label class="login-consent"><input name="privacy_consent" type="checkbox" required /><span>Autorizo el uso de mis datos para esta demostración.</span></label>
+          <label class="login-consent"><input name="privacy_consent" type="checkbox" required /><span>Autorizo el uso de mis datos para esta plataforma.</span></label>
           <button class="login-privacy-link" type="button" data-action="privacy-info">Leer aviso de privacidad del prototipo</button>
           <p class="login-error" id="registration-error" role="alert" hidden></p>
           <button class="button login-submit" type="submit">Crear cuenta pasajera <svg class="icon"><use href="#icon-arrow" /></svg></button>
         </form>
         <p class="login-role-note"><svg class="icon"><use href="#icon-shield" /></svg><span>El servidor determina tus roles. Las cuentas sin rol de conductor no pueden abrir ese espacio.</span></p>
-        <p class="login-demo-note">Prototipo: solicita al administrador local las credenciales de la cuenta de prueba.</p>
+        <p class="login-demo-note">Solicita al administrador local las credenciales de la cuenta de prueba.</p>
       </section>
-      <footer class="login-footer">QrPass · Acceso según rol · API de demostración</footer>
+      <footer class="login-footer">QrPass · Acceso según rol</footer>
     </main>
 
     <!-- Este contenedor se mantiene oculto hasta validar la cuenta y sus roles. -->
@@ -231,14 +232,14 @@
         <div class="sidebar-bottom">
           <div class="help-card">
             <span class="help-icon"><svg class="icon"><use href="#icon-spark" /></svg></span>
-            <strong id="workspace-help-title">Tu viaje, más simple.</strong>
-            <p id="workspace-help-copy">Un solo lugar para moverte por la ciudad.</p>
+            <strong id="workspace-help-title">Tu espacio de movilidad.</strong>
+            <p id="workspace-help-copy">Saldo, pagos, viajes y turnos en un solo lugar.</p>
             <button class="demo-account-link" type="button" data-action="logout">Cerrar sesión <svg class="icon"><use href="#icon-arrow" /></svg></button>
           </div>
           <div class="profile">
             <span class="avatar" id="sidebar-avatar">MC</span>
-            <span class="profile-copy"><strong id="sidebar-name">María Camila</strong><small id="sidebar-role">Perfil pasajero · demo</small></span>
-            <span class="profile-status" aria-label="Perfil de demostración seleccionado"></span>
+            <span class="profile-copy"><strong id="sidebar-name">María Camila</strong><small id="sidebar-role">Perfil pasajero</small></span>
+            <span class="profile-status" aria-label="Perfil seleccionado"></span>
           </div>
         </div>
       </aside>
@@ -256,7 +257,7 @@
           >
             <svg class="icon"><use href="#icon-menu" /></svg>
           </button>
-          <div class="breadcrumb"><span id="breadcrumb-context">Pasajero demo</span><span class="breadcrumb-slash">/</span><strong id="page-crumb">Resumen</strong></div>
+          <div class="breadcrumb"><span id="breadcrumb-context">Pasajero</span><span class="breadcrumb-slash">/</span><strong id="page-crumb">Resumen</strong></div>
           <div class="topbar-right">
             <span class="single-profile-label" id="single-profile-label">Pasajero</span>
             <div
@@ -269,7 +270,7 @@
               <button type="button" data-profile="pasajero" aria-pressed="false">Pasajero</button>
               <button type="button" data-profile="conductor" aria-pressed="true">Conductor</button>
             </div>
-            <span class="service-status" id="connection-status" role="status"><span></span><span id="connection-label">API de demostración</span></span>
+            <span class="service-status" id="connection-status" role="status"><span></span><span id="connection-label">Conectado</span></span>
             <span class="topbar-divider"></span>
             <span class="topbar-date" id="today-date"></span>
             <button
@@ -283,14 +284,14 @@
         </header>
         <div class="demo-banner">
           <span class="demo-banner-dot"></span>
-          <span><strong>Versión de demostración</strong> · Los movimientos son ficticios y los registra una API local.</span>
+          <span><strong>Versión de plataforma</strong> · Los movimientos son simulados y los registra una API local.</span>
           <button class="demo-info-link" type="button" data-action="demo-info">¿Qué significa?</button>
         </div>
         <!-- JavaScript coloca aqui la pantalla seleccionada. -->
         <section id="app-content" class="page-content" aria-label="Contenido de la página" aria-live="polite"></section>
         <footer class="site-footer">
           <span>QrPass <span class="footer-dot">·</span> Hecho para moverte mejor.</span>
-          <button class="footer-info-link" type="button" data-action="demo-info"><svg class="icon"><use href="#icon-document" /></svg> Acerca de la demostración</button>
+          <button class="footer-info-link" type="button" data-action="demo-info"><svg class="icon"><use href="#icon-document" /></svg> Acerca de la plataforma</button>
         </footer>
       </main>
     </div>

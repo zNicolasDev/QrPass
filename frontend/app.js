@@ -157,7 +157,7 @@ function mapPaymentFromApi(payment) {
     balanceAfter: payment.balance_after,
     route: payment.route_name,
     tripId: payment.trip_id,
-    status: payment.status === "completed_demo" ? "Registrado en demo" : payment.status,
+    status: payment.status === "completed_demo" ? "Registrado" : payment.status,
     createdAt: payment.created_at,
     reference: `PAGO-${payment.payment_id}`,
   };
@@ -440,7 +440,7 @@ function renderWeeklyActivity() {
   return `<article class="weekly-card">
     <div class="weekly-header">
       <div><div class="eyebrow">${icon("route")} TU MOVILIDAD</div><h2>Tu semana en movimiento</h2><p>Pasajes registrados en los últimos 7 días</p></div>
-      <span class="weekly-demo-badge"><span></span> DEMO</span>
+      <span class="weekly-demo-badge"><span></span> BETA</span>
     </div>
     <div class="weekly-summary"><div><span>Gasto simulado</span><strong>${money(totalAmount)}</strong></div><div><span>Viajes</span><strong>${totalTrips}</strong></div></div>
     <svg class="weekly-chart" viewBox="0 0 480 116" role="img" aria-label="${escapeHtml(accessibleSummary)}" preserveAspectRatio="none">
@@ -451,7 +451,7 @@ function renderWeeklyActivity() {
       ${points.map((point) => `<circle class="weekly-point${point.trips ? " has-trips" : ""}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${point.trips ? 4 : 2.5}"><title>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric" }).format(point.date))}: ${point.trips} viajes, ${money(point.amount)}</title></circle>`).join("")}
     </svg>
     <div class="weekly-day-labels" aria-hidden="true">${labels}</div>
-    <p class="weekly-footnote">${totalTrips ? "El resumen se calcula con los movimientos devueltos por la API de demostración." : "Cuando registres viajes, aquí verás tu actividad de la semana."}</p>
+    <p class="weekly-footnote">${totalTrips ? "El resumen se calcula con los movimientos devueltos por la API." : "Cuando registres viajes, aquí verás tu actividad de la semana."}</p>
   </article>`;
 }
 
@@ -466,7 +466,7 @@ function renderDashboard() {
     `<span class="heading-date">${currentDateLong()}</span>`,
   )}
   <section class="welcome-banner">
-    <button class="welcome-demo-badge" type="button" data-action="demo-info"><span></span> MODO DEMO</button>
+    <button class="welcome-demo-badge" type="button" data-action="demo-info"><span></span> MODO PRUEBA</button>
     <div class="welcome-copy">
       <div class="eyebrow">${icon("spark")} MENOS VUELTAS, MÁS CIUDAD</div>
       <h2>Tu próximo viaje empieza aquí.</h2>
@@ -483,7 +483,7 @@ function renderDashboard() {
   <section class="stats-grid" aria-label="Resumen de tu cuenta">
     <article class="stat-card"><div class="stat-top"><span class="stat-label">SALDO DISPONIBLE</span><span class="stat-icon">${icon("wallet")}</span></div><div class="stat-value">${money(state.balance)}</div><div class="stat-note"><span class="positive">●</span> Listo para tu próximo viaje</div></article>
     <article class="stat-card"><div class="stat-top"><span class="stat-label">TARIFA DE HOY</span><span class="stat-icon amber">${icon("route")}</span></div><div class="stat-value">${money(fare)}</div><div class="stat-note">${fare === 3400 ? "Domingos y festivos" : "Tarifa ordinaria · lunes a sábado"}</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">VIAJES REGISTRADOS</span><span class="stat-icon green">${icon("bus")}</span></div><div class="stat-value">${tripCount}</div><div class="stat-note">En la cuenta de demostración</div></article>
+    <article class="stat-card"><div class="stat-top"><span class="stat-label">VIAJES REGISTRADOS</span><span class="stat-icon green">${icon("bus")}</span></div><div class="stat-value">${tripCount}</div><div class="stat-note">En tu cuenta</div></article>
     <article class="stat-card"><div class="stat-top"><span class="stat-label">ÚLTIMO MÉTODO</span><span class="stat-icon dark">${icon("clock")}</span></div><div class="stat-value stat-value-method">${escapeHtml(lastMethod)}</div><div class="stat-note">${state.trips.length ? "Tu movimiento más reciente" : "Tu actividad aparecerá aquí"}</div></article>
   </section>
   ${renderWeeklyActivity()}
@@ -514,7 +514,7 @@ function renderDriverDashboard() {
     activeBusQr = null;
     const latestSummary = latestShift
       ? `<article class="shift-summary-card${latestShift.cashDifference ? " has-difference" : ""}">
-          <div class="shift-summary-heading">${icon(latestShift.cashDifference ? "clock" : "check")}<strong>Último turno de demostración</strong></div>
+          <div class="shift-summary-heading">${icon(latestShift.cashDifference ? "clock" : "check")}<strong>Último turno</strong></div>
           <div class="shift-summary-grid"><span>${escapeHtml(formatDate(new Date(latestShift.startedAt)))}</span><span>${latestShift.entries.length} ${latestShift.entries.length === 1 ? "abordaje" : "abordajes"}</span><span>Recaudo registrado ${money(latestShift.total)}</span></div>
           <p>${latestShift.cashDifference ? `Diferencia por revisar: ${money(Math.abs(latestShift.cashDifference))} ${latestShift.cashDifference > 0 ? "de más" : "faltante"} (declarado ${money(latestShift.cashCounted)} · anotado ${money(latestShift.cashExpected)}).` : "El efectivo declarado coincide con los pagos registrados."}</p>
         </article>`
@@ -545,7 +545,7 @@ function renderDriverDashboard() {
 
   return `${heading}
     <section class="active-shift-banner">
-      <div class="active-shift-status"><span class="active-shift-pulse"></span> TURNO ACTIVO · DEMO</div>
+      <div class="active-shift-status"><span class="active-shift-pulse"></span> TURNO ACTIVO</div>
       <h2>Ruta ${escapeHtml(shift.route)} <span>·</span> Vehículo ${escapeHtml(shift.vehicle)}</h2>
       <p>Inicio registrado ${escapeHtml(formatTime(new Date(shift.startedAt)))} · ${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"} en esta jornada</p>
       <div class="active-shift-reference">Referencia del servidor: ${escapeHtml(shift.reference)}</div>
@@ -569,7 +569,7 @@ function renderDriverDashboard() {
         <p>Anota el medio recibido para dejar constancia en la bitácora de este turno.</p>
         <div class="driver-payment-actions">
           <button type="button" data-action="driver-payment" data-method="cash">${icon("wallet")}<span><strong>Efectivo</strong><small>Recibido en la unidad</small></span>${icon("arrow")}</button>
-          <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Registro de demostración · sin POS</small></span>${icon("arrow")}</button>
+          <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Registro manual · sin POS</small></span>${icon("arrow")}</button>
         </div>
         <div class="driver-demo-warning">${icon("clock")} El turno y sus registros se guardan en el servidor. La terminal POS aún no está integrada.</div>
       </article>
@@ -591,7 +591,7 @@ function renderDriverDashboard() {
         <tbody>${rows || `<tr><td class="empty-row" colspan="4">Aún no hay abordajes registrados. Anota cada pago para incluirlo en el cuadre.</td></tr>`}</tbody>
       </table></div>
     </section>
-    <article class="driver-integrity-note">${icon("shield")}<div><strong>Bitácora del servidor · medios externos simulados</strong><p>Los recaudos quedan asociados al turno autenticado. Las operaciones QR se debitan en servidor; efectivo se registra manualmente. El pago tarjeta se anota como demostración hasta integrar un POS real.</p></div></article>`;
+    <article class="driver-integrity-note">${icon("shield")}<div><strong>Bitácora del servidor · medios externos simulados</strong><p>Los recaudos quedan asociados al turno autenticado. Las operaciones QR se debitan en servidor; efectivo se registra manualmente. El pago con tarjeta se anota hasta integrar un POS real.</p></div></article>`;
 }
 
 function finderCell(row, column, top, left) {
@@ -633,9 +633,9 @@ function renderQr() {
 
 function renderTopUp() {
   const amounts = [10000, 20000, 50000, 100000];
-  return `${pageHeading(`${icon("wallet")} TU BILLETERA`, "Recarga tu saldo", "Elige un monto para simular una recarga en esta demostración.")}
-  <section class="balance-banner"><div><div class="eyebrow">SALDO ACTUAL</div><h2>${money(state.balance)}</h2><p>Disponible en esta sesión de demostración.</p></div>${icon("wallet")}</section>
-  <section class="surface detail-card"><h2>Elige cuánto quieres recargar</h2><p>Selecciona una de las opciones rápidas para actualizar tu saldo de prueba.</p><div class="amount-grid">${amounts.map((amount) => `<button class="amount-option" data-action="top-up" data-amount="${amount}"><strong>${money(amount)}</strong><span>Recarga de demostración</span></button>`).join("")}</div>
+  return `${pageHeading(`${icon("wallet")} TU BILLETERA`, "Recarga tu saldo", "Elige un monto para recargar tu saldo.")}
+  <section class="balance-banner"><div><div class="eyebrow">SALDO ACTUAL</div><h2>${money(state.balance)}</h2><p>Disponible en tu cuenta.</p></div>${icon("wallet")}</section>
+  <section class="surface detail-card"><h2>Elige cuánto quieres recargar</h2><p>Selecciona una de las opciones rápidas para actualizar tu saldo de prueba.</p><div class="amount-grid">${amounts.map((amount) => `<button class="amount-option" data-action="top-up" data-amount="${amount}"><strong>${money(amount)}</strong><span>Recarga</span></button>`).join("")}</div>
   <form class="custom-amount" id="custom-top-up"><label for="custom-amount">O escribe otro monto (máximo ${money(500000)})</label><input class="input" id="custom-amount" name="amount" type="number" inputmode="numeric" min="1" max="500000" step="1" placeholder="Ej. 35.000" required /><button class="button" type="submit">${icon("plus")} Recargar</button></form></section>
   <article class="subtle-card section-gap">${icon("shield")}<div><strong>Solo simulación local</strong><p>Esta recarga no mueve dinero real ni está conectada a una entidad financiera.</p></div></article>`;
 }
@@ -737,7 +737,7 @@ function renderCurrentView() {
   document.querySelector("#sidebar-avatar").textContent = initials;
   document.querySelector("#topbar-avatar").textContent = initials;
   document.querySelector("#sidebar-name").textContent = authenticatedUser.names;
-  document.querySelector("#sidebar-role").textContent = `${currentProfile === "conductor" ? "Espacio conductor" : "Espacio pasajero"} · demostración`;
+  document.querySelector("#sidebar-role").textContent = `${currentProfile === "conductor" ? "Espacio conductor" : "Espacio pasajero"}`;
   document.querySelector("#breadcrumb-context").textContent = currentProfile === "conductor"
     ? "Cuenta con rol de conductor"
     : "Espacio pasajero";
@@ -912,7 +912,7 @@ function openShiftReceipt(shift) {
   const difference = shift.cash_difference ?? 0;
   modalContent.innerHTML = `<div class="modal-body">
     <div class="receipt-mark">${icon("check")}</div>
-    <div class="modal-kicker">CIERRE DE DEMOSTRACIÓN</div>
+    <div class="modal-kicker">CIERRE DE plataforma</div>
     <h2 id="modal-title">Turno consolidado</h2>
     <p>El servidor guardó este cierre y dejó el turno inactivo.</p>
     <div class="receipt-list">
@@ -952,7 +952,7 @@ function navigateTo(view) {
 function updateConnectionStatus() {
   const offline = !navigator.onLine;
   connectionStatus.classList.toggle("is-offline", offline);
-  connectionLabel.textContent = offline ? "Sin conexión · interfaz" : "API de demostración";
+  connectionLabel.textContent = offline ? "Sin conexión · interfaz" : "Conectado";
 }
 
 function updateInstallButton() {
@@ -966,20 +966,20 @@ function openDemoInfo() {
   modal.classList.add("demo-info-open");
   modalContent.innerHTML = `<article class="demo-info-container">
     <header class="demo-info-header">
-      <span class="demo-info-title">${icon("document")}<span id="modal-title">Sobre la demostración</span></span>
+      <span class="demo-info-title">${icon("document")}<span id="modal-title">Sobre la plataforma</span></span>
       <button class="icon-button demo-info-close" type="button" data-action="close-modal" aria-label="Cerrar información">${icon("close")}</button>
     </header>
     <section class="demo-info-body">
       <span class="demo-info-intro">QrPass está en una etapa inicial de desarrollo.</span>
-      <p>Iniciaste sesión con una cuenta de demostración. La API devuelve sus roles y protege cada operación. Solo una cuenta con rol de conductor puede entrar a ese espacio. Si tiene ambos roles, puede cambiar entre espacios: su billetera de pasajero y su turno son independientes.</p>
-      <p>Saldo, historial, pagos simulados, códigos QR y turnos se consultan o registran en el backend de demostración; no se conservan como datos autoritativos en este navegador.</p>
+      <p>Iniciaste sesión con una cuenta de prueba. La API devuelve sus roles y protege cada operación. Solo una cuenta con rol de conductor puede entrar a ese espacio. Si tiene ambos roles, puede cambiar entre espacios: su billetera de pasajero y su turno son independientes.</p>
+      <p>Saldo, historial, pagos simulados, códigos QR y turnos se consultan o registran en el backend; no se conservan como datos autoritativos en este navegador.</p>
       <h3>Qué puedes probar</h3>
       <ul><li>En el espacio pasajero: escanear el QR que muestra el bus, pagar con saldo, consultar el historial y corregir un abordaje en la ruta equivocada mediante un transbordo dentro de las reglas vigentes.</li><li>En el espacio conductor: usar por separado las funciones de pasajero y, por su rol adicional, iniciar el turno asignado, mostrar el QR del bus, registrar efectivo/tarjeta simulados y cerrar el turno con conciliación de efectivo.</li></ul>
       <h3>Qué no hace esta versión</h3>
-      <ul><li>No procesa dinero real ni se conecta a un POS o pasarela de pago.</li><li>El QR de abordaje es una demostración firmada por el servidor y requiere conexión para pagar; aún no está integrado con un dispositivo físico instalado en el bus.</li><li>El funcionamiento sin conexión solo conserva la interfaz PWA; no autoriza, valida ni sincroniza pagos offline.</li><li>La tarifa, asignación y reglas operacionales son datos de demostración, no una integración con el operador de transporte.</li></ul>
+      <ul><li>No procesa dinero real ni se conecta a un POS o pasarela de pago.</li><li>El QR de abordaje es firmado por el servidor y requiere conexión para pagar; aún no está integrado con un dispositivo físico instalado en el bus.</li><li>El funcionamiento sin conexión solo conserva la interfaz PWA; no autoriza, valida ni sincroniza pagos offline.</li><li>La tarifa, asignación y reglas operacionales son datos de prueba, no una integración con el operador de transporte.</li></ul>
       <h3>Acerca de tus datos de prueba</h3>
-      <p>La API guarda los movimientos de prueba en su base de datos local de desarrollo. No introduzcas información bancaria ni utilices estas credenciales fuera del entorno de demostración.</p>
-      <h3>Herramientas de demostración</h3>
+      <p>La API guarda los movimientos de prueba en su base de datos local. No introduzcas información bancaria ni utilices estas credenciales fuera del entorno de prueba.</p>
+      <h3>Herramientas de prueba</h3>
       <div style="display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap;">
         <button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver Métricas Globales (Gerente)</button>
         <button class="button button-outline" type="button" data-action="reset-demo-data"><svg class="icon"><use href="#icon-arrows"></use></svg> Restablecer Datos de Prueba</button>
@@ -1024,7 +1024,7 @@ async function openGlobalMetrics() {
 async function resetDemoData() {
   try {
     const res = await apiRequest("/admin/demo/reset", { method: "POST" });
-    showToast(res.message || "Datos de demostración restablecidos.", "success");
+    showToast(res.message || "Datos restablecidos.", "success");
     modal.close();
     await refreshPassengerData();
     if (hasProfileRole("conductor")) {
@@ -1045,13 +1045,13 @@ function openPrivacyInfo() {
   modal.classList.remove("demo-info-open");
   modalContent.innerHTML = `<div class="modal-body">
     <div class="modal-kicker">PRIVACIDAD · PROTOTIPO</div>
-    <h2 id="modal-title">Aviso de privacidad de la demostración</h2>
+    <h2 id="modal-title">Aviso de privacidad</h2>
     <p>Este aviso explica el uso de datos en el prototipo. No es una política de tratamiento aprobada ni reemplaza la revisión legal antes de una operación real.</p>
     <div class="receipt-list">
       <div class="detail-row"><span>Datos de registro</span><strong>Nombre, correo y contraseña</strong></div>
       <div class="detail-row"><span>Datos de uso</span><strong>Saldo, pagos y viajes de prueba</strong></div>
       <div class="detail-row"><span>Para qué se usan</span><strong>Acceso a la cuenta y pruebas de los flujos</strong></div>
-      <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos local de demostración</strong></div>
+      <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos local</strong></div>
     </div>
     <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer derechos sobre datos del prototipo, contacta al responsable del proyecto que te dio acceso.</p>
     <div class="demo-info-notice">${icon("shield")}<span>Antes de usar datos reales se necesita identificar al responsable, definir finalidades y retención, habilitar canales para solicitudes y aprobar el aviso conforme a la normativa aplicable.</span></div>
@@ -1062,7 +1062,7 @@ function openPrivacyInfo() {
 
 async function installApp() {
   if (!deferredInstallPrompt) {
-    modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">QRPass EN TU BOLSILLO</div><h2 id="modal-title">Añade QrPass a tu pantalla de inicio</h2><p>Al instalarla podrás abrir la demostración desde un icono, como una app.</p>
+    modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">QRPass EN TU BOLSILLO</div><h2 id="modal-title">Añade QrPass a tu pantalla de inicio</h2><p>Al instalarla podrás abrir la plataforma desde un icono, como una app.</p>
       <div class="receipt-list"><div class="detail-row"><span>En iPhone o iPad</span><strong>Safari → Compartir → Añadir a pantalla de inicio</strong></div><div class="detail-row"><span>En Android</span><strong>Chrome → ⋮ → Instalar aplicación o Añadir a pantalla de inicio</strong></div></div>
       <div class="validity-row">${icon("shield")}<span>Abre QrPass desde una dirección segura (HTTPS) o desde localhost. Abrir el archivo directamente no permite instalarla ni activar el modo sin conexión.</span></div>
       <div class="modal-actions"><button class="button" data-action="close-modal">Entendido</button></div></div>`;
@@ -1091,7 +1091,7 @@ function openReceipt(trip, isTransfer = false) {
   modalContent.innerHTML = `<div class="modal-body">
     <div class="receipt-mark">${icon("check")}</div><div class="modal-kicker">${isTransfer ? "TRASPASO REGISTRADO" : "MOVIMIENTO REGISTRADO"}</div>
     <h2 id="modal-title">${isTransfer ? "Tu pago fue transferido" : trip.movementType === "top_up" ? "Recarga registrada" : "&iexcl;Listo para seguir!"}</h2>
-    <p>Movimiento de demostración registrado por la API. No representa dinero real ni sustituye un comprobante oficial.</p>
+    <p>Movimiento registrado por la API. No representa dinero real ni sustituye un comprobante oficial.</p>
     <div class="receipt-list">
       <div class="detail-row"><span>Ruta</span><strong>${escapeHtml(trip.route)}</strong></div>
       <div class="detail-row"><span>Método</span><strong>${escapeHtml(trip.method)}</strong></div>
@@ -1129,7 +1129,7 @@ function openMovementDetails(movementId) {
 
   modalContent.innerHTML = `<div class="modal-body">
     <div class="receipt-mark">${icon("document")}</div>
-    <div class="modal-kicker">DETALLE DE DEMOSTRACI&Oacute;N</div>
+    <div class="modal-kicker">DETALLE DE MOVIMIENTO</div>
     <h2 id="modal-title">${kind}</h2>
     <p>Este registro es informativo y no sustituye un comprobante financiero oficial.</p>
     <div class="receipt-list">
@@ -1169,7 +1169,7 @@ function openPayment(method = "saldo") {
     { value: "tarjeta", label: "Tarjeta", detail: "Débito o crédito", icon: "card" },
   ];
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">PAGO DE DEMOSTRACIÓN</div><h2 id="modal-title">Registra tu viaje</h2>
+    <div class="modal-kicker">PAGO DE plataforma</div><h2 id="modal-title">Registra tu viaje</h2>
     <p>Elige la ruta y el método de pago para guardar un movimiento de prueba.</p>
     <form id="payment-form" data-idempotency-key="${createIdempotencyKey()}">
       <div class="payment-route-row" id="payment-route-row">
@@ -1249,7 +1249,7 @@ function openTransfer() {
     modal.showModal();
     return;
   }
-  modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTA · DEMOSTRACIÓN</div><h2 id="modal-title">Transfiere tu pago</h2><p>Si abordaste el bus equivocado, indica la ruta correcta dentro de los 20 minutos. El pago original no se vuelve a cobrar.</p>
+  modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTAÓN</div><h2 id="modal-title">Transfiere tu pago</h2><p>Si abordaste el bus equivocado, indica la ruta correcta dentro de los 20 minutos. El pago original no se vuelve a cobrar.</p>
     <form id="transfer-form" data-trip-id="${latestPaidTrip.tripId}">
       <div class="validity-row">${icon("arrows")}<span>Pago ${escapeHtml(latestPaidTrip.code)} · Ruta ${escapeHtml(latestPaidTrip.route)} · ${money(latestPaidTrip.amount)}</span></div>
       <div class="form-field section-gap"><label for="transfer-route">Ruta correcta</label><select class="select" id="transfer-route" name="route" required><option value="" disabled selected>Selecciona otra ruta</option>${routeOptions(latestPaidTrip.route)}</select></div>
@@ -1661,7 +1661,7 @@ bootstrapAuthentication();
 if ("serviceWorker" in navigator && window.isSecureContext) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./cache.js")
-      .then(() => console.info("QrPass: soporte de demostración sin conexión activado."))
+      .then(() => console.info("QrPass: soporte de plataforma sin conexión activado."))
       .catch((error) => {
         console.error("No se pudo registrar el modo sin conexión de QrPass:", error);
         showToast("No se pudo activar el modo sin conexión en este navegador.", true);

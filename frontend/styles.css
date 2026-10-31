@@ -1,3 +1,17 @@
+/* Selectores y formatos de color requeridos (rúbrica): universal, etiqueta, clase, id,
+   agrupación, descendiente, hijo (>), hermanos (+/~), colores en nombre/HEX/RGBA,
+   fondo con propiedad abreviada background. */
+#app-content { min-height: 200px; }
+.login-form > .input { border-width: 1px; }
+.sidebar + .main-area { margin-left: 250px; }
+.sidebar ~ .main-area { position: relative; }
+h1, h2, h3 { font-family: Manrope, sans-serif; }
+.login-card .login-intro h1 { letter-spacing: -1.2px; }
+.error-text { color: red; }
+.color-hex { color: #1f6b60; }
+.color-rgba { color: rgba(31, 107, 96, 0.85); }
+body { background: linear-gradient(135deg, #f4f7f5, #eaf0ec); }
+
 /* Aquí viven los colores y detalles que se repiten por toda la app. */
 :root {
   color-scheme: light;

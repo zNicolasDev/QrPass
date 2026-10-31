@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<title>Informe de Ingeniería de Software - QrPass</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #1a1a1a; }
+  h1 { font-size: 18pt; color: #0b1f1f; border-bottom: 2px solid #b8f26a; padding-bottom: 4px; page-break-before: always; }
+  h1:first-of-type { page-break-before: auto; }
+  h2 { font-size: 14pt; color: #1f6b60; margin-top: 14px; }
+  h3 { font-size: 12pt; color: #1f6b60; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9.5pt; }
+  th, td { border: 1px solid #cbd5d1; padding: 4px 6px; }
+  th { background: #e8f2ee; font-weight: 600; }
+  tr:nth-child(even) { background: #f6f9f7; }
+  code { background: #f1f5f3; padding: 1px 4px; border-radius: 3px; font-size: 9.5pt; font-family: Consolas, monospace; }
+  pre { background: #f1f5f3; padding: 8px 10px; border-radius: 6px; overflow-x: auto; font-size: 9pt; }
+  pre code { background: none; padding: 0; }
+  hr.page-break { border: none; page-break-after: always; }
+  .doc-section { margin-bottom: 12px; }
+  a { color: #1f6b60; }
+  ul, ol { margin: 4px 0 8px 20px; }
+  img { max-width: 100%; }
+</style>
+</head>
+<body>
+<section class='doc-section'>
+<h1 id="informe-de-ingenieria-de-software">INFORME DE INGENIERÍA DE SOFTWARE</h1>
+<p><strong>Proyecto:</strong> QrPass<br />
+<strong>Tipo:</strong> Prototipo web para el recaudo y validación de pasajes en transporte público<br />
+<strong>Ubicación:</strong> Ibagué, Colombia<br />
+<strong>Fecha:</strong> Octubre 2026  </p>
+<h2 id="elaborado-con-base-en">Elaborado con base en</h2>
+<p>Código fuente implementado (<code>backend/</code>, <code>frontend/</code>), pruebas automatizadas (<code>backend/tests/</code>) y documentación existente.</p>
+<h2 id="objetivo-del-documento">Objetivo del Documento</h2>
+<p>Documentar el ciclo de vida del desarrollo de QrPass desde el análisis, diseño, arquitectura, implementación, pruebas, despliegue y trazabilidad, con el fin de dejar un informe completo, claro y verificable para fines académicos.</p>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="1-introduccion">1. INTRODUCCIÓN</h1>
+<h2 id="11-generalidades">1.1. Generalidades</h2>
+<p>QrPass es un prototipo funcional que digitaliza el proceso de abordaje y recaudo en transporte público mediante códigos QR. Combina una API REST desarrollada con FastAPI, una interfaz web tipo PWA para pasajero y conductor, y un esquema de datos relacional basado en SQLAlchemy con SQLite para entorno de demostración.</p>
+<h2 id="12-justificacion">1.2. Justificación</h2>
+<p>El recaudo manual presenta dificultades en el control, trazabilidad y agilidad del proceso. QrPass registra cada abordaje como un Pago + Viaje, controla el turno del conductor, habilita el uso de QR firmado y mantiene la integridad entre saldo, recaudo y transbordos.</p>
+<h2 id="13-objetivo-general">1.3. Objetivo General</h2>
+<p>Documentar técnica y metodológicamente el sistema QrPass, describiendo su arquitectura, modelo de datos, reglas de negocio, funcionalidades implementadas, pruebas y forma de despliegue.</p>
+<h2 id="14-objetivos-especificos">1.4. Objetivos Específicos</h2>
+<ul>
+<li>Identificar actores, requisitos funcionales y no funcionales.</li>
+<li>Modelar el dominio con diagramas UML.</li>
+<li>Documentar el modelo entidad-relación y diccionario de datos.</li>
+<li>Describir la arquitectura por capas.</li>
+<li>Evidenciar las pruebas automatizadas existentes.</li>
+<li>Generar matriz de trazabilidad entre requisitos, casos de uso, endpoints y pruebas.</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="2-descripcion-general-del-sistema">2. DESCRIPCIÓN GENERAL DEL SISTEMA</h1>
+<h2 id="21-proposito">2.1. Propósito</h2>
+<p>Proveer una plataforma de demostración para el cobro de pasajes con distintos medios: efectivo, tarjeta y saldo mediante escaneo de QR del bus. Todo con control por roles, idempotencia, validación de turnos y trazabilidad financiera.</p>
+<h2 id="22-alcance">2.2. Alcance</h2>
+<ul>
+<li>Autenticación y registro de pasajero</li>
+<li>Gestión de billetera (recargas)</li>
+<li>Cobro de pasaje (efectivo, tarjeta y QR del bus con saldo)</li>
+<li>Gestión de turno del conductor (iniciar, generar QR, cerrar)</li>
+<li>Historial de pagos y viajes</li>
+<li>Transbordos (ventana de 20 minutos)</li>
+<li>Consulta de rutas, tarifas vigentes y estado del servicio</li>
+</ul>
+<h2 id="23-actores">2.3. Actores</h2>
+<table>
+<thead>
+<tr>
+<th>Actor</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pasajero</td>
+<td>Usuario con rol PASSENGER. Puede recargar, pagar, consultar historial y aplicar transbordos.</td>
+</tr>
+<tr>
+<td>Conductor</td>
+<td>Usuario con rol DRIVER (puede tener también PASSENGER). Gestiona su turno y genera QR.</td>
+</tr>
+<tr>
+<td>Sistema (API)</td>
+<td>Encargado de validar reglas, firmas, idempotencia e integridad de datos.</td>
+</tr>
+<tr>
+<td>Administrador/Demo</td>
+<td>Consultas de métricas y utilidades de demostración.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="24-restricciones">2.4. Restricciones</h2>
+<ul>
+<li>Entorno demo: no se procesan pagos reales</li>
+<li>SQLite para entorno de demostración (<code>qrpass.db</code> o <code>:memory:</code> para pruebas)</li>
+<li>Autenticación por token Bearer firmado con <code>QR_PASS_AUTH_SECRET</code></li>
+<li>Claves foráneas activas en SQLite</li>
+<li>Validación con Pydantic v2</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="3-requisitos-del-sistema">3. REQUISITOS DEL SISTEMA</h1>
+<h2 id="31-requisitos-funcionales-rf">3.1. Requisitos Funcionales (RF)</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requisito</th>
+<th>Prioridad</th>
+<th>Estado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RF-01</td>
+<td>El sistema debe permitir iniciar sesión con usuario y contraseña.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-02</td>
+<td>El sistema debe permitir registrar un pasajero con consentimiento de privacidad.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-03</td>
+<td>El sistema debe asignar roles <code>PASSENGER</code>/<code>DRIVER</code> según el caso.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-04</td>
+<td>El pasajero debe poder recargar saldo con clave de idempotencia.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-05</td>
+<td>El pasajero debe poder pagar pasaje en efectivo o con tarjeta.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-06</td>
+<td>El pasajero debe poder pagar con saldo escaneando el QR del bus.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-07</td>
+<td>El conductor debe poder iniciar/cerrar turno y generar QR firmado.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-08</td>
+<td>El sistema debe validar QR por firma, vigencia, uso único, turno y ruta.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-09</td>
+<td>El sistema debe calcular tarifa según ruta, tipo de día y destino cuando aplique.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-10</td>
+<td>El pasajero debe poder consultar historial de pagos y viajes propios.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-11</td>
+<td>El sistema debe soportar transbordos con ventana de 20 minutos.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-12</td>
+<td>El sistema debe garantizar idempotencia en recargas y pagos.</td>
+<td>Alta</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RF-13</td>
+<td>El sistema debe exponer catálogo de rutas, tarifas y estado del servicio.</td>
+<td>Media</td>
+<td>Implementado</td>
+</tr>
+</tbody>
+</table>
+<h2 id="32-requisitos-no-funcionales-rnf">3.2. Requisitos No Funcionales (RNF)</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requisito</th>
+<th>Categoría</th>
+<th>Estado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RNF-01</td>
+<td>Arquitectura por capas (Controladores/Servicios/Modelos/DTOs).</td>
+<td>Arquitectura</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-02</td>
+<td>Validación de datos con Pydantic v2.</td>
+<td>Integridad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-03</td>
+<td>Autenticación basada en token Bearer.</td>
+<td>Seguridad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-04</td>
+<td>Hashing de contraseñas.</td>
+<td>Seguridad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-05</td>
+<td>Integridad referencial con Foreign Keys (SQLite).</td>
+<td>Integridad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-06</td>
+<td>Uso de transacciones para operaciones atómicas.</td>
+<td>Confiabilidad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-07</td>
+<td>Respuestas consistentes con <code>response_model</code>.</td>
+<td>Mantenibilidad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-08</td>
+<td>Soporte para pruebas con <code>TestClient</code> y BD en memoria.</td>
+<td>Testeabilidad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-09</td>
+<td>PWA con Service Worker para caché de recursos.</td>
+<td>Usabilidad/Disponibilidad</td>
+<td>Implementado</td>
+</tr>
+<tr>
+<td>RNF-10</td>
+<td>CORS configurado por variable de entorno.</td>
+<td>Configurabilidad</td>
+<td>Implementado</td>
+</tr>
+</tbody>
+</table>
+<h2 id="33-reglas-de-negocio-rn">3.3. Reglas de Negocio (RN)</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Regla</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RN-01</td>
+<td>Saldo no negativo</td>
+<td><code>Usuario.saldo_billetera &gt;= 0</code>.</td>
+</tr>
+<tr>
+<td>RN-02</td>
+<td>Pagos con saldo solo por QR</td>
+<td>En pagos manuales, <code>medio = wallet</code> no está permitido.</td>
+</tr>
+<tr>
+<td>RN-03</td>
+<td>Tarjeta requiere tipo</td>
+<td>Si <code>medio = card</code>, debe indicarse <code>card_type</code> (<code>debit</code>/<code>credit</code>).</td>
+</tr>
+<tr>
+<td>RN-04</td>
+<td>Destino obligatorio cuando aplique</td>
+<td>Rutas con destinos configurados exigen <code>destination</code>.</td>
+</tr>
+<tr>
+<td>RN-05</td>
+<td>Un viaje por pago</td>
+<td><code>Viaje.payment_id</code> es único.</td>
+</tr>
+<tr>
+<td>RN-06</td>
+<td>Idempotencia por usuario</td>
+<td>Único (<code>user_id</code>, <code>idempotency_key</code>) en pagos.</td>
+</tr>
+<tr>
+<td>RN-07</td>
+<td>QR de un solo uso</td>
+<td>Se marca <code>CodigoQr.usado_en</code> al validar.</td>
+</tr>
+<tr>
+<td>RN-08</td>
+<td>QR firmado y vigente</td>
+<td>Debe pertenecer a turno activo, no expirado, correspondiente a ruta/conductor.</td>
+</tr>
+<tr>
+<td>RN-09</td>
+<td>Transbordo ventana 20 min</td>
+<td>Debe aplicarse dentro de los 20 minutos desde el viaje origen.</td>
+</tr>
+<tr>
+<td>RN-10</td>
+<td>Saldo suficiente para QR</td>
+<td>Se valida antes de descontar y crear viaje/pago.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="4-analisis-y-diseno">4. ANÁLISIS Y DISEÑO</h1>
+<h2 id="41-analisis-del-dominio">4.1. Análisis del Dominio</h2>
+<p>El dominio se centra en: Usuario, Roles, Conductor, Vehículo, Empresa, Ruta, Tarifa, Turno, Código QR, Pago, Viaje, Transbordo, Tarjeta.</p>
+<p>Las entidades financieras mantienen trazabilidad: <code>Pago</code> guarda <code>saldo_anterior</code>, <code>saldo_posterior</code>, <code>monto</code>, <code>medio</code>, <code>tipo_movimiento</code> e <code>idempotency_key</code>. <code>Viaje</code> vincula el cobro con ruta, tarifa y turno cuando aplica.</p>
+<h2 id="42-diseno-orientado-a-casos-de-uso">4.2. Diseño Orientado a Casos de Uso</h2>
+<p>Se identificaron casos de uso principales documentados en <code>documentacion/casos_de_uso/</code>. Cada uno mapea a endpoint, servicio y modelos ORM.</p>
+<h2 id="43-patron-de-diseno">4.3. Patrón de Diseño</h2>
+<p>Arquitectura <strong>MVC adaptado a FastAPI</strong>:</p>
+<ul>
+<li><strong>Model (M):</strong> <code>app/models/</code> - Entidades SQLAlchemy, relaciones, restricciones.</li>
+<li><strong>View/Representation (V):</strong> <code>app/dtos/</code> - Esquemas Pydantic para entrada/salida.</li>
+<li><strong>Controller (C):</strong> <code>app/controllers/</code> - Routers FastAPI, validación, inyección de dependencias.</li>
+<li><strong>Service Layer:</strong> <code>app/services.py</code> - Lógica de negocio, reglas, transacciones.</li>
+</ul>
+<h2 id="44-principios-aplicados">4.4. Principios Aplicados</h2>
+<ul>
+<li>Separación de responsabilidades (SRP)</li>
+<li>Inversión de dependencias vía <code>Depends()</code></li>
+<li>Validaciones con Pydantic y excepciones de dominio (<code>ErrorDominio</code>)</li>
+<li>Idempotencia en operaciones financieras</li>
+<li>Transaccionalidad para mantener consistencia</li>
+<li>Trazabilidad con timestamps y saldos históricos</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="5-arquitectura-del-sistema">5. ARQUITECTURA DEL SISTEMA</h1>
+<h2 id="51-arquitectura-general">5.1. Arquitectura General</h2>
+<p>QrPass sigue una arquitectura <strong>cliente-servidor</strong> con separación entre frontend y backend.</p>
+<pre><code class="language-text">[Frontend PWA (HTML/CSS/JS)] --HTTP/JSON--&gt; [FastAPI API REST /api/v1]
+                                                |-- Controllers
+                                                |-- Services
+                                                |-- Models (ORM SQLAlchemy)
+                                                |-- SQLite
+</code></pre>
+<h2 id="52-estructura-del-backend">5.2. Estructura del Backend</h2>
+<pre><code class="language-text">backend/app/
+├── main.py
+├── database.py
+├── auth.py
+├── passwords.py
+├── services.py
+├── controllers/
+├── dtos/
+└── models/
+</code></pre>
+<h2 id="53-flujo-de-peticion">5.3. Flujo de Petición</h2>
+<ol>
+<li>Cliente envía petición HTTP a <code>/api/v1/...</code></li>
+<li>FastAPI enruta al controlador</li>
+<li>Dependencias inyectan <code>Session</code> y <code>UsuarioAutenticado</code> si aplica</li>
+<li>DTO valida payload/params</li>
+<li>Controlador delega a <code>services.py</code></li>
+<li>Servicio aplica reglas, consulta/actualiza ORM</li>
+<li>Transacción commit/rollback</li>
+<li>Respuesta serializada con <code>response_model</code></li>
+<li>FastAPI retorna JSON</li>
+</ol>
+<h2 id="54-manejo-de-errores">5.4. Manejo de Errores</h2>
+<ul>
+<li>Validación Pydantic → <code>422 Unprocessable Entity</code></li>
+<li>Errores de negocio (<code>ErrorDominio</code>) → manejador global en <code>main.py</code> retorna <code>JSONResponse</code> con <code>status_code</code> y <code>detail</code>. Para <code>401</code> añade <code>WWW-Authenticate: Bearer</code></li>
+<li>Errores de autenticación/autorización → gestionados en <code>app/auth.py</code></li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="6-modelo-de-datos-y-diccionario-de-datos">6. MODELO DE DATOS Y DICCIONARIO DE DATOS</h1>
+<h2 id="61-modelo-fisico">6.1. Modelo Físico</h2>
+<p>Basado en <code>backend/app/models/</code>. Tablas principales: <code>users</code>, <code>roles</code>, <code>user_roles</code>, <code>drivers</code>, <code>companies</code>, <code>vehicles</code>, <code>routes</code>, <code>fares</code>, <code>shifts</code>, <code>qr_codes</code>, <code>payments</code>, <code>trips</code>, <code>transfers</code>, <code>cards</code>, <code>boarded_devices</code>, <code>offline_syncs</code>. Ver <code>documentacion/diagramas/01_diagrama_er.md</code>.</p>
+<h2 id="62-diccionario-de-datos-clave">6.2. Diccionario de Datos Clave</h2>
+<h3 id="users">users</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Tipo</th>
+<th>Restricción</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK</td>
+<td>Identificador</td>
+</tr>
+<tr>
+<td>names</td>
+<td>VARCHAR(120)</td>
+<td>NOT NULL</td>
+<td>Nombres completos</td>
+</tr>
+<tr>
+<td>username</td>
+<td>VARCHAR(80)</td>
+<td>UNIQUE NULL</td>
+<td>Usuario</td>
+</tr>
+<tr>
+<td>email</td>
+<td>VARCHAR(254)</td>
+<td>UNIQUE NULL</td>
+<td>Correo</td>
+</tr>
+<tr>
+<td>password_hash</td>
+<td>VARCHAR(256)</td>
+<td>NULL</td>
+<td>Hash contraseña</td>
+</tr>
+<tr>
+<td>privacy_consent_at</td>
+<td>DATETIME(tz)</td>
+<td>NULL</td>
+<td>Consentimiento</td>
+</tr>
+<tr>
+<td>document_number</td>
+<td>VARCHAR(40)</td>
+<td>UNIQUE NOT NULL</td>
+<td>Documento</td>
+</tr>
+<tr>
+<td>wallet_balance</td>
+<td>INTEGER</td>
+<td>NOT NULL DEFAULT 0, CHECK &gt;=0</td>
+<td>Saldo</td>
+</tr>
+<tr>
+<td>status</td>
+<td>VARCHAR(20)</td>
+<td>NOT NULL DEFAULT 'active'</td>
+<td>Estado</td>
+</tr>
+</tbody>
+</table>
+<h3 id="payments">payments</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Tipo</th>
+<th>Restricción</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK</td>
+<td>Identificador</td>
+</tr>
+<tr>
+<td>user_id</td>
+<td>INTEGER</td>
+<td>FK(users.id) NOT NULL</td>
+<td>Propietario</td>
+</tr>
+<tr>
+<td>idempotency_key</td>
+<td>VARCHAR(80)</td>
+<td>NULL</td>
+<td>Clave idempotencia</td>
+</tr>
+<tr>
+<td>card_id</td>
+<td>INTEGER</td>
+<td>FK(cards.id) NULL</td>
+<td>Tarjeta</td>
+</tr>
+<tr>
+<td>qr_code_id</td>
+<td>INTEGER</td>
+<td>FK(qr_codes.id) NULL</td>
+<td>QR usado</td>
+</tr>
+<tr>
+<td>method</td>
+<td>VARCHAR(20)</td>
+<td>NOT NULL</td>
+<td><code>cash</code>, <code>card_debit</code>, <code>card_credit</code>, <code>wallet</code>, <code>top_up</code></td>
+</tr>
+<tr>
+<td>movement_type</td>
+<td>VARCHAR(20)</td>
+<td>NOT NULL</td>
+<td><code>fare_payment</code>, <code>top_up</code></td>
+</tr>
+<tr>
+<td>amount</td>
+<td>INTEGER</td>
+<td>NOT NULL CHECK&gt;=0</td>
+<td>Monto</td>
+</tr>
+<tr>
+<td>balance_before</td>
+<td>INTEGER</td>
+<td>NOT NULL CHECK&gt;=0</td>
+<td>Saldo antes</td>
+</tr>
+<tr>
+<td>balance_after</td>
+<td>INTEGER</td>
+<td>NOT NULL CHECK&gt;=0</td>
+<td>Saldo después</td>
+</tr>
+<tr>
+<td>status</td>
+<td>VARCHAR(20)</td>
+<td>NOT NULL DEFAULT 'completed'</td>
+<td>Estado</td>
+</tr>
+<tr>
+<td>created_at</td>
+<td>DATETIME(tz)</td>
+<td>NOT NULL</td>
+<td>Creación</td>
+</tr>
+</tbody>
+</table>
+<p>Restricciones: <code>ck_payments_*_nonnegative</code>, <code>uq_payments_user_idempotency_key(user_id,idempotency_key)</code></p>
+<h3 id="trips">trips</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Tipo</th>
+<th>Restricción</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK</td>
+<td>Identificador</td>
+</tr>
+<tr>
+<td>payment_id</td>
+<td>INTEGER</td>
+<td>FK(payments.id) UNIQUE NOT NULL</td>
+<td>Pago asociado</td>
+</tr>
+<tr>
+<td>shift_id</td>
+<td>INTEGER</td>
+<td>FK(shifts.id) NULL</td>
+<td>Turno</td>
+</tr>
+<tr>
+<td>fare_id</td>
+<td>INTEGER</td>
+<td>FK(fares.id) NOT NULL</td>
+<td>Tarifa</td>
+</tr>
+<tr>
+<td>route_id</td>
+<td>INTEGER</td>
+<td>FK(routes.id) NOT NULL</td>
+<td>Ruta</td>
+</tr>
+<tr>
+<td>created_at</td>
+<td>DATETIME(tz)</td>
+<td>NOT NULL</td>
+<td>Fecha/hora</td>
+</tr>
+</tbody>
+</table>
+<h3 id="qr_codes">qr_codes</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Tipo</th>
+<th>Restricción</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK</td>
+<td>Identificador</td>
+</tr>
+<tr>
+<td>shift_id</td>
+<td>INTEGER</td>
+<td>FK(shifts.id) NOT NULL</td>
+<td>Turno</td>
+</tr>
+<tr>
+<td>token</td>
+<td>VARCHAR</td>
+<td>UNIQUE NOT NULL</td>
+<td>Token firmado</td>
+</tr>
+<tr>
+<td>expires_at</td>
+<td>DATETIME(tz)</td>
+<td>NOT NULL</td>
+<td>Expiración</td>
+</tr>
+<tr>
+<td>used_at</td>
+<td>DATETIME(tz)</td>
+<td>NULL</td>
+<td>Uso</td>
+</tr>
+<tr>
+<td>created_at</td>
+<td>DATETIME(tz)</td>
+<td>NOT NULL</td>
+<td>Creación</td>
+</tr>
+</tbody>
+</table>
+<h3 id="transfers">transfers</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Tipo</th>
+<th>Restricción</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK</td>
+<td>Identificador</td>
+</tr>
+<tr>
+<td>origin_trip_id</td>
+<td>INTEGER</td>
+<td>FK(trips.id) UNIQUE NOT NULL</td>
+<td>Viaje origen</td>
+</tr>
+<tr>
+<td>destination_trip_id</td>
+<td>INTEGER</td>
+<td>FK(trips.id) UNIQUE NOT NULL</td>
+<td>Viaje destino</td>
+</tr>
+<tr>
+<td>applied_at</td>
+<td>DATETIME(tz)</td>
+<td>NOT NULL</td>
+<td>Aplicación</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fares">fares</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Tipo</th>
+<th>Restricción</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>id</td>
+<td>INTEGER</td>
+<td>PK</td>
+<td>Identificador</td>
+</tr>
+<tr>
+<td>route_id</td>
+<td>INTEGER</td>
+<td>FK(routes.id) NOT NULL</td>
+<td>Ruta</td>
+</tr>
+<tr>
+<td>day_type</td>
+<td>VARCHAR(20)</td>
+<td>NOT NULL</td>
+<td><code>weekday</code>/<code>weekend</code></td>
+</tr>
+<tr>
+<td>destination</td>
+<td>VARCHAR(80)</td>
+<td>NULL</td>
+<td>Destino</td>
+</tr>
+<tr>
+<td>amount</td>
+<td>INTEGER</td>
+<td>NOT NULL</td>
+<td>Valor</td>
+</tr>
+<tr>
+<td>active</td>
+<td>BOOLEAN</td>
+<td>NOT NULL DEFAULT TRUE</td>
+<td>Vigente</td>
+</tr>
+</tbody>
+</table>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="7-diseno-uml">7. DISEÑO UML</h1>
+<p>La documentación UML completa se encuentra en <code>documentacion/diagramas/</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Diagrama</th>
+<th>Archivo</th>
+<th>Propósito</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Diagrama E-R</td>
+<td><code>diagramas/01_diagrama_er.md</code></td>
+<td>Entidades, relaciones, cardinalidades, claves.</td>
+</tr>
+<tr>
+<td>Diagrama de Clases</td>
+<td><code>diagramas/02_diagrama_clases.md</code></td>
+<td>Modelos ORM, DTOs, capa de servicios.</td>
+</tr>
+<tr>
+<td>Diagramas de Actividades</td>
+<td><code>diagramas/03_diagramas_actividades.md</code></td>
+<td>Flujos de negocio.</td>
+</tr>
+<tr>
+<td>Diagramas de Secuencia</td>
+<td><code>diagramas/04_diagramas_secuencia.md</code></td>
+<td>Interacción Cliente-Controlador-Servicio-ORM-BD.</td>
+</tr>
+<tr>
+<td>Casos de Uso</td>
+<td><code>casos_de_uso/01_actores_y_alcance.md</code>, <code>casos_de_uso/02_especificacion_casos_uso.md</code></td>
+<td>Actores, alcance, especificación con pre/post/excepciones.</td>
+</tr>
+</tbody>
+</table>
+<p>Los diagramas usan <code>mermaid</code> y son visualizables en GitHub, VSCode o herramientas compatibles.</p>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="8-diseno-de-interfaz">8. DISEÑO DE INTERFAZ</h1>
+<h2 id="81-tecnologias-frontend">8.1. Tecnologías Frontend</h2>
+<ul>
+<li>HTML5, CSS3, JavaScript (Vanilla)</li>
+<li>PWA: <code>manifest.webmanifest</code>, <code>service-worker.js</code>, <code>cache.js</code></li>
+<li>Comunicación con API REST vía <code>fetch</code> con token Bearer</li>
+</ul>
+<h2 id="82-estructura">8.2. Estructura</h2>
+<pre><code class="language-text">frontend/
+├── index.html
+├── app.js
+├── styles.css
+├── manifest.webmanifest
+├── service-worker.js
+├── cache.js
+└── assets/
+</code></pre>
+<h2 id="83-vistas-principales">8.3. Vistas Principales</h2>
+<table>
+<thead>
+<tr>
+<th>Vista</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Login/Registro</td>
+<td>Autenticación y registro de pasajero</td>
+</tr>
+<tr>
+<td>Pasajero - Inicio</td>
+<td>Saldo, accesos a recarga, pago, QR, historial</td>
+</tr>
+<tr>
+<td>Pasajero - Recarga</td>
+<td>Monto con clave de idempotencia</td>
+</tr>
+<tr>
+<td>Pasajero - Pago Manual</td>
+<td>Ruta, método, destino si aplica</td>
+</tr>
+<tr>
+<td>Pasajero - Escanear QR</td>
+<td>Pago con saldo escaneando QR del bus</td>
+</tr>
+<tr>
+<td>Conductor - Panel</td>
+<td>Iniciar/cerrar turno, generar QR</td>
+</tr>
+<tr>
+<td>Historial</td>
+<td>Pagos y viajes con detalle</td>
+</tr>
+</tbody>
+</table>
+<h2 id="84-consideraciones">8.4. Consideraciones</h2>
+<ul>
+<li>Diseño responsive</li>
+<li>Tokens almacenados en cliente</li>
+<li>Mensajes coherentes con respuestas API</li>
+<li>Soporte PWA para instalación móvil</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="9-implementacion">9. IMPLEMENTACIÓN</h1>
+<h2 id="91-tecnologias-utilizadas">9.1. Tecnologías Utilizadas</h2>
+<table>
+<thead>
+<tr>
+<th>Componente</th>
+<th>Tecnología</th>
+<th>Detalle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Backend</td>
+<td>FastAPI</td>
+<td>API REST</td>
+</tr>
+<tr>
+<td>ORM</td>
+<td>SQLAlchemy 2.x</td>
+<td>Mapped/mapped_column</td>
+</tr>
+<tr>
+<td>Validación</td>
+<td>Pydantic v2</td>
+<td>Esquemas entrada/salida</td>
+</tr>
+<tr>
+<td>Servidor</td>
+<td>Uvicorn</td>
+<td>ASGI</td>
+</tr>
+<tr>
+<td>BD</td>
+<td>SQLite</td>
+<td>Desarrollo/demo</td>
+</tr>
+<tr>
+<td>Frontend</td>
+<td>HTML/CSS/JS Vanilla</td>
+<td>PWA</td>
+</tr>
+<tr>
+<td>Testing</td>
+<td>Pytest</td>
+<td>Suite automatizada</td>
+</tr>
+</tbody>
+</table>
+<h2 id="92-convenciones">9.2. Convenciones</h2>
+<ul>
+<li>Nombres de dominio en español cuando aplica</li>
+<li>DTOs separados de modelos ORM</li>
+<li><code>response_model</code> en endpoints</li>
+<li><code>ErrorDominio</code> para reglas de negocio</li>
+<li>Transacciones controladas desde servicios</li>
+<li>Claves foráneas activas</li>
+</ul>
+<h2 id="93-modulos-clave">9.3. Módulos Clave</h2>
+<table>
+<thead>
+<tr>
+<th>Módulo</th>
+<th>Función</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main.py</code></td>
+<td>Bootstrap, lifespan, CORS, exception handler, routers</td>
+</tr>
+<tr>
+<td><code>database.py</code></td>
+<td>Engine, SessionLocal, <code>initialize()</code>, seed demo</td>
+</tr>
+<tr>
+<td><code>auth.py</code></td>
+<td>Tokens Bearer, <code>UsuarioAutenticado</code></td>
+</tr>
+<tr>
+<td><code>passwords.py</code></td>
+<td>Hash/verify contraseñas</td>
+</tr>
+<tr>
+<td><code>services.py</code></td>
+<td>Casos de uso, validaciones, cálculos, transacciones</td>
+</tr>
+<tr>
+<td><code>controllers/*</code></td>
+<td>Endpoints HTTP por dominio</td>
+</tr>
+<tr>
+<td><code>models/*</code></td>
+<td>Mapeo ORM</td>
+</tr>
+<tr>
+<td><code>dtos/*</code></td>
+<td>Contratos entrada/salida</td>
+</tr>
+</tbody>
+</table>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="10-pruebas">10. PRUEBAS</h1>
+<h2 id="101-alcance">10.1. Alcance</h2>
+<p>Suite de <strong>27 pruebas</strong> automatizadas en <code>backend/tests/test_api.py</code> y <code>backend/tests/test_models_dtos.py</code>, ejecutadas exitosamente.</p>
+<h2 id="102-tipos-de-prueba">10.2. Tipos de Prueba</h2>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>Cobertura</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Integración API</td>
+<td>Auth, pagos, QR, turnos, transbordos, historial</td>
+</tr>
+<tr>
+<td>Modelos/DTOs</td>
+<td>Validaciones, mapeo, relaciones</td>
+</tr>
+<tr>
+<td>Idempotencia</td>
+<td>Recargas y pagos con misma <code>idempotency_key</code></td>
+</tr>
+<tr>
+<td>Seguridad/Reglas</td>
+<td>Token, roles, QR inválido/expirado/uso doble</td>
+</tr>
+<tr>
+<td>Transaccionales</td>
+<td>Consistencia entre entidades</td>
+</tr>
+</tbody>
+</table>
+<h2 id="103-resultados">10.3. Resultados</h2>
+<pre><code class="language-text">27 passed, 2 warnings
+</code></pre>
+<h2 id="104-casos-destacados">10.4. Casos Destacados</h2>
+<ul>
+<li>Login pasajero/conductor</li>
+<li>Registro crea solo PASSENGER</li>
+<li>Pago idempotente</li>
+<li>QR firmado, un solo uso, ruta/turno correcto</li>
+<li>Saldo insuficiente no crea viaje</li>
+<li>Efectivo/tarjeta no modifican billetera</li>
+<li>Recarga idempotente</li>
+<li>Transbordo ventana 20 minutos</li>
+<li>Tarifas fin de semana/festivos</li>
+<li>Cierre de turno</li>
+<li>Historial propio</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="11-despliegue-y-configuracion">11. DESPLIEGUE Y CONFIGURACIÓN</h1>
+<h2 id="111-requisitos">11.1. Requisitos</h2>
+<ul>
+<li>Python 3.10+</li>
+<li>Navegador moderno</li>
+<li>PowerShell</li>
+</ul>
+<h2 id="112-variables-de-entorno">11.2. Variables de Entorno</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Requerida</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>QR_PASS_AUTH_SECRET</code></td>
+<td>Sí (prod)</td>
+<td>Secreto para firmar tokens</td>
+</tr>
+<tr>
+<td><code>QR_PASS_DATABASE_URL</code></td>
+<td>Opcional</td>
+<td>URL SQLAlchemy (default SQLite)</td>
+</tr>
+<tr>
+<td><code>QR_PASS_ENV</code></td>
+<td>Opcional</td>
+<td><code>production</code> activa validaciones estrictas</td>
+</tr>
+<tr>
+<td><code>QR_PASS_DEMO_PASSENGER_PASSWORD</code></td>
+<td>Opcional</td>
+<td>Contraseña demo pasajero</td>
+</tr>
+<tr>
+<td><code>QR_PASS_DEMO_DRIVER_PASSWORD</code></td>
+<td>Opcional</td>
+<td>Contraseña demo conductor</td>
+</tr>
+<tr>
+<td><code>QR_PASS_CORS_ORIGINS</code></td>
+<td>Opcional</td>
+<td>Orígenes permitidos separados por coma</td>
+</tr>
+</tbody>
+</table>
+<h2 id="113-ejecucion-local">11.3. Ejecución Local</h2>
+<h3 id="backend">Backend</h3>
+<pre><code class="language-powershell">Set-Location .\backend
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m uvicorn app.core.main:app --reload
+</code></pre>
+<ul>
+<li>API: <code>http://127.0.0.1:8000</code></li>
+<li>Swagger: <code>http://127.0.0.1:8000/docs</code></li>
+</ul>
+<h3 id="frontend">Frontend</h3>
+<pre><code class="language-powershell">py -m http.server 5500 --directory frontend
+</code></pre>
+<ul>
+<li>Frontend: <code>http://127.0.0.1:5500</code></li>
+</ul>
+<h2 id="114-inicializacion">11.4. Inicialización</h2>
+<p>En <code>lifespan</code> de <code>main.py</code>, <code>database.initialize()</code> ejecuta <code>create_all()</code>, migraciones ad-hoc SQLite y seed (roles, usuarios demo, empresa/vehículo, tarifas, turno).</p>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="12-mantenimiento-y-evolucion">12. MANTENIMIENTO Y EVOLUCIÓN</h1>
+<h2 id="121-buenas-practicas">12.1. Buenas Prácticas</h2>
+<ul>
+<li>Mantener sincronizada documentación con cambios en models/services/controllers/dtos</li>
+<li>Mantener DTOs separados de modelos ORM</li>
+<li>Usar <code>ErrorDominio</code> para reglas de negocio</li>
+<li>Controlar transacciones desde servicios</li>
+<li>Respetar restricciones únicas e idempotencia</li>
+<li>Ejecutar pruebas tras cambios críticos</li>
+</ul>
+<h2 id="122-posibles-mejoras">12.2. Posibles Mejoras</h2>
+<table>
+<thead>
+<tr>
+<th>Mejora</th>
+<th>Justificación</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Migraciones con Alembic</td>
+<td>Versionado formal de esquema</td>
+</tr>
+<tr>
+<td>Logging estructurado</td>
+<td>Trazabilidad en producción</td>
+</tr>
+<tr>
+<td>Rate limiting</td>
+<td>Protección auth/pagos</td>
+</tr>
+<tr>
+<td>Refresh tokens</td>
+<td>Rotación/revocación</td>
+</tr>
+<tr>
+<td>Fortalecer firma QR</td>
+<td>Mayor robustez</td>
+</tr>
+<tr>
+<td>Integración con pasarela real</td>
+<td>Evolución fuera de demo</td>
+</tr>
+<tr>
+<td>Más pruebas unitarias por servicio</td>
+<td>Mayor granularidad</td>
+</tr>
+</tbody>
+</table>
+<h2 id="123-checklist">12.3. Checklist</h2>
+<ul>
+<li>[ ] Imports correctos</li>
+<li>[ ] Models heredan de <code>Base</code>, DTOs de <code>EsquemaBase</code></li>
+<li>[ ] Claves foráneas consistentes</li>
+<li>[ ] Transacciones atómicas</li>
+<li>[ ] Idempotencia verificada</li>
+<li>[ ] Tests pasan</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="13-trazabilidad">13. TRAZABILIDAD</h1>
+<h2 id="131-matriz-general">13.1. Matriz General</h2>
+<p>Ver <code>documentacion/trazabilidad/01_matriz_trazabilidad_cu.md</code> para el detalle CU &lt;-&gt; Endpoint &lt;-&gt; Servicio &lt;-&gt; Modelo &lt;-&gt; DTO.</p>
+<h2 id="132-trazabilidad-requisitos-pruebas">13.2. Trazabilidad Requisitos - Pruebas</h2>
+<table>
+<thead>
+<tr>
+<th>RF</th>
+<th>Relación</th>
+<th>Estado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RF-01</td>
+<td>Login/auth</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-02</td>
+<td>Registro pasajero</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-04/RF-12</td>
+<td>Recarga idempotente</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-05</td>
+<td>Efectivo/tarjeta</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-06/RF-08</td>
+<td>Pago QR con saldo / validación QR</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-07</td>
+<td>Turno conductor/QR/cierre</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-09</td>
+<td>Tarifas por día/tipo</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-10</td>
+<td>Historial pagos/viajes</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-11</td>
+<td>Transbordos 20 min</td>
+<td>Cubierto</td>
+</tr>
+<tr>
+<td>RF-12</td>
+<td>Idempotencia</td>
+<td>Cubierto</td>
+</tr>
+</tbody>
+</table>
+<h2 id="133-trazabilidad-codigo-documentacion">13.3. Trazabilidad Código - Documentación</h2>
+<p>Basado en: <code>backend/app/models/*.py</code>, <code>backend/app/services.py</code>, <code>backend/app/controllers/*.py</code>, <code>backend/app/dtos/*.py</code>, <code>backend/app/database.py</code>, <code>backend/app/main.py</code>, <code>backend/tests/*.py</code>.</p>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="14-conclusiones-y-recomendaciones">14. CONCLUSIONES Y RECOMENDACIONES</h1>
+<h2 id="141-conclusiones">14.1. Conclusiones</h2>
+<ul>
+<li>Arquitectura por capas clara y mantenible</li>
+<li>Dominio bien modelado con trazabilidad financiera</li>
+<li>Reglas de negocio implementadas (idempotencia, QR firmado, turnos, transbordos)</li>
+<li>Suite de 27 pruebas valida flujos críticos</li>
+<li>Documentación técnica completa y trazable al código</li>
+<li>Prototipo funcional coherente con objetivo planteado</li>
+</ul>
+<h2 id="142-recomendaciones">14.2. Recomendaciones</h2>
+<ul>
+<li>Migrar a Alembic</li>
+<li>Implementar logging estructurado</li>
+<li>Añadir rate-limiting</li>
+<li>Gestionar secretos con .env obligatorio en prod</li>
+<li>Ampliar pruebas unitarias de <code>services.py</code></li>
+<li>Considerar PostgreSQL fuera de demo</li>
+<li>Mantener documentación sincronizada con cambios</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="15-referencias-bibliograficas">15. REFERENCIAS BIBLIOGRÁFICAS</h1>
+<ul>
+<li>FastAPI Documentation. https://fastapi.tiangolo.com/</li>
+<li>SQLAlchemy ORM Documentation (v2.x). https://docs.sqlalchemy.org/</li>
+<li>Pydantic v2 Documentation. https://docs.pydantic.dev/latest/</li>
+<li>Pytest Documentation. https://docs.pytest.org/</li>
+<li>MDN Web Docs - Progressive Web Apps. https://developer.mozilla.org/es/docs/Web/Progressive_web_apps</li>
+<li>Fowler, M. (2002). <em>Patterns of Enterprise Application Architecture</em>. Addison-Wesley.</li>
+<li>Pressman, R. S. &amp; Maxim, B. R. (2019). <em>Ingeniería de Software: Un enfoque práctico</em> (9ª ed.). McGraw-Hill.</li>
+<li>Sommerville, I. (2016). <em>Ingeniería de Software</em> (10ª ed.). Pearson Educación.</li>
+</ul>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="anexo-a-estructura-detallada-del-codigo">ANEXO A. ESTRUCTURA DETALLADA DEL CÓDIGO</h1>
+<h2 id="backend">Backend</h2>
+<pre><code class="language-text">backend/app/
+├── __init__.py
+├── core/
+│   ├── main.py
+│   └── database.py
+├── seguridad/
+│   ├── auth.py
+│   └── passwords.py
+├── servicios/
+│   ├── comun.py
+│   ├── usuarios.py
+│   ├── rutas_tarifas.py
+│   ├── qr.py
+│   ├── pagos.py
+│   ├── viajes.py
+│   ├── transbordos.py
+│   ├── turnos.py
+│   └── administracion.py
+├── controllers/
+│   ├── autenticacion.py
+│   ├── conductor.py
+│   ├── pasajero.py
+│   ├── administracion.py
+│   └── sistema.py
+├── dtos/
+└── models/
+</code></pre>
+<p>Compatibilidad: <code>app/main.py</code>, <code>app/database.py</code>, <code>app/auth.py</code>, <code>app/passwords.py</code> y <code>app/services.py</code> se mantienen como shims de reexportación.</p>
+<h2 id="frontend">Frontend</h2>
+<pre><code class="language-text">frontend/
+├── index.html
+├── app.js
+├── styles.css
+├── manifest.webmanifest
+├── service-worker.js
+├── cache.js
+└── assets/
+</code></pre>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="anexo-b-endpoints-principales">ANEXO B. ENDPOINTS PRINCIPALES</h1>
+<table>
+<thead>
+<tr>
+<th>Método</th>
+<th>Ruta</th>
+<th>Auth</th>
+<th>Descripción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/health</code></td>
+<td>No</td>
+<td>Estado servicio</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/ready</code></td>
+<td>No</td>
+<td>Estado BD</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/auth/login</code></td>
+<td>No</td>
+<td>Login</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/auth/register</code></td>
+<td>No</td>
+<td>Registro pasajero</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/auth/me</code></td>
+<td>Sí</td>
+<td>Usuario actual</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/routes</code></td>
+<td>No</td>
+<td>Listado rutas</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/routes/{id}/fares</code></td>
+<td>No</td>
+<td>Tarifas vigentes</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/demo/account/top-ups</code></td>
+<td>Sí</td>
+<td>Recarga</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/demo/account/payments</code></td>
+<td>Sí</td>
+<td>Pago efectivo/tarjeta</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/demo/account/qr/validate</code></td>
+<td>Sí</td>
+<td>Pago QR con saldo</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/payments/history</code></td>
+<td>Sí</td>
+<td>Historial pagos</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/trips</code> / <code>/api/v1/demo/account/trips</code></td>
+<td>Sí</td>
+<td>Historial viajes</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/trips/{id}</code></td>
+<td>Sí</td>
+<td>Detalle viaje</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/transfers</code></td>
+<td>Sí</td>
+<td>Crear transbordo</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/driver/demo/assignment</code></td>
+<td>Sí(DRIVER)</td>
+<td>Asignación conductor</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/driver/shift/start</code></td>
+<td>Sí(DRIVER)</td>
+<td>Iniciar turno</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/driver/shift/qr</code></td>
+<td>Sí(DRIVER)</td>
+<td>Generar/renovar QR</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/driver/shift/close</code></td>
+<td>Sí(DRIVER)</td>
+<td>Cerrar turno</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/v1/admin/demo/metrics</code></td>
+<td>Sí</td>
+<td>Métricas demo</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/v1/admin/demo/reset</code></td>
+<td>Sí</td>
+<td>Reset demo</td>
+</tr>
+</tbody>
+</table>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="anexo-c-cuentas-de-demostracion">ANEXO C. CUENTAS DE DEMOSTRACIÓN</h1>
+<p>Definidas en <code>app/database.py</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Usuario</th>
+<th>Contraseña</th>
+<th>Roles</th>
+<th>Uso</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pasajero.demo</code></td>
+<td><code>QrPass-Pasajero-Demo-2026</code></td>
+<td><code>PASSENGER</code></td>
+<td>Pruebas pasajero</td>
+</tr>
+<tr>
+<td><code>conductor.demo</code></td>
+<td><code>QrPass-Conductor-Demo-2026</code></td>
+<td><code>PASSENGER</code>, <code>DRIVER</code></td>
+<td>Pruebas conductor</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>En producción se deben configurar contraseñas por variable de entorno.</p>
+</blockquote>
+</section>
+<hr class='page-break'/>
+<section class='doc-section'>
+<h1 id="anexo-d-ejecucion-de-pruebas">ANEXO D. EJECUCIÓN DE PRUEBAS</h1>
+<p>Desde <code>backend/</code>:</p>
+<pre><code class="language-powershell">py -m pytest -q
+</code></pre>
+<p>Con detalle:</p>
+<pre><code class="language-powershell">py -m pytest -v
+</code></pre>
+<p>Específicas:</p>
+<pre><code class="language-powershell">py -m pytest tests/test_api.py -v
+py -m pytest tests/test_models_dtos.py -v
+</code></pre>
+<p>Las pruebas usan <code>TestClient</code> con base de datos en memoria.</p>
+</section>
+<hr class='page-break'/>
+
+</body>
+</html>

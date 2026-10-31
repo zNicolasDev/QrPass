@@ -11,13 +11,13 @@ from fastapi import Request
 from fastapi import status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from app.database import obtener_sesion
-from app.database import verificar_conexion
+from app.core.database import obtener_sesion
+from app.core.database import verificar_conexion
 from app.dtos import TarifaRespuesta
 from app.dtos import EstadoServicioRespuesta
 from app.dtos import RutaRespuesta
-from app.services import obtener_tarifa_vigente
-from app.services import listar_rutas
+from app.servicios.rutas_tarifas import obtener_tarifa_vigente
+from app.servicios.rutas_tarifas import listar_rutas
 
 
 

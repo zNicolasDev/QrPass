@@ -8,8 +8,8 @@ from fastapi import Query
 from fastapi import Request
 from fastapi import status
 from sqlalchemy.orm import Session
-from app.auth import requerir_rol
-from app.database import obtener_sesion
+from app.seguridad.auth import requerir_rol
+from app.core.database import obtener_sesion
 from app.dtos import AsignacionConductorRespuesta
 from app.dtos import MovimientoTurnoRespuesta
 from app.dtos import CierreTurnoSolicitud
@@ -19,15 +19,15 @@ from app.dtos import TurnoConductorRespuesta
 from app.dtos import ReciboPago
 from app.dtos import CierreTurnoRespuesta
 from app.models import Usuario
-from app.services import cerrar_turno_conductor
-from app.services import consultar_historial_turnos
-from app.services import resumir_turno_conductor
-from app.services import ResumenTurnoConductor
-from app.services import registrar_pago_conductor
-from app.services import crear_qr_turno_conductor
-from app.services import crear_imagen_qr
-from app.services import obtener_datos_asignacion_conductor
-from app.services import iniciar_turno_conductor
+from app.servicios.turnos import cerrar_turno_conductor
+from app.servicios.turnos import consultar_historial_turnos
+from app.servicios.turnos import resumir_turno_conductor
+from app.servicios.comun import ResumenTurnoConductor
+from app.servicios.turnos import registrar_pago_conductor
+from app.servicios.qr import crear_qr_turno_conductor
+from app.servicios.qr import crear_imagen_qr
+from app.servicios.usuarios import obtener_datos_asignacion_conductor
+from app.servicios.turnos import iniciar_turno_conductor
 
 
 

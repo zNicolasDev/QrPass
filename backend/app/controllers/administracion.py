@@ -5,9 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.database import obtener_sesion
+from app.core.database import obtener_sesion
 from app.dtos import MetricasGerencialesRespuesta, ReinicioDemoRespuesta
-from app.services import obtener_metricas_gerenciales, reiniciar_datos_demo
+from app.servicios.administracion import obtener_metricas_gerenciales, reiniciar_datos_demo
 
 SessionDependency = Annotated[Session, Depends(obtener_sesion)]
 admin_router = APIRouter(prefix="/admin", tags=["Administración y Auditoría"])

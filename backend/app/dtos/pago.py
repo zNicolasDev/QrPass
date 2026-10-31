@@ -16,6 +16,7 @@ class CrearPagoSolicitud(EsquemaBase):
     medio: MedioPago = Field(validation_alias="method", serialization_alias="method")
     tipo_tarjeta: TipoTarjeta | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")
     clave_idempotencia: Annotated[str | None, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")] = None
+    destino: Annotated[str | None, Field(min_length=1, max_length=60, validation_alias="destination", serialization_alias="destination")] = Field(default=None, exclude_none=True)
 
     @model_validator(mode="after")
     def validar_tipo_tarjeta(self) -> 'CrearPagoSolicitud':
