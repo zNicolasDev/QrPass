@@ -38,75 +38,6 @@ body {
     var(--canvas);
 }
 
-/* ---------- Login ---------- */
-.login-gate {
-  background:
-    radial-gradient(ellipse 60% 40% at 15% 10%, rgb(184 242 106 / 18%), transparent 60%),
-    radial-gradient(ellipse 50% 50% at 85% 90%, rgb(31 107 96 / 14%), transparent 55%),
-    linear-gradient(160deg, #f4f7f5, #eaf0ec 50%, #f2f6f3);
-}
-
-.login-card {
-  border: 1px solid rgb(255 255 255 / 70%);
-  border-radius: var(--radius-xl);
-  background: rgb(255 255 255 / 78%);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  padding: 36px;
-}
-
-.login-brand .brand-mark {
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--mint), var(--mint-deep));
-  box-shadow: 0 8px 20px rgb(184 242 106 / 30%);
-}
-
-.login-intro h1 {
-  font-size: clamp(26px, 7vw, 34px);
-  letter-spacing: -1.4px;
-  font-weight: 800;
-}
-
-.login-intro > p {
-  font-size: 13px;
-  line-height: 1.65;
-}
-
-.login-form .input {
-  min-height: 48px;
-  border-radius: var(--radius-sm);
-  border: 1px solid #dde6e0;
-  background: #fbfdfb;
-  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
-}
-
-.login-form .input:focus {
-  border-color: var(--teal);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgb(31 107 96 / 12%);
-}
-
-.login-submit {
-  min-height: 50px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--forest), var(--forest-2));
-  box-shadow: 0 8px 22px rgb(11 31 31 / 22%);
-  font-size: 13px;
-  letter-spacing: .2px;
-  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
-}
-
-.login-submit:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.05);
-  box-shadow: 0 12px 28px rgb(11 31 31 / 28%);
-}
-
-.login-submit:active {
-  transform: translateY(0);
-}
-
 /* ---------- Sidebar ---------- */
 .sidebar {
   background:
@@ -362,7 +293,7 @@ body {
     --teal: #005050;
   }
   body { background: #fff; }
-  .button, .login-submit { border: 2px solid #000; }
+  .button { border: 2px solid #000; }
 }
 
 /* Mejor legibilidad de texto secundario a distancia */
@@ -382,5 +313,4 @@ body {
 @media (max-width: 768px) {
   .topbar { padding: 0 20px; }
   .page-content { padding: 24px 20px 20px; }
-  .login-card { padding: 28px 22px; }
 }

@@ -1,0 +1,7 @@
+body[data-profile-page="conductor"] {
+  --profile-accent: #b8732a;
+}
+
+body[data-profile-page="conductor"] .profile-status {
+  background: var(--profile-accent);
+}

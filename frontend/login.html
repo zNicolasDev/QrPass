@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Acceso a QrPass, la plataforma de movilidad en Ibagué." />
+    <meta name="theme-color" content="#102a2a" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="iconos/qrpass.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="iconos/apple-touch-icon.png" />
+    <title>Iniciar sesión · QrPass</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="premium.css" />
+    <link rel="stylesheet" href="login.css" />
+    <script src="api.js" defer></script>
+    <script src="login.js" defer></script>
+  </head>
+  <body>
+    <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <symbol id="icon-qr" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <path d="M14 14h2v2h-2zm4 0h3v3h-3zm-4 4h2v3h-2zm4 1h3v2h-3z" />
+      </symbol>
+      <symbol id="icon-route" viewBox="0 0 24 24">
+        <circle cx="6" cy="18" r="2.5" />
+        <circle cx="18" cy="6" r="2.5" />
+        <path d="M8.5 18H11a3 3 0 0 0 3-3V9a3 3 0 0 1 3-3h.5" />
+      </symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h14m-6-6 6 6-6 6" />
+      </symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24">
+        <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z" />
+        <path d="m9 12 2 2 4-4" />
+      </symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24">
+        <path d="m6 6 12 12M18 6 6 18" />
+      </symbol>
+    </svg>
+
+    <main class="login-gate">
+      <section class="login-card" aria-labelledby="login-title">
+        <a class="brand login-brand" href="index.html" aria-label="QrPass">
+          <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#icon-qr" /></svg></span>
+          <span class="brand-name">qr<span>pass</span><small>IBAGUÉ · TOLIMA</small></span>
+        </a>
+        <div class="login-intro">
+          <span class="eyebrow"><svg class="icon"><use href="#icon-route" /></svg> TRANSPORTE PÚBLICO · IBAGUÉ</span>
+          <h1 id="login-title">Movilidad inteligente en Ibagué.</h1>
+          <p>Inicia sesión para entrar al espacio permitido por los roles de tu cuenta.</p>
+        </div>
+        <form id="login-form" class="login-form">
+          <label for="login-username">Usuario o correo electrónico</label>
+          <input class="input" id="login-username" name="username" type="text" autocomplete="username"
+            placeholder="Tu usuario o correo" minlength="3" maxlength="254" required />
+          <label for="login-password">Contraseña</label>
+          <input class="input" id="login-password" name="password" type="password"
+            autocomplete="current-password" placeholder="Tu contraseña" required />
+          <p class="login-error" id="login-error" role="alert" hidden></p>
+          <button class="button login-submit" type="submit">Iniciar sesión <svg class="icon"><use href="#icon-arrow" /></svg></button>
+        </form>
+        <button class="login-register-toggle" id="registration-toggle" type="button">Crear cuenta de pasajero</button>
+        <form id="registration-form" class="login-form" hidden>
+          <label for="register-names">Nombre completo</label>
+          <input class="input" id="register-names" name="names" type="text" autocomplete="name"
+            minlength="2" maxlength="120" required />
+          <label for="register-email">Correo electrónico</label>
+          <input class="input" id="register-email" name="email" type="email" autocomplete="email"
+            maxlength="254" required />
+          <label for="register-password">Contraseña (mínimo 12 caracteres)</label>
+          <input class="input" id="register-password" name="password" type="password"
+            autocomplete="new-password" minlength="12" maxlength="256" required />
+          <label class="login-consent"><input name="privacy_consent" type="checkbox" required />
+            <span>Autorizo el uso de mis datos para esta plataforma.</span></label>
+          <button class="login-privacy-link" type="button" id="privacy-link">Leer aviso de privacidad del prototipo</button>
+          <p class="login-error" id="registration-error" role="alert" hidden></p>
+          <button class="button login-submit" type="submit">Crear cuenta pasajera <svg class="icon"><use href="#icon-arrow" /></svg></button>
+        </form>
+        <p class="login-role-note"><svg class="icon"><use href="#icon-shield" /></svg><span>El servidor determina tus roles. Las cuentas sin rol de conductor no pueden abrir ese espacio.</span></p>
+        <p class="login-demo-note">Solicita al administrador local las credenciales de la cuenta de prueba.</p>
+      </section>
+      <footer class="login-footer">QrPass · Acceso según rol</footer>
+    </main>
+
+    <dialog class="modal" id="privacy-dialog" aria-labelledby="privacy-title">
+      <form method="dialog" class="modal-dismiss"><button class="icon-button" aria-label="Cerrar aviso"><svg class="icon"><use href="#icon-close" /></svg></button></form>
+      <div class="modal-body">
+        <div class="modal-kicker">PRIVACIDAD · PROTOTIPO</div>
+        <h2 id="privacy-title">Aviso de privacidad</h2>
+        <p>Este aviso explica el uso de datos en el prototipo. No es una política de tratamiento aprobada ni reemplaza la revisión legal antes de una operación real.</p>
+        <div class="receipt-list">
+          <div class="detail-row"><span>Datos de registro</span><strong>Nombre, correo y contraseña</strong></div>
+          <div class="detail-row"><span>Datos de uso</span><strong>Saldo, pagos y viajes de prueba</strong></div>
+          <div class="detail-row"><span>Para qué se usan</span><strong>Acceso a la cuenta y pruebas de los flujos</strong></div>
+          <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos local</strong></div>
+        </div>
+        <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer derechos sobre datos del prototipo, contacta al responsable del proyecto que te dio acceso.</p>
+        <div class="modal-actions"><button class="button" type="button" id="close-privacy">Cerrar aviso</button></div>
+      </div>
+    </dialog>
+  </body>
+</html>

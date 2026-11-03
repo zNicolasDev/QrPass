@@ -1,0 +1,7 @@
+body[data-profile-page="pasajero"] {
+  --profile-accent: #1f6b60;
+}
+
+body[data-profile-page="pasajero"] .profile-status {
+  background: var(--profile-accent);
+}

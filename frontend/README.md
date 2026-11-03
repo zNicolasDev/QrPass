@@ -14,26 +14,29 @@ Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos.
 3. Abre `http://127.0.0.1:5500` e inicia sesión con una cuenta de plataforma o registra una cuenta de pasajero.
 4. La documentación interactiva de la API está en `http://127.0.0.1:8000/docs`.
 
-La dirección de la API puede establecerse con `window.QRPASS_API_BASE_URL` antes de cargar `app.js`; el origen del sitio debe estar permitido en `QR_PASS_CORS_ORIGINS`.
+La dirección de la API puede establecerse con `window.QRPASS_API_BASE_URL` antes de cargar `api.js`; el origen del sitio debe estar permitido en `QR_PASS_CORS_ORIGINS`.
 
 ## Archivos
 
-- `index.html`: estructura de la página y recursos de inicio.
-- `styles.css`: diseño y adaptación a pantallas pequeñas.
-- `app.js`: inicio de sesión, navegación y flujos de pasajero y conductor.
+- `index.html`: punto de entrada que valida la sesión y dirige al espacio elegido.
+- `login.html`: página independiente de inicio de sesión y registro.
+- `pasajero.html` / `pasajero.css`: acceso y presentación específica del espacio pasajero.
+- `conductor.html` / `conductor.css`: acceso y presentación específica del espacio conductor.
+- `workspace.html`: estructura compartida para no duplicar el menú, las ventanas y la navegación.
+- `workspace-loader.js`: carga la estructura compartida y luego inicia la lógica del espacio.
+- `index.js` / `index.css`: selección de perfil y pantalla breve de entrada.
+- `api.js`: cliente HTTP compartido, autorización de sesión y manejo de errores de API.
+- `login.js`: envío de credenciales, registro y aviso de privacidad.
+- `app.js`: navegación autenticada y flujos funcionales de pasajero/conductor.
+- `styles.css` y `premium.css`: estilos compartidos y tema del espacio autenticado.
+- `login.css`: presentación específica de la página de acceso.
 - `cache.js`: almacenamiento de recursos para la PWA.
 - `manifest.webmanifest`: nombre, iconos e instalación de la aplicación.
 - `iconos/`: recursos gráficos de la PWA y del acceso móvil.
 
-## Cobertura de la interfaz frente a los requisitos
+## Contrato de integración
 
-La interfaz permite recorrer los flujos de plataforma de registro e inicio de sesión (RF-01 y RF-02), pagos (RF-03), tarifa vigente (RF-05), registro de efectivo y cierre de turno (RF-06, RF-10 y RF-11), recarga (RF-07), transbordo (RF-08) e historial con comprobantes y detalle (RF-09). El registro unificado muestra pagos, recargas, viajes transferidos y, cuando la API lo devuelve, el saldo anterior y posterior.
-
-RF-02 usa la ruta que el servidor asignó al conductor; la interfaz todavía no permite escoger una ruta entre varias. RF-04 requiere aclarar el sentido del QR: el documento pide que lo genere el pasajero, mientras que el contrato actual hace que el bus muestre un QR y que el pasajero lo escanee. La interfaz sigue el contrato disponible; no inventa códigos que la API no pueda validar.
-
-El registro enlaza un aviso de privacidad de plataforma que describe los datos, su uso y almacenamiento. No existe todavía un panel administrativo o de auditoría, y ese aviso no reemplaza una política aprobada ni cubre las obligaciones legales de producción.
-
-Esta cobertura es de interfaz y plataforma. El backend aún no integra pasarela bancaria ni POS, las recargas son ficticias y el prototipo no autoriza pagos o sincroniza movimientos sin conexión. RNF-02 y RNF-05 necesitan mediciones en dispositivos reales; TLS 1.3 y la escalabilidad dependen del despliegue; los aspectos de dominio y privacidad necesitan validación externa. Consulta la [trazabilidad completa](../documentacion/trazabilidad.md) para los límites técnicos y operativos.
+La tabla de los tres módulos principales (autenticación, pasajero/pagos y conductor) documenta pantalla, requisito funcional, método, endpoint, JSON y forma de respuesta en [`documentacion/ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md`](../documentacion/ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md).
 
 ## Flujos y límites
 

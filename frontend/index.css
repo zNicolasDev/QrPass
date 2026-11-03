@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light;
+  font-family: "DM Sans", sans-serif;
+}
+
+body {
+  display: grid;
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  place-items: center;
+  background: #f4f7f5;
+  color: #173131;
+}
+
+.entry-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #536665;
+  font-size: 14px;
+}
+
+.entry-status img {
+  width: 36px;
+  height: 36px;
+}
+
+.entry-status p {
+  margin: 0;
+}

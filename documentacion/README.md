@@ -12,6 +12,7 @@ Esta carpeta centraliza toda la documentación técnica, especificación de requ
 
 ### 2. Arquitectura y Diseño
 * [`arquitectura.md`](./arquitectura.md): Especificación de la arquitectura del sistema, diagramas de componentes en Mermaid, contratos de API REST, justificación técnica del patrón MVC adaptado y alineación entre requisitos y código.
+* [`ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md`](./ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md): Contrato de integración de los tres módulos principales del frontend, con RF, pantallas, endpoints, JSON de entrada y respuestas.
 
 ### 3. Modelado UML y Entregables Didácticos
 * [`uml_mvc_y_entregables.md`](./uml_mvc_y_entregables.md): Diagramas de secuencia y actividad en Mermaid con explicaciones paso a paso de los procesos críticos (pago con QR, pago manual y transbordos a $0 COP).
@@ -50,7 +51,7 @@ Para explicar de forma simple el diseño ante profesores o compañeros (siguiend
 
 ## Estructura General del Proyecto
 
-* [`frontend/`](../frontend/): Interfaz de usuario para pasajeros y consola de conductor (HTML5, CSS3, JS nativo, PWA).
+* [`frontend/`](../frontend/): Interfaz PWA con páginas diferenciadas para acceso, pasajero y conductor, más plantilla compartida de trabajo (HTML5, CSS3 y JavaScript nativo).
 * [`backend/`](../backend/): API transaccional en FastAPI, modelos SQLAlchemy, contratos Pydantic y pruebas automatizadas.
 * [`documentacion/`](./): Documentación técnica, académica y normativa.
 * [`prototipo.py`](../prototipo.py): Prototipo inicial de escritorio (Tkinter), conservado como referencia histórica.

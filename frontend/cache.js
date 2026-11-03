@@ -1,7 +1,20 @@
-const CACHE_NAME = "qrpass-demo-shell-v15";
+const CACHE_NAME = "qrpass-demo-shell-v16";
 const APP_FILES = [
   "./index.html",
+  "./index.css",
+  "./index.js",
+  "./login.html",
+  "./pasajero.html",
+  "./pasajero.css",
+  "./conductor.html",
+  "./conductor.css",
+  "./workspace.html",
+  "./workspace-loader.js",
   "./styles.css",
+  "./premium.css",
+  "./login.css",
+  "./api.js",
+  "./login.js",
   "./app.js",
   "./manifest.webmanifest",
   "./iconos/qrpass.svg",
@@ -47,11 +60,13 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           if (response.ok) {
             const responseCopy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", responseCopy));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseCopy));
           }
           return response;
         })
-        .catch(async () => (await caches.match("./index.html")) || Response.error()),
+        .catch(async () => (await caches.match(request, { ignoreSearch: true }))
+          || (await caches.match("./index.html"))
+          || Response.error()),
     );
     return;
   }
