@@ -2,6 +2,13 @@ from __future__ import annotations
 # Este módulo configura FastAPI, conecta la base de datos y carga el router principal.
 
 import os
+import sys
+
+# Evita que la consola muestre caracteres mal codificados (mojibake) en Windows.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 import logging
 import secrets
 from contextlib import asynccontextmanager
