@@ -93,6 +93,10 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
     async def root() -> dict[str, str]:
         return {"service": "qrpass-api", "docs": "/docs", "health": "/api/v1/health"}
 
+    @application.get("/health", include_in_schema=False)
+    async def health_root() -> dict[str, str]:
+        return {"status": "ok", "service": "qrpass-api", "mode": "demo"}
+
     return application
 
 

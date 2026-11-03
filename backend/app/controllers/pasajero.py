@@ -33,7 +33,7 @@ from app.servicios.viajes import listar_viajes
 
 SessionDependency = Annotated[Session, Depends(obtener_sesion)]
 logger = logging.getLogger(__name__)
-demo_router = APIRouter(prefix="/demo/account", tags=["Demostraci?n"])
+demo_router = APIRouter(prefix="/demo/account", tags=["Cuenta pasajera"])
 router = APIRouter()
 
 # El servicio entrega un viaje con sus relaciones; esta función lo convierte

@@ -24,7 +24,7 @@ from app.servicios.usuarios import registrar_pasajero
 
 SessionDependency = Annotated[Session, Depends(obtener_sesion)]
 # Este router agrupa las direcciones web relacionadas con registro e inicio de sesión.
-auth_router = APIRouter(prefix="/auth", tags=["Autenticaci?n"])
+auth_router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 def _representar_usuario_autenticado(user: Usuario) -> UsuarioAutenticadoRespuesta:
     # El token y el perfil necesitan un nombre de usuario para identificar la sesión.
