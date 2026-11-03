@@ -81,6 +81,11 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
         )
 
     application.include_router(router)
+
+    @application.get("/", include_in_schema=False)
+    async def root() -> dict[str, str]:
+        return {"service": "qrpass-api", "docs": "/docs", "health": "/api/v1/health"}
+
     return application
 
 
