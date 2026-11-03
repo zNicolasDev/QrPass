@@ -33,7 +33,7 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
     if configured_secret is None:
         if is_production:
             raise RuntimeError("QR_PASS_AUTH_SECRET debe configurarse en producción.")
-        logger.warning("QR_PASS_AUTH_SECRET no está configurado; las sesiones demo vencerán al reiniciar la API.")
+        logger.warning("QR_PASS_AUTH_SECRET no esta configurado; las sesiones demo venceran al reiniciar la API.")
         configured_secret = secrets.token_bytes(32)
     secret_bytes = configured_secret.encode("utf-8") if isinstance(configured_secret, str) else configured_secret
     if len(secret_bytes) < 32:
