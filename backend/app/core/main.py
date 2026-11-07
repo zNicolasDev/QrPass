@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -85,6 +86,76 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
             status_code=error.status_code,
             content={"detail": error.detail},
             headers={"WWW-Authenticate": "Bearer"} if error.status_code == 401 else None,
+        )
+
+    def _traducir_validacion(issue: dict) -> str:
+        tipo = str(issue.get("type", ""))
+        contexto = issue.get("ctx") or {}
+        campo = ".".join(str(part) for part in issue.get("loc", []) if part != "body")
+        nombre = campo or "solicitud"
+
+        if tipo == "missing":
+            return f"{nombre}: este campo es obligatorio."
+        if tipo.startswith("greater_than"):
+            limite = contexto.get("gt")
+            return f"{nombre}: debe ser mayor a {limite}." if limite is not None else f"{nombre}: el valor es demasiado pequeño."
+        if tipo.startswith("greater_than_equal"):
+            limite = contexto.get("ge")
+            return f"{nombre}: debe ser mayor o igual a {limite}." if limite is not None else f"{nombre}: el valor es demasiado pequeño."
+        if tipo.startswith("less_than"):
+            limite = contexto.get("lt")
+            return f"{nombre}: debe ser menor a {limite}." if limite is not None else f"{nombre}: el valor es demasiado grande."
+        if tipo.startswith("less_than_equal"):
+            limite = contexto.get("le")
+            return f"{nombre}: debe ser menor o igual a {limite}." if limite is not None else f"{nombre}: el valor es demasiado grande."
+        if tipo == "string_too_short":
+            limite = contexto.get("min_length")
+            return f"{nombre}: debe tener al menos {limite} caracteres." if limite is not None else f"{nombre}: el texto es demasiado corto."
+        if tipo == "string_too_long":
+            limite = contexto.get("max_length")
+            return f"{nombre}: debe tener como máximo {limite} caracteres." if limite is not None else f"{nombre}: el texto es demasiado largo."
+        if tipo == "string_pattern_mismatch":
+            return f"{nombre}: el formato no es válido."
+        if tipo.startswith("enum"):
+            return f"{nombre}: el valor seleccionado no es válido."
+        if tipo == "int_parsing":
+            return f"{nombre}: debe ser un número entero."
+        if tipo == "float_parsing":
+            return f"{nombre}: debe ser un número."
+        if tipo == "bool_parsing":
+            return f"{nombre}: debe ser verdadero o falso."
+        if tipo == "email":
+            return f"{nombre}: el correo no tiene un formato válido."
+        if tipo.startswith("value_error"):
+            mensaje = issue.get("msg", "")
+            if "Value error" in mensaje:
+                mensaje = mensaje.split("Value error,", 1)[-1].strip()
+            return f"{nombre}: {mensaje or 'valor no válido'}."
+        return f"{nombre}: {issue.get('msg', 'valor no válido')}."
+
+    @application.exception_handler(RequestValidationError)
+    async def validation_error_handler(_: Request, error: RequestValidationError) -> JSONResponse:
+        # Convierte errores de validación en mensajes claros para la interfaz.
+        errores = []
+        for issue in error.errors():
+            campo = ".".join(str(part) for part in issue.get("loc", []) if part != "body")
+            mensaje = _traducir_validacion(issue)
+            errores.append({"campo": campo or "solicitud", "mensaje": mensaje})
+        detalle = [f"{item['campo']}: {item['mensaje'].split(':', 1)[-1].strip()}" for item in errores]
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [{"msg": mensaje} for mensaje in (detalle if detalle else ["Los datos enviados no son válidos."])],
+                "errores": errores,
+            },
+        )
+
+    @application.exception_handler(Exception)
+    async def unexpected_error_handler(_: Request, error: Exception) -> JSONResponse:
+        logger.exception("Error inesperado: %s", error)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Ocurrió un error inesperado. Intenta de nuevo en unos momentos."},
         )
 
     application.include_router(router)
