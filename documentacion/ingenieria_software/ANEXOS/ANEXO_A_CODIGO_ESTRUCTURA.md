@@ -1,44 +1,15 @@
-# ANEXO A. ESTRUCTURA DETALLADA DEL CÓDIGO
+# Anexo A. Estructura del código
 
-## Backend
-```text
-backend/app/
-├── __init__.py
-├── core/
-│   ├── main.py
-│   └── database.py
-├── seguridad/
-│   ├── auth.py
-│   └── passwords.py
-├── servicios/
-│   ├── comun.py
-│   ├── usuarios.py
-│   ├── rutas_tarifas.py
-│   ├── qr.py
-│   ├── pagos.py
-│   ├── viajes.py
-│   ├── transbordos.py
-│   ├── turnos.py
-│   └── administracion.py
-├── controllers/
-│   ├── autenticacion.py
-│   ├── conductor.py
-│   ├── pasajero.py
-│   ├── administracion.py
-│   └── sistema.py
-├── dtos/
-└── models/
 ```
-Compatibilidad: `app/main.py`, `app/database.py`, `app/auth.py`, `app/passwords.py` y `app/services.py` se mantienen como shims de reexportación.
-
-## Frontend
-```text
+backend/app/
+  core/          # main.py, database.py
+  controllers/   # sistema, autenticacion, pasajero, conductor, administracion
+  dtos/          # contratos Pydantic
+  models/        # entidades SQLAlchemy
+  seguridad/     # auth, passwords
+  servicios/     # reglas de negocio por responsabilidad
 frontend/
-├── index.html
-├── app.js
-├── styles.css
-├── manifest.webmanifest
-├── service-worker.js
-├── cache.js
-└── assets/
+  index.html, app.js, styles.css, premium.css, cache.js, manifest.webmanifest, iconos/
+documentacion/
+  ingenieria_software/  # esta documentación
 ```

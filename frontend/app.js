@@ -1,8 +1,9 @@
 // La pantalla sigue el recorrido de la persona; el servidor conserva las
 // decisiones y el historial. Si algo cambia dinero o un viaje, se confirma allí.
 // Arrancamos con lo que la interfaz necesita y guardamos aquí su estado.
-const apiClient = window.QrPassApi;
-const apiRequest = apiClient.request;
+const ACCESS_TOKEN_KEY = "qrpass-access-token-v1";
+const SESSION_EXPIRY_KEY = "qrpass-session-expiry-v1";
+const API_BASE_URL = globalThis.QRPASS_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 const content = document.querySelector("#app-content");
 const modal = document.querySelector("#app-modal");
@@ -16,6 +17,7 @@ const toastRegion = document.querySelector("#toast-region");
 let currentView = "inicio";
 let currentProfile = "pasajero";
 let authenticatedUser = null;
+let accessToken = null;
 let sessionExpiryTimer = null;
 let activeFilter = "todos";
 let activeBusQr = null;
@@ -82,6 +84,47 @@ function hasProfileRole(profile) {
   if (profile !== "pasajero" && profile !== "conductor") return false;
   const role = profile === "conductor" ? "DRIVER" : "PASSENGER";
   return authenticatedUser?.roles.includes(role) ?? false;
+}
+
+async function apiRequest(path, options = {}) {
+  // Todas las pantallas hablan con la API por aquí para que una caída de red
+  // o un rechazo se convierta en un mensaje entendible, no en una pantalla rota.
+  // Se centralizan encabezados y token para que cada pantalla no repita el login.
+  const headers = new Headers(options.headers);
+  headers.set("Accept", "application/json");
+  if (options.body) headers.set("Content-Type", "application/json");
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  } catch (error) {
+    throw new Error("No se pudo conectar con QrPass. Comprueba que la API esté iniciada.");
+  }
+
+  // La interfaz espera JSON tanto en respuestas exitosas como en errores.
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new Error(`La API respondió con un formato inesperado (HTTP ${response.status}).`);
+  }
+  if (!response.ok) {
+    let detail = "";
+    if (Array.isArray(payload.detail)) {
+      detail = payload.detail.map((issue) => (typeof issue === "string" ? issue : issue.msg)).join(" ");
+    } else if (typeof payload.detail === "string") {
+      detail = payload.detail;
+    }
+    if (Array.isArray(payload.errores)) {
+      const campos = payload.errores.map((item) => item.mensaje || item.msg).filter(Boolean).join(" ");
+      if (campos) detail = detail ? `${detail} ${campos}` : campos;
+    }
+    const error = new Error(detail || `La solicitud falló (HTTP ${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
+  return payload;
 }
 
 function mapTripFromApi(trip) {
@@ -190,10 +233,16 @@ async function refreshDriverShiftHistory() {
   driverState.completedShifts = shifts.map(mapShiftFromApi);
 }
 
-async function activateSession(user) {
-  // Se ejecuta al restaurar una sesión guardada.
+function showLoginError(message = "") {
+  const error = document.querySelector("#login-error");
+  error.textContent = message;
+  error.hidden = !message;
+}
+
+async function activateSession(user, token) {
+  // Se ejecuta después del login y al restaurar una sesión guardada.
   // Comprueba el perfil y carga los datos necesarios para mostrar la aplicación.
-  const expiresAt = Number(sessionStorage.getItem(apiClient.SESSION_EXPIRY_KEY));
+  const expiresAt = Number(sessionStorage.getItem(SESSION_EXPIRY_KEY));
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
     throw new Error("La sesión venció. Inicia sesión otra vez.");
   }
@@ -202,21 +251,10 @@ async function activateSession(user) {
     throw new Error("La cuenta no tiene un rol habilitado para usar QrPass.");
   }
   authenticatedUser = user;
-  const pageProfile = document.body.dataset.profilePage;
-  if (pageProfile !== "pasajero" && pageProfile !== "conductor") {
-    throw new Error("La página no tiene un perfil de trabajo válido.");
-  }
-  if (!hasProfileRole(pageProfile)) {
-    sessionStorage.setItem(
-      "qrpass-active-profile-v1",
-      hasProfileRole("conductor") ? "conductor" : "pasajero",
-    );
-    window.location.replace("./index.html");
-    return;
-  }
-  currentProfile = pageProfile;
+  accessToken = token;
   sessionExpiryTimer = window.setTimeout(() => {
-    logout("expired");
+    logout();
+    showLoginError("La sesión venció. Inicia sesión otra vez.");
   }, expiresAt - Date.now());
   const [routes, fares] = await Promise.all([
     apiRequest("/routes"),
@@ -228,6 +266,10 @@ async function activateSession(user) {
   currentFare = fares.find((fare) => !fare.destination)?.amount ?? 3300;
   await refreshPassengerData();
   driverState = { activeShift: null, completedShifts: [] };
+  const preferredProfile = sessionStorage.getItem("qrpass-active-profile-v1");
+  currentProfile = preferredProfile && hasProfileRole(preferredProfile)
+    ? preferredProfile
+    : hasProfileRole("conductor") ? "conductor" : "pasajero";
 
   if (currentProfile === "conductor") {
     // El rol habilita el espacio; la asignación indica si hay un turno que
@@ -249,18 +291,20 @@ async function activateSession(user) {
   }
 
   document.body.classList.add("is-authenticated");
+  document.querySelector("#login-gate").hidden = true;
   document.querySelector(".app-shell").hidden = false;
   currentView = "inicio";
   activeFilter = "todos";
   renderCurrentView();
 }
 
-function logout(reason = "") {
+function logout() {
   // Cerrar sesión también limpia lo que quedó en pantalla; otra persona que
   // use este dispositivo no debería heredar el saldo ni los datos anteriores.
   stopQrCamera();
   if (sessionExpiryTimer !== null) window.clearTimeout(sessionExpiryTimer);
   sessionExpiryTimer = null;
+  accessToken = null;
   authenticatedUser = null;
   currentProfile = "pasajero";
   driverAssignment = null;
@@ -268,25 +312,35 @@ function logout(reason = "") {
   routeCatalog = [];
   state = { balance: 0, trips: [], payments: [] };
   driverState = { activeShift: null, completedShifts: [] };
-  sessionStorage.removeItem(apiClient.ACCESS_TOKEN_KEY);
-  sessionStorage.removeItem(apiClient.SESSION_EXPIRY_KEY);
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_EXPIRY_KEY);
   sessionStorage.removeItem("qrpass-active-profile-v1");
-  window.location.replace(reason ? `./login.html?reason=${encodeURIComponent(reason)}` : "./login.html");
+  document.body.classList.remove("is-authenticated");
+  document.querySelector("#login-gate").hidden = false;
+  document.querySelector(".app-shell").hidden = true;
+  document.querySelector("#login-form").reset();
+  document.querySelector("#registration-form").reset();
+  document.querySelector("#login-form").hidden = false;
+  document.querySelector("#registration-form").hidden = true;
+  document.querySelector("#registration-toggle").textContent = "Crear cuenta de pasajero";
+  document.querySelector("#registration-toggle").hidden = false;
+  document.querySelector("#registration-error").hidden = true;
+  showLoginError();
+  setMenuOpen(false);
+  modal.close();
 }
 
 async function bootstrapAuthentication() {
   // Al abrir la página se intenta restaurar la sesión guardada en esta pestaña.
-  const token = sessionStorage.getItem(apiClient.ACCESS_TOKEN_KEY);
-  if (!token) {
-    window.location.replace("./login.html");
-    return;
-  }
+  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  if (!token) return;
+  accessToken = token;
   try {
     const user = await apiRequest("/auth/me");
-    await activateSession(user);
+    await activateSession(user, token);
   } catch (error) {
-    sessionStorage.setItem("qrpass-login-message-v1", error.message);
-    logout("invalid-session");
+    logout();
+    showLoginError(error.message);
   }
 }
 
@@ -705,18 +759,6 @@ async function setProfile(profile) {
   if ((profile !== "pasajero" && profile !== "conductor") || !hasProfileRole(profile)) {
     showToast("Tu cuenta no tiene autorización para ese espacio.", true);
     renderCurrentView();
-    return;
-  }
-  if (profile !== currentProfile) {
-    // Persistimos el rol para que la página de entrada restaure la selección correcta.
-    try {
-      sessionStorage.setItem("qrpass-active-profile-v1", profile);
-    } catch (error) {
-      console.error("No se pudo guardar el espacio seleccionado:", error);
-      showToast("No se pudo guardar el espacio en esta sesión.", true);
-      return;
-    }
-    window.location.replace(profile === "conductor" ? "./conductor.html" : "./pasajero.html");
     return;
   }
   if (profile === "conductor") {
@@ -1326,6 +1368,87 @@ function openDriverCardPayment() {
   </div>`;
   modal.showModal();
 }
+
+document.querySelector("#registration-toggle").addEventListener("click", () => {
+  const loginForm = document.querySelector("#login-form");
+  const registrationForm = document.querySelector("#registration-form");
+  const showRegistration = registrationForm.hidden;
+  loginForm.hidden = showRegistration;
+  registrationForm.hidden = !showRegistration;
+  document.querySelector("#registration-toggle").textContent = showRegistration
+    ? "Ya tengo una cuenta"
+    : "Crear cuenta de pasajero";
+  showLoginError();
+  document.querySelector("#registration-error").hidden = true;
+});
+
+document.querySelector("#login-form").addEventListener("submit", async (event) => {
+  // El formulario manda las credenciales, guarda el token y carga el perfil.
+  // La API valida la contraseña; el navegador no decide si son correctas.
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
+  const formData = new FormData(form);
+  submit.disabled = true;
+  submit.textContent = "Verificando acceso…";
+  showLoginError();
+  try {
+    const login = await apiRequest("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: formData.get("username"),
+        password: formData.get("password"),
+      }),
+    });
+    accessToken = login.access_token;
+    const user = await apiRequest("/auth/me");
+    sessionStorage.setItem(SESSION_EXPIRY_KEY, String(Date.now() + login.expires_in * 1000));
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    await activateSession(user, accessToken);
+  } catch (error) {
+    logout();
+    showLoginError(error.message);
+  } finally {
+    submit.disabled = false;
+    submit.innerHTML = `Iniciar sesión ${icon("arrow")}`;
+  }
+});
+
+document.querySelector("#registration-form").addEventListener("submit", async (event) => {
+  // Registro crea la cuenta en el backend. Después se completa el login normal.
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submit = form.querySelector('button[type="submit"]');
+  const formData = new FormData(form);
+  submit.disabled = true;
+  showLoginError();
+  const registrationError = document.querySelector("#registration-error");
+  registrationError.hidden = true;
+  try {
+    const email = String(formData.get("email")).trim().toLowerCase();
+    const password = String(formData.get("password"));
+    await apiRequest("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        names: formData.get("names"),
+        email,
+        password,
+        privacy_consent: formData.get("privacy_consent") === "on",
+      }),
+    });
+    document.querySelector("#login-username").value = email;
+    document.querySelector("#login-password").value = password;
+    document.querySelector("#registration-form").hidden = true;
+    document.querySelector("#login-form").hidden = false;
+    document.querySelector("#registration-toggle").hidden = true;
+    document.querySelector("#login-form").requestSubmit();
+  } catch (error) {
+    registrationError.textContent = error.message;
+    registrationError.hidden = false;
+  } finally {
+    submit.disabled = false;
+  }
+});
 
 document.addEventListener("submit", async (event) => {
   // Los formularios de las ventanas aparecen y desaparecen según el recorrido;

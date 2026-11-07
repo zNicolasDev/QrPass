@@ -71,6 +71,10 @@ def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> 
 
 
 def crear_recarga(session: Session, user: Usuario, request: CrearRecargaSolicitud) -> Pago:
+    if request.monto <= 0:
+        raise ErrorDominio(422, "El monto de la recarga debe ser mayor a cero.")
+    if request.monto > 500000:
+        raise ErrorDominio(422, "El monto de la recarga no puede superar $500.000.")
     prior = session.scalar(select(Pago).where(
         Pago.usuario_id == user.id,
         Pago.clave_idempotencia == request.clave_idempotencia,

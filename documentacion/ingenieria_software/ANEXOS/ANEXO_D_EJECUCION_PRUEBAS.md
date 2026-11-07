@@ -1,20 +1,9 @@
-# ANEXO D. EJECUCIÓN DE PRUEBAS
+# Anexo D. Ejecución de pruebas
 
-Desde `backend/`:
+Desde la carpeta `backend/`:
 
 ```powershell
-py -m pytest -q
+python -m pytest -q
 ```
 
-Con detalle:
-```powershell
-py -m pytest -v
-```
-
-Específicas:
-```powershell
-py -m pytest tests/test_api.py -v
-py -m pytest tests/test_models_dtos.py -v
-```
-
-Las pruebas usan `TestClient` con base de datos en memoria.
+Resultado esperado: `27 passed, 1 warning`.

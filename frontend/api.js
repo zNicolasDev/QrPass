@@ -25,9 +25,16 @@ async function requestApi(path, options = {}) {
     throw new Error(`La API respondió con un formato inesperado (HTTP ${response.status}).`);
   }
   if (!response.ok) {
-    const detail = Array.isArray(payload.detail)
-      ? payload.detail.map((issue) => issue.msg).join(" ")
-      : payload.detail;
+    let detail = "";
+    if (Array.isArray(payload.detail)) {
+      detail = payload.detail.map((issue) => (typeof issue === "string" ? issue : issue.msg)).join(" ");
+    } else if (typeof payload.detail === "string") {
+      detail = payload.detail;
+    }
+    if (Array.isArray(payload.errores)) {
+      const campos = payload.errores.map((item) => item.mensaje || item.msg).filter(Boolean).join(" ");
+      if (campos) detail = detail ? `${detail} ${campos}` : campos;
+    }
     const error = new Error(detail || `La solicitud falló (HTTP ${response.status}).`);
     error.status = response.status;
     throw error;
