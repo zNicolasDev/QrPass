@@ -1,6 +1,6 @@
 const ACCESS_TOKEN_KEY = "qrpass-access-token-v1";
 const SESSION_EXPIRY_KEY = "qrpass-session-expiry-v1";
-const API_BASE_URL = globalThis.QRPASS_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
+const API_BASE_URL = globalThis.QRPASS_API_BASE_URL ?? `http://${window.location.hostname || "127.0.0.1"}:8000/api/v1`;
 
 // Comparte token, cabeceras y errores para que cada página no implemente su propio cliente HTTP.
 async function requestApi(path, options = {}) {

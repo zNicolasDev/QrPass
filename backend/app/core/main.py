@@ -64,14 +64,12 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
     application.state.database = database
     application.state.auth_secret = secret_bytes
 
-    cors_origins = [
-        origin.strip()
-        for origin in os.getenv(
-            "QR_PASS_CORS_ORIGINS",
-            "http://localhost:5500,http://127.0.0.1:5500,http://localhost:8000,http://127.0.0.1:8000",
-        ).split(",")
-        if origin.strip()
-    ]
+    configured_origins = os.getenv("QR_PASS_CORS_ORIGINS")
+    if configured_origins is None:
+        # En desarrollo se permite cualquier origen para facilitar demos en red local (celular).
+        cors_origins = ["*"] if not is_production else []
+    else:
+        cors_origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
     application.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,

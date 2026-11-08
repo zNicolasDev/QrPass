@@ -182,7 +182,7 @@ async function refreshDriverShift() {
   const shift = await apiRequest("/driver/shift");
   driverState.activeShift = mapShiftFromApi(shift);
   const qr = await apiRequest("/driver/shift/qr", { method: "POST" });
-  activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at) };
+  activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at), token: qr.token };
 }
 
 async function refreshDriverShiftHistory() {
@@ -506,7 +506,7 @@ function renderDriverDashboard() {
     <section class="surface detail-card bus-qr-card">
       <h2>QR de abordaje del bus</h2>
       <p>El pasajero escanea este código desde su teléfono. Dura 15 minutos; actualízalo cuando venza.</p>
-      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="QR de abordaje para la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p>` : "<p>El QR aparecerá al cargar el turno activo.</p>"}
+      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="QR de abordaje para la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p><details class="qr-token-details"><summary>Código manual (copiar si el escaneo falla)</summary><code class="qr-token-text">${escapeHtml(activeBusQr.token)}</code></details>` : "<p>El QR aparecerá al cargar el turno activo.</p>"}
       <button class="button button-outline" type="button" data-action="refresh-bus-qr">Actualizar código</button>
     </section>
     <section class="driver-totals" aria-label="Recaudo registrado en el turno">
@@ -1287,7 +1287,7 @@ document.addEventListener("click", async (event) => {
   if (action === "refresh-bus-qr") {
     try {
       const qr = await apiRequest("/driver/shift/qr?renew=true", { method: "POST" });
-      activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at) };
+      activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at), token: qr.token };
       renderCurrentView();
       showToast("QR del bus actualizado.");
     } catch (error) {
