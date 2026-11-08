@@ -506,7 +506,7 @@ function renderDriverDashboard() {
     <section class="surface detail-card bus-qr-card">
       <h2>QR de abordaje del bus</h2>
       <p>El pasajero escanea este código desde su teléfono. Dura 15 minutos; actualízalo cuando venza.</p>
-      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="QR de abordaje para la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p><details class="qr-token-details"><summary>Código manual (copiar si el escaneo falla)</summary><code class="qr-token-text">${escapeHtml(activeBusQr.token)}</code></details>` : "<p>El QR aparecerá al cargar el turno activo.</p>"}
+      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="QR de abordaje para la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p><div class="qr-token-row"><code class="qr-token-short">${escapeHtml(activeBusQr.token.slice(0, 12))}…${escapeHtml(activeBusQr.token.slice(-6))}</code><button class="button button-outline button-small" type="button" data-action="copy-qr-token">Copiar código</button></div>` : "<p>El QR aparecerá al cargar el turno activo.</p>"}
       <button class="button button-outline" type="button" data-action="refresh-bus-qr">Actualizar código</button>
     </section>
     <section class="driver-totals" aria-label="Recaudo registrado en el turno">
@@ -801,7 +801,7 @@ async function recordDriverPayment(method, cardType = null, idempotencyKey = cre
 async function startQrCamera(formId, inputId, videoId) {
   // La cámara captura el código; el servidor sigue siendo quien lo valida.
   if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
-    showToast("Este navegador no ofrece escaneo QR por cámara. Pega el código manualmente.", true);
+    showToast("Este navegador no permite escaneo automático. Toma una foto del QR o pega el código manual.", true);
     return;
   }
   try {
@@ -1292,6 +1292,14 @@ document.addEventListener("click", async (event) => {
       showToast("QR del bus actualizado.");
     } catch (error) {
       showToast(error.message, true);
+    }
+  }
+  if (action === "copy-qr-token") {
+    try {
+      await navigator.clipboard.writeText(activeBusQr?.token ?? "");
+      showToast("Código copiado. Pégalo en el celular.");
+    } catch (error) {
+      showToast("No se pudo copiar. Selecciona el código manualmente.", true);
     }
   }
   if (action === "driver-payment") {
