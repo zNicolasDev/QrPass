@@ -45,5 +45,6 @@ async function requestApi(path, options = {}) {
 window.QrPassApi = Object.freeze({
   ACCESS_TOKEN_KEY,
   SESSION_EXPIRY_KEY,
+  API_BASE_URL,
   request: requestApi,
 });
