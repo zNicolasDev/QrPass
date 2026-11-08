@@ -3370,3 +3370,40 @@ h1 {
     padding: 4px 6px;
   }
 }
+
+@media (max-width: 760px) {
+  .welcome-banner {
+    min-height: 150px;
+  }
+  .welcome-copy {
+    padding: 20px 18px;
+  }
+  .welcome-copy h2 {
+    max-width: 100%;
+    font-size: 20px;
+  }
+  .welcome-illustration,
+  .welcome-orbit {
+    display: none;
+  }
+  .welcome-demo-badge {
+    font-size: 8px;
+    padding: 5px 7px;
+  }
+  .mobile-tabbar {
+    width: calc(100% - 24px);
+    min-height: 64px;
+    padding: 6px 8px;
+  }
+  .mobile-tab {
+    min-height: 56px;
+    padding: 4px 2px;
+  }
+  .mobile-tab .icon {
+    width: 20px;
+    height: 20px;
+  }
+  .mobile-tab span {
+    font-size: 9px;
+  }
+}
