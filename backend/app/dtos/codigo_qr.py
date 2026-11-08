@@ -11,6 +11,8 @@ class ValidacionQrPasajeroSolicitud(EsquemaBase):
     token: Annotated[str, Field(min_length=20, max_length=512)]
     # Si la respuesta tarda, la misma clave evita cobrar dos veces.
     clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
+    # Solo las rutas con destinos (como la 48) lo exigen; el servidor lo valida.
+    destino: Annotated[str | None, Field(min_length=1, max_length=60, validation_alias="destination", serialization_alias="destination")] = None
 
 
 # QR temporal que presenta el bus durante su turno activo.
