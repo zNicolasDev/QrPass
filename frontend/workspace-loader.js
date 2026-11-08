@@ -19,7 +19,7 @@ async function loadWorkspace() {
 
     workspaceRoot.outerHTML = markup;
     const appScript = document.createElement("script");
-    appScript.src = "./app.js";
+    appScript.src = "./app.js?v=" + Date.now();
     appScript.onerror = () => {
       console.error("No se pudo cargar el código del espacio de trabajo.");
       document.body.insertAdjacentHTML(
