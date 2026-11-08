@@ -3407,3 +3407,12 @@ h1 {
     font-size: 9px;
   }
 }
+
+@media (max-width: 760px) {
+  .mobile-tabbar {
+    z-index: 100;
+  }
+  .mobile-tab {
+    pointer-events: auto;
+  }
+}
