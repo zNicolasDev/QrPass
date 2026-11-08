@@ -3446,3 +3446,17 @@ h1 {
     width: 100%;
   }
 }
+
+@media (max-width: 450px) {
+  .welcome-banner {
+    grid-template-columns: 1fr;
+    min-height: 130px;
+  }
+  .welcome-copy h2 {
+    font-size: 17px;
+  }
+  .page-content {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+}
