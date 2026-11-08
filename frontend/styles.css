@@ -3349,3 +3349,24 @@ h1 {
     width: 100%;
   }
 }
+
+@media (max-width: 450px) {
+  .welcome-banner {
+    min-height: 140px;
+  }
+  .welcome-copy {
+    padding: 18px 16px;
+  }
+  .welcome-copy h2 {
+    max-width: 100%;
+    font-size: 18px;
+  }
+  .welcome-illustration,
+  .welcome-orbit {
+    display: none;
+  }
+  .welcome-demo-badge {
+    font-size: 9px;
+    padding: 4px 6px;
+  }
+}
