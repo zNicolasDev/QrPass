@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Usuario, Pago, Viaje, CodigoQr, Turno, Ruta, Tarifa
 from app.servicios.comun import ErrorDominio, ahora_servicio
-from app.servicios.rutas_tarifas import _obtener_ruta_activa, _obtener_tarifa_ruta
+from app.servicios.rutas_tarifas import _obtener_ruta_activa, _obtener_tarifa_ruta, _validar_destino_ruta
 
 
 def _encode_qr_payload(payload: dict[str, object]) -> str:
@@ -113,6 +113,7 @@ def validar_qr_de_abordaje(
     token: str,
     signing_secret: bytes,
     idempotency_key: str,
+    destination: str | None = None,
 ) -> tuple[Pago, Viaje, int]:
     try:
         prefix, encoded_payload, signature = token.split(".")
@@ -140,6 +141,8 @@ def validar_qr_de_abordaje(
     if prior is not None:
         if prior.codigo_qr_id != qr_id or prior.viaje is None:
             raise ErrorDominio(409, "La clave de idempotencia ya se usó para otra operación.")
+        if prior.viaje.tarifa.destino != destination:
+            raise ErrorDominio(409, "La clave de idempotencia ya se usó para otro destino.")
         return prior, prior.viaje, prior.saldo_posterior
 
     prior_boarding = session.scalar(select(Pago).where(
@@ -171,7 +174,9 @@ def validar_qr_de_abordaje(
         raise ErrorDominio(409, "El QR ya no corresponde a un turno activo del bus.")
 
     _obtener_ruta_activa(session, route_id)
-    fare = _obtener_tarifa_ruta(session, route_id)
+    # La ruta 48 exige destino y cada destino tiene su propio valor.
+    _validar_destino_ruta(session, route_id, destination)
+    fare = _obtener_tarifa_ruta(session, route_id, destination)
     balance_before = passenger.saldo_billetera
     balance_after = session.scalar(
         update(Usuario)

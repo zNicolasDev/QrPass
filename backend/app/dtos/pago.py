@@ -38,6 +38,7 @@ class ReciboPago(EsquemaBase):
     viaje_id: int = Field(validation_alias="trip_id", serialization_alias="trip_id")
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
+    destino: str | None = Field(default=None, validation_alias="destination", serialization_alias="destination")
     # Datos del cobro y saldo resultante que se muestran después de confirmar.
     medio: str = Field(validation_alias="method", serialization_alias="method")
     tipo_tarjeta: str | None = Field(default=None, validation_alias="card_type", serialization_alias="card_type")

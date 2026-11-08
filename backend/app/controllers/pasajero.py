@@ -70,12 +70,14 @@ def endpoint_pagar_con_qr_del_bus(
     payment, trip, balance = validar_qr_de_abordaje(
         session, user, payload.token, request.app.state.auth_secret,
         payload.clave_idempotencia,
+        payload.destino,
     )
     return ReciboPago(
         pago_id=payment.id,
         viaje_id=trip.id,
         ruta_id=trip.ruta_id,
         nombre_ruta=trip.ruta.nombre,
+        destino=trip.tarifa.destino,
         medio=payment.medio,
         tipo_movimiento=payment.tipo_movimiento,
         monto=payment.monto,
