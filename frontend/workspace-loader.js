@@ -8,7 +8,7 @@ async function loadWorkspace() {
   }
 
   try {
-    const response = await fetch("./workspace.html");
+    const response = await fetch("./workspace.html?v=3");
     if (!response.ok) {
       throw new Error(`No se pudo cargar el espacio de trabajo (HTTP ${response.status}).`);
     }

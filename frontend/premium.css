@@ -112,7 +112,7 @@ body {
   background: rgb(31 107 96 / 8%);
 }
 
-.service-status > span {
+.service-status > span:first-child {
   box-shadow: 0 0 0 3px rgb(99 180 118 / 18%);
 }
 

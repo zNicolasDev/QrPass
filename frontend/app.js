@@ -459,8 +459,8 @@ function renderDriverDashboard() {
   const latestShift = driverState.completedShifts.at(-1);
   const heading = pageHeading(
     `${icon("bus")} OPERACIÓN DE TRANSPORTE`,
-    "Turno y recaudo",
-    "Confirma tu jornada, registra cada abordaje y revisa el cuadre del efectivo.",
+    "Mi turno y pagos",
+    "Muestra el QR a los pasajeros, registra los pagos en efectivo o tarjeta y revisa el total al terminar.",
   );
 
   if (!shift) {
@@ -468,20 +468,20 @@ function renderDriverDashboard() {
     const latestSummary = latestShift
       ? `<article class="shift-summary-card${latestShift.cashDifference ? " has-difference" : ""}">
           <div class="shift-summary-heading">${icon(latestShift.cashDifference ? "clock" : "check")}<strong>Último turno</strong></div>
-          <div class="shift-summary-grid"><span>${escapeHtml(formatDate(new Date(latestShift.startedAt)))}</span><span>${latestShift.entries.length} ${latestShift.entries.length === 1 ? "abordaje" : "abordajes"}</span><span>Recaudo registrado ${money(latestShift.total)}</span></div>
-          <p>${latestShift.cashDifference ? `Diferencia por revisar: ${money(Math.abs(latestShift.cashDifference))} ${latestShift.cashDifference > 0 ? "de más" : "faltante"} (declarado ${money(latestShift.cashCounted)} · anotado ${money(latestShift.cashExpected)}).` : "El efectivo declarado coincide con los pagos registrados."}</p>
+          <div class="shift-summary-grid"><span>${escapeHtml(formatDate(new Date(latestShift.startedAt)))}</span><span>${latestShift.entries.length} ${latestShift.entries.length === 1 ? "pago" : "pagos"}</span><span>Total recibido ${money(latestShift.total)}</span></div>
+          <p>${latestShift.cashDifference ? `Diferencia de efectivo: ${money(Math.abs(latestShift.cashDifference))} ${latestShift.cashDifference > 0 ? "de más" : "faltante"} (contaste ${money(latestShift.cashCounted)} · registraste ${money(latestShift.cashExpected)}).` : "El efectivo contado coincide con los pagos registrados."}</p>
         </article>`
       : "";
     return `${heading}
       <section class="driver-shift-hero">
         <div class="driver-shift-copy"><div class="eyebrow">${icon("clock")} ASIGNACIÓN OPERATIVA</div>
-          <h2>No hay un turno activo</h2><p>${driverAssignment ? "Confirma el turno que el servidor tiene asignado a tu cuenta para habilitar el registro de abordajes." : "No tienes una asignación pendiente. El historial de cierres sigue disponible; solicita una nueva asignación al administrador."}</p>
+          <h2>No hay un turno activo</h2><p>${driverAssignment ? "Revisa la ruta y el vehículo asignados. Al iniciar el turno podrás mostrar el QR y registrar los pagos recibidos." : "No tienes una ruta asignada por ahora. Puedes consultar los turnos anteriores o pedir una asignación al administrador."}</p>
         </div>
         <div class="assigned-shift"><span>RUTA ASIGNADA</span><strong>Ruta ${escapeHtml(driverAssignment?.route_name ?? "—")} <i>·</i> Vehículo ${escapeHtml(driverAssignment?.vehicle_plate ?? "—")}</strong><small>Conductor ${escapeHtml(driverAssignment?.driver_name ?? authenticatedUser.names)}</small></div>
-        <button class="button button-mint" type="button" data-action="start-driver-shift"${driverAssignment ? "" : " disabled"}>${icon("check")} ${driverAssignment ? "Validar turno y comenzar" : "Sin asignación disponible"}</button>
+        <button class="button button-mint" type="button" data-action="start-driver-shift"${driverAssignment ? "" : " disabled"}>${icon("check")} ${driverAssignment ? "Iniciar turno" : "No hay ruta asignada"}</button>
       </section>
       ${latestSummary}
-      <article class="driver-integrity-note">${icon("shield")}<div><strong>Turno asociado a tu cuenta</strong><p>El servidor valida el rol y la ruta asignada antes de activar la jornada. Los cobros con tarjeta siguen siendo simulados: no hay conexión a una terminal POS.</p></div></article>`;
+      <article class="driver-integrity-note">${icon("shield")}<div><strong>Turno asignado a tu cuenta</strong><p>Solo puedes iniciar la ruta que tienes asignada. Los pagos con tarjeta son de prueba; no se realiza ningún cobro.</p></div></article>`;
   }
 
   const entries = shift.entries;
@@ -501,50 +501,50 @@ function renderDriverDashboard() {
       <div class="active-shift-status"><span class="active-shift-pulse"></span> TURNO ACTIVO</div>
       <h2>Ruta ${escapeHtml(shift.route)} <span>·</span> Vehículo ${escapeHtml(shift.vehicle)}</h2>
       <p>Inicio registrado ${escapeHtml(formatTime(new Date(shift.startedAt)))} · ${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"} en esta jornada</p>
-      <div class="active-shift-reference">Referencia del servidor: ${escapeHtml(shift.reference)}</div>
+      <div class="active-shift-reference">Número de turno: ${escapeHtml(shift.reference)}</div>
     </section>
     <section class="surface detail-card bus-qr-card">
-      <h2>QR de abordaje del bus</h2>
-      <p>El pasajero escanea este código desde su teléfono. Dura 15 minutos; actualízalo cuando venza.</p>
-      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="QR de abordaje para la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p><div class="qr-token-row"><code class="qr-token-short">${escapeHtml(activeBusQr.token.slice(0, 12))}…${escapeHtml(activeBusQr.token.slice(-6))}</code><button class="button button-outline button-small" type="button" data-action="copy-qr-token">Copiar código</button></div>` : "<p>El QR aparecerá al cargar el turno activo.</p>"}
-      <button class="button button-outline" type="button" data-action="refresh-bus-qr">Actualizar código</button>
+      <h2>QR para pagar el pasaje</h2>
+      <p>Muestra este código a los pasajeros para que lo escaneen con su celular. Dura 15 minutos; si vence, crea uno nuevo.</p>
+      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="Código QR para pagar el pasaje de la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p><div class="qr-token-row"><label for="bus-qr-token">Código completo para compartir manualmente</label><textarea class="qr-token-full" id="bus-qr-token" rows="4" readonly spellcheck="false">${escapeHtml(activeBusQr.token)}</textarea><button class="button button-outline button-small" type="button" data-action="copy-qr-token">Copiar código completo</button></div>` : "<p>El código QR aparecerá aquí cuando el turno esté listo.</p>"}
+      <button class="button button-outline" type="button" data-action="refresh-bus-qr">Crear un nuevo código</button>
     </section>
-    <section class="driver-totals" aria-label="Recaudo registrado en el turno">
+    <section class="driver-totals" aria-label="Pagos registrados en el turno">
       <article><span>EFECTIVO</span><strong>${money(cashTotal)}</strong><small>${entries.filter((entry) => entry.method === "Efectivo").length} registros</small></article>
-      <article><span>QR / SALDO</span><strong>${money(walletTotal)}</strong><small>${entries.filter((entry) => entry.method === "QR / saldo").length} registros</small></article>
+      <article><span>PAGOS CON QR / SALDO</span><strong>${money(walletTotal)}</strong><small>${entries.filter((entry) => entry.method === "QR / saldo").length} registros</small></article>
       <article><span>TARJETA</span><strong>${money(cardTotal)}</strong><small>${entries.filter((entry) => entry.method === "Tarjeta").length} registros</small></article>
-      <article class="driver-total-all"><span>TOTAL DEL TURNO</span><strong>${money(total)}</strong><small>${entries.length} ${entries.length === 1 ? "abordaje anotado" : "abordajes anotados"}</small></article>
+      <article class="driver-total-all"><span>TOTAL DE PAGOS</span><strong>${money(total)}</strong><small>${entries.length} ${entries.length === 1 ? "pago registrado" : "pagos registrados"}</small></article>
     </section>
     <section class="driver-work-grid">
       <article class="driver-capture-card">
-        <div class="eyebrow">${icon("plus")} REGISTRO DE ABORDAJE · TURNO ACTIVO</div>
+        <div class="eyebrow">${icon("plus")} REGISTRO DE PAGO · TURNO ACTIVO</div>
         <h2>¿Cómo pagó el pasajero?</h2>
-        <p>Anota el medio recibido para dejar constancia en la bitácora de este turno.</p>
+        <p>Elige el medio de pago que recibiste para sumarlo al total del turno.</p>
         <div class="driver-payment-actions">
           <button type="button" data-action="driver-payment" data-method="cash">${icon("wallet")}<span><strong>Efectivo</strong><small>Recibido en la unidad</small></span>${icon("arrow")}</button>
-          <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Registro manual · sin POS</small></span>${icon("arrow")}</button>
+          <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Solo queda anotado</small></span>${icon("arrow")}</button>
         </div>
-        <div class="driver-demo-warning">${icon("clock")} El turno y sus registros se guardan en el servidor. La terminal POS aún no está integrada.</div>
+        <div class="driver-demo-warning">${icon("clock")} Los pagos con tarjeta son de prueba; no se cobra al pasajero.</div>
       </article>
       <article class="driver-close-card">
-        <div class="eyebrow">${icon("check")} CIERRE DE JORNADA</div><h2>Cuadra el efectivo</h2>
-        <p>Cuenta el efectivo recibido y compáralo con los <strong>${money(cashTotal)}</strong> anotados en la bitácora.</p>
+        <div class="eyebrow">${icon("check")} TERMINAR TURNO</div><h2>Revisa el efectivo recibido</h2>
+        <p>Cuenta el efectivo y compáralo con los <strong>${money(cashTotal)}</strong> registrados.</p>
         <form id="close-driver-shift-form">
-          <label for="driver-cash-counted">Efectivo contado en caja (COP)</label>
+          <label for="driver-cash-counted">¿Cuánto efectivo tienes? (COP)</label>
           <input class="input" id="driver-cash-counted" name="cashCounted" type="number" inputmode="numeric" min="0" step="1" value="${cashTotal}" required />
-          <button class="button button-outline" type="submit">Cerrar y revisar turno</button>
+          <button class="button button-outline" type="submit">Terminar turno</button>
         </form>
-        <small>El cierre registra cualquier diferencia; no la corrige ni la oculta.</small>
+        <small>Al terminar el turno, ya no podrás registrar más pagos. El resumen mostrará si el efectivo coincide.</small>
       </article>
     </section>
     <section class="surface driver-ledger">
-      <div class="surface-header"><div><h2>Bitácora del turno</h2><p>Registros del servidor en orden de llegada · ${entries.length} ${entries.length === 1 ? "registro" : "registros"}</p></div></div>
+      <div class="surface-header"><div><h2>Pagos registrados</h2><p>${entries.length} ${entries.length === 1 ? "pago" : "pagos"} en este turno</p></div></div>
       <div class="table-wrap"><table class="trip-table driver-ledger-table">
-        <thead><tr><th>Referencia</th><th>Hora</th><th>Medio</th><th>Valor</th></tr></thead>
-        <tbody>${rows || `<tr><td class="empty-row" colspan="4">Aún no hay abordajes registrados. Anota cada pago para incluirlo en el cuadre.</td></tr>`}</tbody>
+        <thead><tr><th>Número</th><th>Hora</th><th>Medio de pago</th><th>Valor</th></tr></thead>
+        <tbody>${rows || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`}</tbody>
       </table></div>
     </section>
-    <article class="driver-integrity-note">${icon("shield")}<div><strong>Bitácora del servidor · medios externos simulados</strong><p>Los recaudos quedan asociados al turno autenticado. Las operaciones QR se debitan en servidor; efectivo se registra manualmente. El pago con tarjeta se anota hasta integrar un POS real.</p></div></article>`;
+    <article class="driver-integrity-note">${icon("shield")}<div><strong>Pagos de prueba</strong><p>Los pagos con QR descuentan el saldo de prueba del pasajero. El efectivo y la tarjeta solo se anotan; no se mueve dinero real.</p></div></article>`;
 }
 
 function finderCell(row, column, top, left) {
@@ -572,14 +572,14 @@ function qrCells(seed) {
 }
 
 function renderQr() {
-  return `${pageHeading(`${icon("qr")} TU VIAJE`, "Escanear QR del bus", "Paga el abordaje leyendo el código que aparece en la pantalla del bus.")}
+  return `${pageHeading(`${icon("qr")} TU VIAJE`, "Escanear QR del bus", "Apunta la cámara de tu celular al código del bus para pagar el pasaje.")}
     <article class="surface detail-card qr-generation-card">
-      <h2>Escanea para abordar</h2>
-      <p>El código identifica la ruta y el turno del bus. El valor se descuenta de tu billetera cuando el servidor lo valida.</p>
+      <h2>Escanea el código del bus</h2>
+      <p>El pasaje cuesta <strong>${money(getFare())}</strong> y se descuenta de tu saldo al escanear o enviar el código. Elige <strong>Abrir cámara</strong> o escribe o pega el código completo aquí.</p>
       <form id="passenger-qr-form" data-idempotency-key="${createIdempotencyKey()}">
-        <div class="form-field"><label for="passenger-qr-token">Código del bus</label><input class="input" id="passenger-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" autocapitalize="off" spellcheck="false" required /></div>
+        <div class="form-field"><label for="passenger-qr-token">Código QR del bus</label><input class="input" id="passenger-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" autocapitalize="off" spellcheck="false" required /></div>
         <video id="passenger-qr-video" class="qr-camera-preview" playsinline muted hidden></video>
-        <div class="modal-actions"><button class="button button-outline" type="button" data-action="scan-passenger-camera">Usar cámara</button><button class="button" type="submit">Pagar y abordar</button></div>
+        <div class="modal-actions"><button class="button button-outline" type="button" data-action="scan-passenger-camera">Abrir cámara</button><button class="button" type="submit">Pagar pasaje</button></div>
       </form>
     </article>`;
 }
@@ -765,7 +765,7 @@ async function startDriverShift() {
     await apiRequest(`/driver/shift/start?route_id=${driverAssignment.route_id}`, { method: "POST" });
     await refreshDriverShift();
     renderCurrentView();
-    showToast("Turno asignado iniciado en el servidor.");
+    showToast("Turno iniciado.");
   } catch (error) {
     showToast(error.message, true);
     if (error.status === 401) logout();
@@ -801,7 +801,7 @@ async function recordDriverPayment(method, cardType = null, idempotencyKey = cre
 async function startQrCamera(formId, inputId, videoId) {
   // La cámara captura el código; el servidor sigue siendo quien lo valida.
   if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
-    showToast("Este navegador no permite escaneo automático. Toma una foto del QR o pega el código manual.", true);
+    showToast("Este navegador no permite escanear automáticamente. Escribe o pega el código del bus.", true);
     return;
   }
   try {
@@ -826,7 +826,7 @@ async function startQrCamera(formId, inputId, videoId) {
   } catch (error) {
     stopQrCamera();
     console.error("No se pudo iniciar el lector QR:", error);
-    showToast("No se pudo acceder a la cámara. Comprueba el permiso del navegador.", true);
+    showToast("No se pudo abrir la cámara. Revisa el permiso del navegador o escribe el código del bus.", true);
   }
 }
 
@@ -865,7 +865,7 @@ async function closeDriverShift(cashCounted) {
     openShiftReceipt(closed);
     showToast(cashDifference
       ? `Cierre guardado. Diferencia de efectivo: ${money(Math.abs(cashDifference))} ${cashDifference > 0 ? "de más" : "faltante"}.`
-      : "Cierre guardado: el efectivo declarado coincide con el registro del servidor.");
+      : "Turno terminado. El efectivo contado coincide con los pagos registrados.");
   } catch (error) {
     showToast(error.message, true);
     if (error.status === 401) logout();
@@ -877,9 +877,9 @@ function openShiftReceipt(shift) {
   const difference = shift.cash_difference ?? 0;
   modalContent.innerHTML = `<div class="modal-body">
     <div class="receipt-mark">${icon("check")}</div>
-    <div class="modal-kicker">CIERRE DE plataforma</div>
-    <h2 id="modal-title">Turno consolidado</h2>
-    <p>El servidor guardó este cierre y dejó el turno inactivo.</p>
+    <div class="modal-kicker">RESUMEN DEL TURNO</div>
+    <h2 id="modal-title">Turno terminado</h2>
+    <p>Este turno ya está cerrado. Aquí tienes el resumen de los pagos.</p>
     <div class="receipt-list">
       <div class="detail-row"><span>Referencia del turno</span><strong>${escapeHtml(`TUR-${shift.shift_id}`)}</strong></div>
       <div class="detail-row"><span>Ruta</span><strong>${escapeHtml(shift.route_name)}</strong></div>
@@ -935,21 +935,22 @@ function openDemoInfo() {
       <button class="icon-button demo-info-close" type="button" data-action="close-modal" aria-label="Cerrar información">${icon("close")}</button>
     </header>
     <section class="demo-info-body">
-      <span class="demo-info-intro">QrPass está en una etapa inicial de desarrollo.</span>
-      <p>Iniciaste sesión con una cuenta de prueba. La API devuelve sus roles y protege cada operación. Solo una cuenta con rol de conductor puede entrar a ese espacio. Si tiene ambos roles, puede cambiar entre espacios: su billetera de pasajero y su turno son independientes.</p>
-      <p>Saldo, historial, pagos simulados, códigos QR y turnos se consultan o registran en el backend; no se conservan como datos autoritativos en este navegador.</p>
+      <span class="demo-info-intro">QrPass está en etapa de prueba.</span>
+      <p>Puedes usar las funciones de pasajero y, si tu cuenta tiene permiso, también las de conductor. Si tienes ambos permisos, puedes cambiar de espacio desde la parte superior.</p>
+      <p>Los saldos, pagos, viajes y turnos que ves son de prueba y se guardan en la computadora que ejecuta QrPass.</p>
       <h3>Qué puedes probar</h3>
-      <ul><li>En el espacio pasajero: escanear el QR que muestra el bus, pagar con saldo, consultar el historial y corregir un abordaje en la ruta equivocada mediante un transbordo dentro de las reglas vigentes.</li><li>En el espacio conductor: usar por separado las funciones de pasajero y, por su rol adicional, iniciar el turno asignado, mostrar el QR del bus, registrar efectivo/tarjeta simulados y cerrar el turno con conciliación de efectivo.</li></ul>
+      <ul><li>Como pasajero: escanear el QR del bus, pagar con el saldo de prueba, consultar tus viajes y pedir un cambio de ruta cuando esté permitido.</li><li>Como conductor: iniciar la ruta asignada, mostrar el QR, anotar pagos y terminar el turno contando el efectivo.</li></ul>
       <h3>Qué no hace esta versión</h3>
-      <ul><li>No procesa dinero real ni se conecta a un POS o pasarela de pago.</li><li>El QR de abordaje es firmado por el servidor y requiere conexión para pagar; aún no está integrado con un dispositivo físico instalado en el bus.</li><li>El funcionamiento sin conexión solo conserva la interfaz PWA; no autoriza, valida ni sincroniza pagos offline.</li><li>La tarifa, asignación y reglas operacionales son datos de prueba, no una integración con el operador de transporte.</li></ul>
+      <ul><li>No se cobra dinero real ni se conecta a bancos o terminales de tarjeta.</li><li>Para pagar con QR se necesita conexión a internet.</li><li>Las rutas, tarifas y reglas son de prueba y no están conectadas con una empresa de transporte.</li></ul>
       <h3>Acerca de tus datos de prueba</h3>
-      <p>La API guarda los movimientos de prueba en su base de datos local. No introduzcas información bancaria ni utilices estas credenciales fuera del entorno de prueba.</p>
-      <h3>Herramientas de prueba</h3>
+      <p>Los movimientos de prueba se guardan en el computador que ejecuta QrPass. No ingreses datos bancarios ni uses estas cuentas fuera de la prueba.</p>
+      <h3>Opciones para administrar la prueba</h3>
+      <p>Estas opciones permiten revisar los datos o restablecer la cuenta de pasajero de prueba.</p>
       <div style="display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap;">
-        <button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver Métricas Globales (Gerente)</button>
-        <button class="button button-outline" type="button" data-action="reset-demo-data"><svg class="icon"><use href="#icon-arrows"></use></svg> Restablecer Datos de Prueba</button>
+        <button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver resumen general</button>
+        <button class="button button-outline" type="button" data-action="confirm-reset-demo-data"><svg class="icon"><use href="#icon-arrows"></use></svg> Restablecer cuenta de prueba</button>
       </div>
-      <div class="demo-info-notice" style="margin-top:1rem;">${icon("shield")}<span>Antes de producción faltan proveedor de pagos, POS, TLS 1.3 en el alojamiento, seguridad de claves y QR offline con firma asimétrica, sincronización y reconciliación, pruebas de carga y revisión legal.</span></div>
+      <div class="demo-info-notice" style="margin-top:1rem;">${icon("shield")}<span>Esta plataforma aún está en pruebas; algunas funciones pueden cambiar.</span></div>
     </section>
     <footer class="demo-info-footer"><span>Esta ventana es informativa; cerrarla no representa aceptar términos ni realizar una transacción.</span><button class="button" type="button" data-action="close-modal">Entendido</button></footer>
   </article>`;
@@ -970,7 +971,7 @@ async function openGlobalMetrics() {
         <div class="receipt-row"><span>Recaudo en efectivo</span><span>${money(metrics.cash_collected)}</span></div>
         <div class="receipt-row"><span>Recaudo código QR</span><span>${money(metrics.qr_collected)}</span></div>
         <div class="receipt-row"><span>Recaudo tarjeta simulada</span><span>${money(metrics.card_collected)}</span></div>
-        <div class="receipt-row"><span>Total viajes</span><span>${metrics.total_trips} abordajes</span></div>
+        <div class="receipt-row"><span>Total de viajes</span><span>${metrics.total_trips}</span></div>
         <div class="receipt-row"><span>Transbordos ($0 COP)</span><span>${metrics.total_transfers} transbordos</span></div>
         <div class="receipt-row"><span>Turnos activos de bus</span><span>${metrics.active_shifts} en servicio</span></div>
         <div class="receipt-row"><span>Rutas habilitadas</span><span>${metrics.total_routes} rutas</span></div>
@@ -1004,6 +1005,18 @@ async function resetDemoData() {
   } catch (error) {
     showToast(error.message, "error");
   }
+}
+
+function confirmResetDemoData() {
+  modalContent.innerHTML = `<div class="modal-body">
+    <div class="modal-kicker">OPCIÓN DE PRUEBA</div>
+    <h2 id="modal-title">¿Restablecer la cuenta de prueba?</h2>
+    <p>El saldo del pasajero de prueba volverá a $50.000. Si el turno del conductor está cerrado, se iniciará uno nuevo.</p>
+    <div class="modal-actions">
+      <button class="button button-outline" type="button" data-action="close-modal">Cancelar</button>
+      <button class="button" type="button" data-action="reset-demo-data">Restablecer cuenta</button>
+    </div>
+  </div>`;
 }
 
 function openPrivacyInfo() {
@@ -1281,6 +1294,7 @@ document.addEventListener("click", async (event) => {
   if (action === "demo-info") openDemoInfo();
   if (action === "privacy-info") openPrivacyInfo();
   if (action === "view-global-metrics") openGlobalMetrics();
+  if (action === "confirm-reset-demo-data") confirmResetDemoData();
   if (action === "reset-demo-data") resetDemoData();
   if (action === "logout") logout();
   if (action === "start-driver-shift") startDriverShift();
@@ -1295,11 +1309,35 @@ document.addEventListener("click", async (event) => {
     }
   }
   if (action === "copy-qr-token") {
-    try {
-      await navigator.clipboard.writeText(activeBusQr?.token ?? "");
-      showToast("Código copiado. Pégalo en el celular.");
-    } catch (error) {
-      showToast("No se pudo copiar. Selecciona el código manualmente.", true);
+    const tokenField = document.querySelector(".qr-token-full");
+    if (!activeBusQr?.token || !tokenField) {
+      showToast("El código QR no está disponible.", true);
+    } else {
+      let copied = false;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(activeBusQr.token);
+          copied = true;
+        }
+      } catch {
+        // HTTP on a local network is not a secure context for the Clipboard API.
+      }
+      if (!copied) {
+        tokenField.focus();
+        tokenField.select();
+        try {
+          copied = document.execCommand("copy");
+        } catch {
+          // Keep the full token selected so it can still be copied manually.
+        }
+      }
+      if (copied) {
+        showToast("Código copiado. Ya puedes compartirlo con el pasajero.");
+      } else {
+        tokenField.focus();
+        tokenField.select();
+        showToast("No se pudo copiar. El código quedó seleccionado; toca Copiar en tu dispositivo.", true);
+      }
     }
   }
   if (action === "driver-payment") {
@@ -1325,11 +1363,11 @@ document.addEventListener("click", async (event) => {
 
 function openDriverCardPayment() {
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">PAGO CON TARJETA · SIMULACIÓN</div><h2 id="modal-title">Registra un pago POS</h2>
-    <p>Se anotará en el turno, pero esta versión aún no se conecta a una terminal bancaria.</p>
+    <div class="modal-kicker">PAGO CON TARJETA · PRUEBA</div><h2 id="modal-title">Anota el pago con tarjeta</h2>
+    <p>El pago quedará registrado en el turno, pero no se realizará ningún cobro.</p>
     <form id="driver-card-payment-form" data-idempotency-key="${createIdempotencyKey()}">
       <div class="form-field"><label for="driver-card-type">Tipo de tarjeta</label><select class="select" id="driver-card-type" name="cardType" required><option value="" disabled selected>Selecciona una opción</option><option value="debit">Débito</option><option value="credit">Crédito</option></select></div>
-      <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Registrar pago POS simulado</button></div>
+      <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Guardar registro</button></div>
     </form>
   </div>`;
   modal.showModal();
