@@ -3393,7 +3393,7 @@ h1 {
     min-height: 150px;
   }
   .welcome-copy {
-    padding: 20px 18px;
+    padding: 52px 18px 20px;
   }
   .welcome-copy h2 {
     max-width: 100%;
@@ -3518,6 +3518,66 @@ h1 {
   .page-content {
     padding-left: 14px !important;
     padding-right: 14px !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 900px) {
+  .mobile-tabbar {
+    position: fixed;
+    z-index: 100;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    left: max(16px, env(safe-area-inset-left));
+    display: grid;
+    width: min(370px, calc(100% - 32px));
+    min-height: 72px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: center;
+    margin-inline: auto;
+    padding: 8px 10px;
+    border: 1px solid rgb(255 255 255 / 68%);
+    border-radius: 23px;
+    background: rgb(255 255 255 / 76%);
+    box-shadow: 0 12px 38px rgb(16 42 42 / 15%), inset 0 1px 0 rgb(255 255 255 / 85%);
+    backdrop-filter: blur(22px) saturate(145%);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+  }
+
+  .mobile-tab {
+    position: relative;
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    min-height: 51px;
+    align-content: center;
+    justify-items: center;
+    gap: 3px;
+    padding: 3px 2px;
+    border: 0;
+    border-radius: 16px;
+    appearance: none;
+    background: transparent;
+    color: #74837b;
+    cursor: pointer;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-tab .icon {
+    width: 19px;
+    height: 19px;
+  }
+
+  .mobile-tab span {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: .1px;
+  }
+
+  .mobile-tab.is-active {
+    background: linear-gradient(145deg, #244a40, #102a2a);
+    color: #c9f27c;
+    box-shadow: 0 5px 12px rgb(16 42 42 / 19%), inset 0 1px 0 rgb(255 255 255 / 14%);
   }
 }
 
