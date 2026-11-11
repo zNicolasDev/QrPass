@@ -798,10 +798,54 @@ async function recordDriverPayment(method, cardType = null, idempotencyKey = cre
   }
 }
 
+let jsQrLoader = null;
+
+// Carga jsQR solo cuando hace falta (navegadores sin BarcodeDetector, como Safari en iPhone).
+function loadJsQr() {
+  if (window.jsQR) return Promise.resolve(window.jsQR);
+  if (!jsQrLoader) {
+    jsQrLoader = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "./jsQR.js";
+      script.onload = () => resolve(window.jsQR);
+      script.onerror = () => {
+        jsQrLoader = null;
+        reject(new Error("No se pudo cargar el lector QR."));
+      };
+      document.head.append(script);
+    });
+  }
+  return jsQrLoader;
+}
+
+// Devuelve una función que lee un cuadro del video y entrega el texto del QR (o null).
+async function createQrReader(video) {
+  if ("BarcodeDetector" in window) {
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    return async () => {
+      const codes = await detector.detect(video);
+      return codes.length ? codes[0].rawValue : null;
+    };
+  }
+  const jsQR = await loadJsQr();
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  return async () => {
+    if (!video.videoWidth || !video.videoHeight) return null;
+    const scale = Math.min(1, 800 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const image = context.getImageData(0, 0, canvas.width, canvas.height);
+    const result = jsQR(image.data, image.width, image.height, { inversionAttempts: "dontInvert" });
+    return result ? result.data : null;
+  };
+}
+
 async function startQrCamera(formId, inputId, videoId) {
   // La cámara captura el código; el servidor sigue siendo quien lo valida.
-  if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
-    showToast("Este navegador no permite escanear automáticamente. Escribe o pega el código del bus.", true);
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast("Este navegador o esta conexión no permite abrir la cámara (requiere HTTPS). Escribe o pega el código del bus.", true);
     return;
   }
   try {
@@ -810,15 +854,19 @@ async function startQrCamera(formId, inputId, videoId) {
     video.srcObject = activeCameraStream;
     video.hidden = false;
     await video.play();
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const readQr = await createQrReader(video);
     const scan = async () => {
       if (!video.isConnected || !activeCameraStream) return;
-      const codes = await detector.detect(video);
-      if (codes.length) {
-        document.querySelector(`#${inputId}`).value = codes[0].rawValue;
-        stopQrCamera();
-        document.querySelector(`#${formId}`).requestSubmit();
-        return;
+      try {
+        const value = await readQr();
+        if (value) {
+          document.querySelector(`#${inputId}`).value = value;
+          stopQrCamera();
+          document.querySelector(`#${formId}`).requestSubmit();
+          return;
+        }
+      } catch (error) {
+        console.error("Error leyendo un cuadro de la cámara:", error);
       }
       scanLoopTimer = window.setTimeout(scan, 200);
     };
