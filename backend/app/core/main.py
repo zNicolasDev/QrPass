@@ -13,11 +13,13 @@ import logging
 import secrets
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.database import BaseDatos
 from app.controllers import router
@@ -158,13 +160,25 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
 
     application.include_router(router)
 
-    @application.get("/", include_in_schema=False)
-    async def root() -> dict[str, str]:
-        return {"service": "qrpass-api", "docs": "/docs", "health": "/api/v1/health"}
-
     @application.get("/health", include_in_schema=False)
     async def health_root() -> dict[str, str]:
         return {"status": "ok", "service": "qrpass-api", "mode": "demo"}
+
+    # Opcional: servir también la interfaz (carpeta frontend/) desde el mismo origen que la API.
+    # Con QR_PASS_SERVE_FRONTEND=1 basta un solo puerto y un solo túnel HTTPS para abrir la app
+    # en el celular; el navegador exige HTTPS para permitir la cámara fuera de localhost.
+    frontend_dir = Path(__file__).resolve().parents[3] / "frontend"
+    serve_frontend = os.getenv("QR_PASS_SERVE_FRONTEND", "").lower() in {"1", "true", "yes"}
+    if serve_frontend and frontend_dir.is_dir():
+        # Debe registrarse al final: las rutas de la API y /health tienen prioridad.
+        application.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+    else:
+        if serve_frontend:
+            logger.warning("QR_PASS_SERVE_FRONTEND está activo pero no existe la carpeta %s.", frontend_dir)
+
+        @application.get("/", include_in_schema=False)
+        async def root() -> dict[str, str]:
+            return {"service": "qrpass-api", "docs": "/docs", "health": "/api/v1/health"}
 
     return application
 
