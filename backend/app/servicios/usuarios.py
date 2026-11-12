@@ -66,5 +66,6 @@ def obtener_usuario_demo(session: Session) -> Usuario:
 
 
 def obtener_datos_asignacion_conductor(session: Session, user: Usuario) -> tuple[Conductor | None, Any]:
-    from app.servicios.turnos import obtener_asignacion_conductor
-    return session.get(Conductor, user.id), obtener_asignacion_conductor(session, user)
+    from app.servicios.turnos import _asegurar_asignacion_conductor
+    # Si el conductor cerró su turno, se restituye su asignación para que pueda iniciar otro.
+    return session.get(Conductor, user.id), _asegurar_asignacion_conductor(session, user)
