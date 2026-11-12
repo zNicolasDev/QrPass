@@ -32,6 +32,34 @@ def obtener_asignacion_conductor(session: Session, driver: Usuario) -> Turno | N
     )
 
 
+def _asegurar_asignacion_conductor(session: Session, driver: Usuario) -> Turno | None:
+    """Garantiza que el conductor conserve su ruta y vehículo después de cerrar un turno.
+
+    Si no tiene un turno asignado/activo, se crea uno nuevo "assigned" copiando la
+    ruta y el vehículo del último turno cerrado. Así puede volver a iniciar turno
+    sin tener que restablecer los datos de la cuenta.
+    """
+    assignment = obtener_asignacion_conductor(session, driver)
+    if assignment is not None:
+        return assignment
+    last_closed = session.scalar(
+        select(Turno)
+        .where(Turno.conductor_id == driver.id, Turno.estado == "closed")
+        .order_by(Turno.finaliza_en.desc(), Turno.id.desc())
+    )
+    if last_closed is None:
+        return None
+    session.add(Turno(
+        conductor_id=driver.id,
+        vehiculo_id=last_closed.vehiculo_id,
+        ruta_id=last_closed.ruta_id,
+        inicia_en=ahora_servicio(),
+        estado="assigned",
+    ))
+    session.commit()
+    return obtener_asignacion_conductor(session, driver)
+
+
 def iniciar_turno_conductor(session: Session, driver: Usuario, route_id: int) -> ResumenTurnoConductor:
     shift = obtener_turno_activo_conductor(session, driver)
     if shift is not None:
@@ -42,7 +70,7 @@ def iniciar_turno_conductor(session: Session, driver: Usuario, route_id: int) ->
             raise ErrorDominio(409, "No se pudo consultar el turno activo.")
         return summary
 
-    shift = obtener_asignacion_conductor(session, driver)
+    shift = _asegurar_asignacion_conductor(session, driver)
     if shift is None:
         raise ErrorDominio(409, "No hay una asignación para iniciar.")
     if shift.ruta_id != route_id:
@@ -184,4 +212,6 @@ def cerrar_turno_conductor(session: Session, driver: Usuario, cash_counted: int)
     shift.diferencia_efectivo = cash_counted - int(summary["cash"])
     session.commit()
     session.refresh(shift)
+    # El conductor conserva su ruta y vehículo para poder iniciar un nuevo turno.
+    _asegurar_asignacion_conductor(session, driver)
     return summary
