@@ -5,3 +5,76 @@ body[data-profile-page="conductor"] {
 body[data-profile-page="conductor"] .profile-status {
   background: var(--profile-accent);
 }
+
+/* Pagos recibidos en vivo, debajo del QR del bus (conductor). */
+.driver-live-payments {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(23, 63, 49, 0.14);
+}
+
+.driver-live-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.driver-live-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.driver-live-count {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.driver-live-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.driver-live-payment {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(23, 63, 49, 0.1);
+}
+
+.driver-live-payment:last-child {
+  border-bottom: 0;
+}
+
+.driver-live-payment strong {
+  text-align: right;
+}
+
+.driver-live-payment small,
+.driver-live-time {
+  opacity: 0.75;
+  font-size: 0.8rem;
+}
+
+.driver-live-empty {
+  margin: 0;
+  text-align: center;
+  opacity: 0.75;
+}
+
+@media (max-width: 420px) {
+  .driver-live-payment {
+    grid-template-columns: auto 1fr auto;
+  }
+  .driver-live-payment small {
+    display: none;
+  }
+}
