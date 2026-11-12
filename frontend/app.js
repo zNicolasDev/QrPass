@@ -28,6 +28,11 @@ const BUS_QR_POLL_SECONDS = 3;
 let busQrTimer = null;
 let busQrTick = 0;
 let busQrSyncing = false;
+// Los pagos del turno se consultan con más frecuencia que el QR para no perder ningún registro.
+const DRIVER_PAYMENTS_POLL_MS = 2000;
+let driverPaymentsTimer = null;
+let driverPaymentsSyncing = false;
+let driverPaymentsSignature = "";
 let selectedPaymentMethod = "saldo";
 let deferredInstallPrompt = null;
 let routeCatalog = [];
@@ -190,6 +195,7 @@ function mapShiftFromApi(shift) {
 async function refreshDriverShift() {
   const shift = await apiRequest("/driver/shift");
   driverState.activeShift = mapShiftFromApi(shift);
+  driverPaymentsSignature = driverPaymentsSignatureOf(driverState.activeShift);
   const qr = await apiRequest("/driver/shift/qr", { method: "POST" });
   activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at), token: qr.token };
 }
@@ -240,6 +246,7 @@ async function syncBusQr() {
 }
 
 function startBusQrAutoRefresh() {
+  startDriverPaymentsAutoRefresh();
   if (busQrTimer !== null) return;
   busQrTick = 0;
   busQrTimer = window.setInterval(() => {
@@ -251,9 +258,110 @@ function startBusQrAutoRefresh() {
 }
 
 function stopBusQrAutoRefresh() {
+  stopDriverPaymentsAutoRefresh();
   if (busQrTimer !== null) window.clearInterval(busQrTimer);
   busQrTimer = null;
 }
+
+// Lista de pagos que se muestra debajo del QR y se actualiza sola durante el turno.
+function renderDriverLivePayments(entries) {
+  const count = entries.length;
+  const total = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  const rows = [...entries].reverse().map((entry) => `<li class="driver-live-payment">
+    <span class="driver-live-time">${escapeHtml(formatTime(new Date(entry.createdAt)))}</span>
+    <span class="payment-tag">${escapeHtml(entry.method)}</span>
+    <strong>${money(entry.amount)}</strong>
+    <small>${escapeHtml(entry.reference)}</small>
+  </li>`).join("");
+  return `<div class="driver-live-head"><h3>Pagos recibidos</h3><span class="driver-live-count">${count} ${count === 1 ? "pago" : "pagos"} · ${money(total)}</span></div>
+    ${rows ? `<ul class="driver-live-list" aria-live="polite">${rows}</ul>` : `<p class="driver-live-empty">Aún no hay pagos. Cuando un pasajero pague, aparecerá aquí al instante.</p>`}`;
+}
+
+function driverPaymentsSignatureOf(shift) {
+  return `${shift.shiftId}|${shift.entries.map((entry) => entry.reference).join(",")}`;
+}
+
+// Actualiza solo las zonas que dependen de los pagos, sin tocar lo que el conductor esté escribiendo.
+function paintDriverPayments() {
+  const shift = driverState.activeShift;
+  if (!shift) return;
+  const entries = shift.entries;
+  const sumBy = (label) => entries.filter((entry) => entry.method === label).reduce((total, entry) => total + entry.amount, 0);
+  const countBy = (label) => entries.filter((entry) => entry.method === label).length;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const cash = sumBy("Efectivo");
+
+  const live = document.querySelector("#driver-live-payments");
+  if (live) live.innerHTML = renderDriverLivePayments(entries);
+
+  const setText = (selector, text) => {
+    const node = document.querySelector(selector);
+    if (node) node.textContent = text;
+  };
+  setText("#driver-total-cash", money(cash));
+  setText("#driver-count-cash", `${countBy("Efectivo")} registros`);
+  setText("#driver-total-wallet", money(sumBy("QR / saldo")));
+  setText("#driver-count-wallet", `${countBy("QR / saldo")} registros`);
+  setText("#driver-total-card", money(sumBy("Tarjeta")));
+  setText("#driver-count-card", `${countBy("Tarjeta")} registros`);
+  setText("#driver-total-all", money(cash + sumBy("QR / saldo") + sumBy("Tarjeta")));
+  setText("#driver-count-all", `${plural(entries.length, "pago registrado", "pagos registrados")}`);
+  setText("#driver-boardings-count", `${plural(entries.length, "abordaje", "abordajes")} en esta jornada`);
+  setText("#driver-ledger-count", `${plural(entries.length, "pago", "pagos")} en este turno`);
+
+  const cashLabel = document.querySelector("#driver-cash-expected");
+  if (cashLabel) cashLabel.textContent = money(cash);
+  const cashInput = document.querySelector("#driver-cash-counted");
+  if (cashInput && document.activeElement !== cashInput && cashInput.dataset.touched !== "true") {
+    cashInput.value = String(cash);
+  }
+
+  const ledgerBody = document.querySelector("#driver-ledger-body");
+  if (ledgerBody) {
+    ledgerBody.innerHTML = [...entries].reverse().slice(0, 8).map((entry) => `<tr>
+    <td><span class="driver-ledger-code">${escapeHtml(entry.reference)}</span></td>
+    <td>${escapeHtml(formatTime(new Date(entry.createdAt)))}</td>
+    <td><span class="payment-tag">${escapeHtml(entry.method)}</span></td>
+    <td>${money(entry.amount)}</td>
+  </tr>`).join("") || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`;
+  }
+}
+
+async function syncDriverPayments() {
+  // Consulta al servidor los pagos del turno (efectivo, tarjeta y QR de pasajeros) y repinta si hay cambios.
+  if (driverPaymentsSyncing || currentProfile !== "conductor" || !driverState.activeShift) return;
+  if (!document.querySelector("#driver-live-payments")) return;
+  driverPaymentsSyncing = true;
+  try {
+    const shift = mapShiftFromApi(await apiRequest("/driver/shift"));
+    if (currentProfile !== "conductor" || !driverState.activeShift) return;
+    if (shift.shiftId !== driverState.activeShift.shiftId) return;
+    const signature = driverPaymentsSignatureOf(shift);
+    if (signature === driverPaymentsSignature) return;
+    driverPaymentsSignature = signature;
+    driverState.activeShift = shift;
+    paintDriverPayments();
+  } catch (error) {
+    // Un fallo de red momentáneo no debe molestar al conductor: se reintenta en el siguiente ciclo.
+    if (error.status === 401 || error.status === 403) logout();
+  } finally {
+    driverPaymentsSyncing = false;
+  }
+}
+
+function startDriverPaymentsAutoRefresh() {
+  if (driverPaymentsTimer !== null) return;
+  driverPaymentsTimer = window.setInterval(syncDriverPayments, DRIVER_PAYMENTS_POLL_MS);
+}
+
+function stopDriverPaymentsAutoRefresh() {
+  if (driverPaymentsTimer !== null) window.clearInterval(driverPaymentsTimer);
+  driverPaymentsTimer = null;
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) syncDriverPayments();
+});
 
 async function refreshDriverShiftHistory() {
   const shifts = await apiRequest("/driver/shifts/history");
@@ -578,7 +686,7 @@ function renderDriverDashboard() {
     <section class="active-shift-banner">
       <div class="active-shift-status"><span class="active-shift-pulse"></span> TURNO ACTIVO</div>
       <h2>Ruta ${escapeHtml(shift.route)} <span>·</span> Vehículo ${escapeHtml(shift.vehicle)}</h2>
-      <p>Inicio registrado ${escapeHtml(formatTime(new Date(shift.startedAt)))} · ${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"} en esta jornada</p>
+      <p>Inicio registrado ${escapeHtml(formatTime(new Date(shift.startedAt)))} · <span id="driver-boardings-count">${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"} en esta jornada</span></p>
       <div class="active-shift-reference">Número de turno: ${escapeHtml(shift.reference)}</div>
     </section>
     <section class="surface detail-card bus-qr-card">
@@ -586,12 +694,13 @@ function renderDriverDashboard() {
       <p>Muestra este código a los pasajeros para que lo escaneen con su celular. Se actualiza solo cada 60 segundos y apenas un pasajero lo usa.</p>
       <div id="bus-qr-live">${renderBusQrBlock(shift)}</div>
       <button class="button button-outline" type="button" data-action="refresh-bus-qr">Crear un nuevo código</button>
+      <div class="driver-live-payments" id="driver-live-payments">${renderDriverLivePayments(entries)}</div>
     </section>
     <section class="driver-totals" aria-label="Pagos registrados en el turno">
-      <article><span>EFECTIVO</span><strong>${money(cashTotal)}</strong><small>${entries.filter((entry) => entry.method === "Efectivo").length} registros</small></article>
-      <article><span>PAGOS CON QR / SALDO</span><strong>${money(walletTotal)}</strong><small>${entries.filter((entry) => entry.method === "QR / saldo").length} registros</small></article>
-      <article><span>TARJETA</span><strong>${money(cardTotal)}</strong><small>${entries.filter((entry) => entry.method === "Tarjeta").length} registros</small></article>
-      <article class="driver-total-all"><span>TOTAL DE PAGOS</span><strong>${money(total)}</strong><small>${entries.length} ${entries.length === 1 ? "pago registrado" : "pagos registrados"}</small></article>
+      <article><span>EFECTIVO</span><strong id="driver-total-cash">${money(cashTotal)}</strong><small id="driver-count-cash">${entries.filter((entry) => entry.method === "Efectivo").length} registros</small></article>
+      <article><span>PAGOS CON QR / SALDO</span><strong id="driver-total-wallet">${money(walletTotal)}</strong><small id="driver-count-wallet">${entries.filter((entry) => entry.method === "QR / saldo").length} registros</small></article>
+      <article><span>TARJETA</span><strong id="driver-total-card">${money(cardTotal)}</strong><small id="driver-count-card">${entries.filter((entry) => entry.method === "Tarjeta").length} registros</small></article>
+      <article class="driver-total-all"><span>TOTAL DE PAGOS</span><strong id="driver-total-all">${money(total)}</strong><small id="driver-count-all">${entries.length} ${entries.length === 1 ? "pago registrado" : "pagos registrados"}</small></article>
     </section>
     <section class="driver-work-grid">
       <article class="driver-capture-card">
@@ -606,7 +715,7 @@ function renderDriverDashboard() {
       </article>
       <article class="driver-close-card">
         <div class="eyebrow">${icon("check")} TERMINAR TURNO</div><h2>Revisa el efectivo recibido</h2>
-        <p>Cuenta el efectivo y compáralo con los <strong>${money(cashTotal)}</strong> registrados.</p>
+        <p>Cuenta el efectivo y compáralo con los <strong id="driver-cash-expected">${money(cashTotal)}</strong> registrados.</p>
         <form id="close-driver-shift-form">
           <label for="driver-cash-counted">¿Cuánto efectivo tienes? (COP)</label>
           <input class="input" id="driver-cash-counted" name="cashCounted" type="number" inputmode="numeric" min="0" step="1" value="${cashTotal}" required />
@@ -616,10 +725,10 @@ function renderDriverDashboard() {
       </article>
     </section>
     <section class="surface driver-ledger">
-      <div class="surface-header"><div><h2>Pagos registrados</h2><p>${entries.length} ${entries.length === 1 ? "pago" : "pagos"} en este turno</p></div></div>
+      <div class="surface-header"><div><h2>Pagos registrados</h2><p id="driver-ledger-count">${entries.length} ${entries.length === 1 ? "pago" : "pagos"} en este turno</p></div></div>
       <div class="table-wrap"><table class="trip-table driver-ledger-table">
         <thead><tr><th>Número</th><th>Hora</th><th>Medio de pago</th><th>Valor</th></tr></thead>
-        <tbody>${rows || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`}</tbody>
+        <tbody id="driver-ledger-body">${rows || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`}</tbody>
       </table></div>
     </section>
     <article class="driver-integrity-note">${icon("shield")}<div><strong>Pagos de prueba</strong><p>Los pagos con QR descuentan el saldo de prueba del pasajero. El efectivo y la tarjeta solo se anotan; no se mueve dinero real.</p></div></article>`;
@@ -985,8 +1094,15 @@ async function closeDriverShift(cashCounted) {
     // turno; aquí quitamos la vista activa y dejamos el resumen en el historial.
     driverState.completedShifts.unshift(mapShiftFromApi(closed));
     driverState.activeShift = null;
-    driverAssignment = null;
+    driverPaymentsSignature = "";
     activeBusQr = null;
+    // El conductor conserva su ruta y vehículo: se vuelve a consultar la asignación para poder iniciar otro turno.
+    try {
+      driverAssignment = await apiRequest("/driver/demo/assignment");
+    } catch (assignmentError) {
+      if (assignmentError.status !== 404) console.error("No se pudo consultar la asignación:", assignmentError);
+      driverAssignment = null;
+    }
     renderCurrentView();
     openShiftReceipt(closed);
     showToast(cashDifference
@@ -1498,6 +1614,11 @@ function openDriverCardPayment() {
   </div>`;
   modal.showModal();
 }
+
+document.addEventListener("input", (event) => {
+  // Si el conductor escribe el efectivo contado, las actualizaciones automáticas ya no lo sobrescriben.
+  if (event.target.id === "driver-cash-counted") event.target.dataset.touched = "true";
+});
 
 document.addEventListener("submit", async (event) => {
   // Los formularios de las ventanas aparecen y desaparecen según el recorrido;
