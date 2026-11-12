@@ -89,6 +89,30 @@ def comando_crear_conductor(args: argparse.Namespace) -> None:
         print(f"Turno asignado en la ruta {args.ruta} con el vehículo {args.placa.upper()}.")
 
 
+def comando_asignar_ruta(args: argparse.Namespace) -> None:
+    database = _abrir_base()
+    try:
+        with database.session_factory() as session:
+            user = session.scalar(select(Usuario).where(Usuario.correo == args.correo))
+            if user is None or session.get(Conductor, user.id) is None:
+                raise SystemExit("No existe un conductor con ese correo.")
+            route = session.scalar(select(Ruta).where(Ruta.nombre == args.ruta))
+            if route is None:
+                raise SystemExit(f"La ruta {args.ruta!r} no existe. Ejecuta 'import-catalog' primero.")
+            if not args.placa:
+                raise SystemExit("Indica la placa del vehículo con --placa.")
+            asignar_turno_conductor(
+                session,
+                user,
+                route_id=route.id,
+                plate=args.placa,
+                company_name=args.empresa,
+            )
+    finally:
+        database.close()
+    print(f"Ruta {args.ruta} asignada al conductor {args.correo} con el vehículo {args.placa.upper()}.")
+
+
 def comando_crear_administrador(args: argparse.Namespace) -> None:
     password = _leer_contrasena(args.contrasena)
     database = _abrir_base()
@@ -157,6 +181,16 @@ def construir_parser() -> argparse.ArgumentParser:
     conductor.add_argument("--placa", help="Placa del vehículo asignado.")
     conductor.add_argument("--empresa", default="QrPass", help="Empresa de transporte del vehículo.")
     conductor.set_defaults(func=comando_crear_conductor)
+
+    asignar = subparsers.add_parser(
+        "assign-route",
+        help="Asigna una ruta adicional a un conductor existente.",
+    )
+    asignar.add_argument("--correo", required=True, help="Correo del conductor.")
+    asignar.add_argument("--ruta", required=True, help="Nombre de la ruta, por ejemplo 24.")
+    asignar.add_argument("--placa", required=True, help="Placa del vehículo.")
+    asignar.add_argument("--empresa", default="QrPass", help="Empresa de transporte del vehículo.")
+    asignar.set_defaults(func=comando_asignar_ruta)
 
     admin = subparsers.add_parser(
         "create-admin",
