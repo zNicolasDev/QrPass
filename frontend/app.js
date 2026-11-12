@@ -627,7 +627,7 @@ function renderDriverDashboard() {
   const heading = pageHeading(
     `${icon("bus")} OPERACIÓN DE TRANSPORTE`,
     "Mi turno y pagos",
-    "Muestra el QR a los pasajeros, registra los pagos en efectivo o tarjeta y revisa el total al terminar.",
+    "Muestra el QR, registra pagos y cierra el turno.",
   );
 
   if (!shift) {
@@ -710,7 +710,7 @@ function renderDriverDashboard() {
         <tbody id="driver-ledger-body">${rows || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`}</tbody>
       </table></div>
     </section>
-    <article class="driver-integrity-note">${icon("shield")}<div><strong>Registro de pagos</strong><p>Los pagos con QR descuentan el saldo del pasajero en su billetera QrPass. El efectivo y la tarjeta se anotan para el control del turno.</p></div></article>`;
+    <article class="driver-integrity-note">${icon("shield")}<div><strong>Registro de pagos</strong><p>Los pagos con QR descuentan saldo del pasajero; efectivo y tarjeta se anotan para el control del turno.</p></div></article>`;
 }
 
 function finderCell(row, column, top, left) {
