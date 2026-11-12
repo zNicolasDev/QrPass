@@ -1877,6 +1877,32 @@ h1 {
   margin: 14px auto;
 }
 
+.bus-qr-countdown {
+  margin: 0 0 12px;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Recuadro de la cámara al escanear: siempre cabe en el ancho (y en el alto) del celular. */
+.qr-camera-preview {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: min(100%, 420px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  max-height: 70vh;
+  max-height: 70svh;
+  margin: 14px auto;
+  object-fit: cover;
+  border-radius: 16px;
+  background: #0f1f19;
+}
+
+.qr-camera-preview[hidden] {
+  display: none;
+}
+
 .detail-card h2 {
   margin: 0 0 5px;
   font-size: 14px;
