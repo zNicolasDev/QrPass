@@ -19,6 +19,15 @@ let authenticatedUser = null;
 let sessionExpiryTimer = null;
 let activeFilter = "todos";
 let activeBusQr = null;
+// Hora oficial de la app: todas las fechas se muestran en hora de Colombia (Bogotá),
+// sin importar la zona horaria que tenga configurada el celular.
+const APP_TIME_ZONE = "America/Bogota";
+// El QR del bus cambia solo: el servidor lo renueva a los 60 s o cuando alguien lo usa,
+// y la pantalla del conductor lo consulta cada pocos segundos para mostrar el nuevo.
+const BUS_QR_POLL_SECONDS = 3;
+let busQrTimer = null;
+let busQrTick = 0;
+let busQrSyncing = false;
 let selectedPaymentMethod = "saldo";
 let deferredInstallPrompt = null;
 let routeCatalog = [];
@@ -185,6 +194,67 @@ async function refreshDriverShift() {
   activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at), token: qr.token };
 }
 
+// Texto del contador que ve el conductor debajo del QR.
+function busQrCountdownText() {
+  if (!activeBusQr) return "";
+  const seconds = Math.ceil((activeBusQr.expiresAt.getTime() - Date.now()) / 1000);
+  return seconds > 0 ? `Se actualiza en ${seconds} s` : "Actualizando el código…";
+}
+
+// Parte de la pantalla del conductor que cambia cuando llega un QR nuevo.
+function renderBusQrBlock(shift) {
+  if (!activeBusQr) return "<p>El código QR aparecerá aquí cuando el turno esté listo.</p>";
+  return `<img class="qr-real-image" src="${activeBusQr.image}" alt="Código QR para pagar el pasaje de la ruta ${escapeHtml(shift.route)}" /><p class="bus-qr-countdown" id="bus-qr-countdown" role="timer" aria-live="off">${escapeHtml(busQrCountdownText())}</p><div class="qr-token-row"><label for="bus-qr-token">Código completo para compartir manualmente</label><textarea class="qr-token-full" id="bus-qr-token" rows="4" readonly spellcheck="false">${escapeHtml(activeBusQr.token)}</textarea><button class="button button-outline button-small" type="button" data-action="copy-qr-token">Copiar código completo</button></div>`;
+}
+
+function paintBusQr() {
+  // Cambia solo el recuadro del QR; así no se pierde lo que el conductor esté escribiendo más abajo.
+  const holder = document.querySelector("#bus-qr-live");
+  if (!holder || !driverState.activeShift) return;
+  holder.innerHTML = renderBusQrBlock(driverState.activeShift);
+}
+
+function updateBusQrCountdown() {
+  const label = document.querySelector("#bus-qr-countdown");
+  if (label && activeBusQr) label.textContent = busQrCountdownText();
+}
+
+async function syncBusQr() {
+  // Pregunta al servidor cuál es el QR vigente. Si el anterior venció (60 s) o ya lo usó un pasajero,
+  // el servidor entrega uno nuevo y aquí se reemplaza solo en pantalla.
+  if (busQrSyncing || currentProfile !== "conductor" || !driverState.activeShift) return;
+  if (!document.querySelector("#bus-qr-live")) return;
+  busQrSyncing = true;
+  try {
+    const qr = await apiRequest("/driver/shift/qr", { method: "POST" });
+    if (currentProfile !== "conductor" || !driverState.activeShift) return;
+    const changed = qr.token !== activeBusQr?.token;
+    activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at), token: qr.token };
+    if (changed) paintBusQr();
+  } catch (error) {
+    // Un fallo de red momentáneo no debe molestar al conductor: se reintenta en el siguiente ciclo.
+    if (error.status === 401 || error.status === 403) logout();
+  } finally {
+    busQrSyncing = false;
+  }
+}
+
+function startBusQrAutoRefresh() {
+  if (busQrTimer !== null) return;
+  busQrTick = 0;
+  busQrTimer = window.setInterval(() => {
+    busQrTick += 1;
+    updateBusQrCountdown();
+    const expired = activeBusQr !== null && activeBusQr.expiresAt.getTime() <= Date.now();
+    if (expired || busQrTick % BUS_QR_POLL_SECONDS === 0) syncBusQr();
+  }, 1000);
+}
+
+function stopBusQrAutoRefresh() {
+  if (busQrTimer !== null) window.clearInterval(busQrTimer);
+  busQrTimer = null;
+}
+
 async function refreshDriverShiftHistory() {
   const shifts = await apiRequest("/driver/shifts/history");
   driverState.completedShifts = shifts.map(mapShiftFromApi);
@@ -246,6 +316,7 @@ async function activateSession(user) {
       activeBusQr = null;
     }
     await refreshDriverShiftHistory();
+    startBusQrAutoRefresh();
   }
 
   document.body.classList.add("is-authenticated");
@@ -259,6 +330,7 @@ function logout(reason = "") {
   // Cerrar sesión también limpia lo que quedó en pantalla; otra persona que
   // use este dispositivo no debería heredar el saldo ni los datos anteriores.
   stopQrCamera();
+  stopBusQrAutoRefresh();
   if (sessionExpiryTimer !== null) window.clearTimeout(sessionExpiryTimer);
   sessionExpiryTimer = null;
   authenticatedUser = null;
@@ -300,15 +372,15 @@ function icon(name, className = "icon") {
 }
 
 function formatDate(date = new Date()) {
-  return new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("es-CO", { day: "2-digit", month: "short", year: "numeric", timeZone: APP_TIME_ZONE }).format(date);
 }
 
 function formatTime(date = new Date()) {
-  return new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", hour12: true }).format(date);
+  return new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: APP_TIME_ZONE }).format(date);
 }
 
 function currentDateLong(date = new Date()) {
-  return new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", month: "long" }).format(date);
+  return new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", month: "long", timeZone: APP_TIME_ZONE }).format(date);
 }
 
 function pageHeading(eyebrow, title, description, action = "") {
@@ -349,20 +421,26 @@ function getRecentTrips() {
   return [...state.trips].reverse().slice(0, 4);
 }
 
+// Día calendario (AAAA-MM-DD) en hora de Bogotá; Colombia no cambia de hora en el año.
+function bogotaDayKey(date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+}
+
 function getWeeklyActivity() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
   const days = Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(today);
-    day.setDate(today.getDate() - (6 - index));
-    return { date: day, amount: 0, trips: 0 };
+    const day = new Date(now - (6 - index) * DAY_MS);
+    return { date: day, key: bogotaDayKey(day), amount: 0, trips: 0 };
   });
 
   for (const trip of state.trips) {
     const tripDate = new Date(trip.createdAt);
     if (Number.isNaN(tripDate.getTime())) continue;
-    tripDate.setHours(0, 0, 0, 0);
-    const index = days.findIndex((day) => day.date.getTime() === tripDate.getTime());
+    const tripKey = bogotaDayKey(tripDate);
+    const index = days.findIndex((day) => day.key === tripKey);
     if (index !== -1) {
       days[index].amount += trip.amount;
       days[index].trips += 1;
@@ -386,9 +464,9 @@ function renderWeeklyActivity() {
     `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
   const areaPath = `${linePath} L 468 104 L 12 104 Z`;
   const labels = points.map((point) =>
-    `<span>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "short" }).format(point.date).replace(".", ""))}</span>`).join("");
+    `<span>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "short", timeZone: APP_TIME_ZONE }).format(point.date).replace(".", ""))}</span>`).join("");
   const accessibleSummary = points.map((point) =>
-    `${new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric" }).format(point.date)}: ${point.trips} viajes, ${money(point.amount)}`).join(". ");
+    `${new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", timeZone: APP_TIME_ZONE }).format(point.date)}: ${point.trips} viajes, ${money(point.amount)}`).join(". ");
 
   return `<article class="weekly-card">
     <div class="weekly-header">
@@ -401,7 +479,7 @@ function renderWeeklyActivity() {
       <path class="weekly-gridline" d="M 12 28 H 468 M 12 60 H 468 M 12 104 H 468"/>
       <path class="weekly-area" d="${areaPath}"/>
       <path class="weekly-line" d="${linePath}"/>
-      ${points.map((point) => `<circle class="weekly-point${point.trips ? " has-trips" : ""}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${point.trips ? 4 : 2.5}"><title>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric" }).format(point.date))}: ${point.trips} viajes, ${money(point.amount)}</title></circle>`).join("")}
+      ${points.map((point) => `<circle class="weekly-point${point.trips ? " has-trips" : ""}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${point.trips ? 4 : 2.5}"><title>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", timeZone: APP_TIME_ZONE }).format(point.date))}: ${point.trips} viajes, ${money(point.amount)}</title></circle>`).join("")}
     </svg>
     <div class="weekly-day-labels" aria-hidden="true">${labels}</div>
     <p class="weekly-footnote">${totalTrips ? "El resumen se calcula con los movimientos devueltos por la API." : "Cuando registres viajes, aquí verás tu actividad de la semana."}</p>
@@ -505,8 +583,8 @@ function renderDriverDashboard() {
     </section>
     <section class="surface detail-card bus-qr-card">
       <h2>QR para pagar el pasaje</h2>
-      <p>Muestra este código a los pasajeros para que lo escaneen con su celular. Dura 15 minutos; si vence, crea uno nuevo.</p>
-      ${activeBusQr ? `<img class="qr-real-image" src="${activeBusQr.image}" alt="Código QR para pagar el pasaje de la ruta ${escapeHtml(shift.route)}" /><p>Válido hasta ${escapeHtml(formatTime(activeBusQr.expiresAt))}</p><div class="qr-token-row"><label for="bus-qr-token">Código completo para compartir manualmente</label><textarea class="qr-token-full" id="bus-qr-token" rows="4" readonly spellcheck="false">${escapeHtml(activeBusQr.token)}</textarea><button class="button button-outline button-small" type="button" data-action="copy-qr-token">Copiar código completo</button></div>` : "<p>El código QR aparecerá aquí cuando el turno esté listo.</p>"}
+      <p>Muestra este código a los pasajeros para que lo escaneen con su celular. Se actualiza solo cada 60 segundos y apenas un pasajero lo usa.</p>
+      <div id="bus-qr-live">${renderBusQrBlock(shift)}</div>
       <button class="button button-outline" type="button" data-action="refresh-bus-qr">Crear un nuevo código</button>
     </section>
     <section class="driver-totals" aria-label="Pagos registrados en el turno">
@@ -1605,6 +1683,11 @@ document.addEventListener("keydown", (event) => {
 });
 
 installButton.addEventListener("click", installApp);
+
+// Al volver a la pestaña (por ejemplo, tras desbloquear el celular) se pide enseguida el QR vigente.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) syncBusQr();
+});
 
 modal.addEventListener("close", () => {
   modal.classList.remove("demo-info-open");
