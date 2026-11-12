@@ -5,9 +5,9 @@ El contrato describe la relación entre cada requerimiento funcional y el endpoi
 | RF | Acción en pantalla | Endpoint | Solicitud (ejemplo) | Respuesta (ejemplo) |
 |---|---|---|---|---|
 | RF-01 | Formulario de registro | `POST /api/v1/auth/register` | `{"names":"Ana","email":"ana@x.com","password":"Clave-Segura-2026","privacy_consent":true}` | `{"user_id":..., "username":"ana@x.com","roles":["PASSENGER"]}` |
-| RF-05 | Botón pagar en efectivo | `POST /api/v1/demo/account/payments` | `{"route_id":1,"method":"cash"}` | `{"payment_id":..,"amount":3300,"wallet_balance":50000,"status":"completed_demo"}` |
-| RF-06 | Escaneo de QR | `POST /api/v1/demo/account/qr/validate` | `{"token":"...","idempotency_key":"k"}` | `{"payment_id":..,"amount":3300,"wallet_balance":46700}` |
-| RF-04 | Campo de monto | `POST /api/v1/demo/account/top-ups` | `{"amount":10000,"idempotency_key":"k"}` | `{"payment_id":..,"amount":10000,"wallet_balance":60000}` |
+| RF-05 | Botón pagar en efectivo | `POST /api/v1/account/payments` | `{"route_id":1,"method":"cash"}` | `{"payment_id":..,"amount":3300,"wallet_balance":50000,"status":"completed"}` |
+| RF-06 | Escaneo de QR | `POST /api/v1/account/qr/validate` | `{"token":"...","idempotency_key":"k"}` | `{"payment_id":..,"amount":3300,"wallet_balance":46700}` |
+| RF-04 | Campo de monto | `POST /api/v1/account/top-ups` | `{"amount":10000,"idempotency_key":"k"}` | `{"payment_id":..,"amount":10000,"wallet_balance":60000}` |
 
 ## Códigos HTTP
 

@@ -40,7 +40,7 @@
 - Tabla 7. Cronograma del proyecto.
 - Tabla 8. Casos de prueba ejecutados.
 - Tabla 9. Colección de endpoints principales.
-- Tabla 10. Cuentas de demostración.
+- Tabla 10. Cuentas y aprovisionamiento.
 
 ---
 

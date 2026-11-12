@@ -27,7 +27,9 @@ from app.servicios.turnos import registrar_pago_conductor
 from app.servicios.qr import crear_qr_turno_conductor
 from app.servicios.qr import crear_imagen_qr
 from app.servicios.usuarios import obtener_datos_asignacion_conductor
+from app.servicios.usuarios import obtener_perfil_conductor
 from app.servicios.turnos import iniciar_turno_conductor
+from app.servicios.turnos import obtener_asignaciones_conductor
 
 
 
@@ -37,9 +39,9 @@ driver_router = APIRouter(prefix="/driver", tags=["Conductor"])
 
 # Devuelve la ruta y el vehículo asignados al conductor.
 @driver_router.get(
-    "/demo/assignment",
+    "/assignment",
     response_model=AsignacionConductorRespuesta,
-    summary="Consultar asignación de conductor de demostración",
+    summary="Consultar la asignación del conductor",
 )
 def endpoint_asignacion_conductor(
     user: Annotated[Usuario, Depends(requerir_rol("DRIVER"))],
@@ -51,7 +53,7 @@ def endpoint_asignacion_conductor(
     if shift is None or driver is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="La cuenta no tiene una asignación de demostración disponible.",
+            detail="La cuenta no tiene una asignación disponible.",
         )
     return AsignacionConductorRespuesta(
         nombre_conductor=user.nombres,
@@ -61,6 +63,33 @@ def endpoint_asignacion_conductor(
         placa_vehiculo=shift.vehiculo.placa,
         estado_turno=shift.estado,
     )
+
+
+# Devuelve todas las rutas asignadas al conductor (permite varios turnos).
+@driver_router.get(
+    "/assignments",
+    response_model=list[AsignacionConductorRespuesta],
+    summary="Consultar todas las asignaciones del conductor",
+)
+def endpoint_asignaciones_conductor(
+    user: Annotated[Usuario, Depends(requerir_rol("DRIVER"))],
+    session: SessionDependency,
+) -> list[AsignacionConductorRespuesta]:
+    driver = obtener_perfil_conductor(session, user)
+    if driver is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La cuenta no tiene perfil de conductor.")
+    shifts = obtener_asignaciones_conductor(session, user)
+    return [
+        AsignacionConductorRespuesta(
+            nombre_conductor=user.nombres,
+            numero_licencia=driver.numero_licencia,
+            ruta_id=shift.ruta_id,
+            nombre_ruta=shift.ruta.nombre,
+            placa_vehiculo=shift.vehiculo.placa,
+            estado_turno=shift.estado,
+        )
+        for shift in shifts
+    ]
 
 
 # Convierte el resumen del servicio al formato que espera la consola del conductor.

@@ -36,7 +36,6 @@ class UsuarioAutenticadoRespuesta(EsquemaBase):
     nombres: str = Field(validation_alias="names", serialization_alias="names")
     # Una cuenta puede tener uno o varios permisos, como pasajero y conductor.
     roles: list[str]
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
 
 
 # Token de acceso, vencimiento e identidad devueltos al iniciar sesión.

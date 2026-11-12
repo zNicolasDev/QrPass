@@ -21,14 +21,14 @@ async function requestApi(path, options = {}) {
   try {
     response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   } catch {
-    throw new Error("No se pudo conectar con QrPass. Comprueba que la API esté iniciada.");
+    throw new Error("No se pudo conectar con QrPass. Revisa tu conexión e inténtalo de nuevo.");
   }
 
   let payload;
   try {
     payload = await response.json();
   } catch {
-    throw new Error(`La API respondió con un formato inesperado (HTTP ${response.status}).`);
+    throw new Error(`QrPass devolvió una respuesta inesperada (HTTP ${response.status}).`);
   }
   if (!response.ok) {
     let detail = "";
@@ -41,7 +41,7 @@ async function requestApi(path, options = {}) {
       const campos = payload.errores.map((item) => item.mensaje || item.msg).filter(Boolean).join(" ");
       if (campos) detail = detail ? `${detail} ${campos}` : campos;
     }
-    const error = new Error(detail || `La solicitud falló (HTTP ${response.status}).`);
+    const error = new Error(detail || `No se pudo completar la solicitud (HTTP ${response.status}).`);
     error.status = response.status;
     throw error;
   }

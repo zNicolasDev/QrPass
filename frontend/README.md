@@ -1,6 +1,6 @@
 # Interfaz QrPass
 
-Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos. No necesita compilación ni paquetes de interfaz. Se conecta con la API de plataforma; no procesa dinero real.
+Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos. No necesita compilación ni paquetes de interfaz. Se conecta con la API de QrPass y opera con la billetera interna.
 
 ## Ejecutar localmente
 
@@ -11,7 +11,7 @@ Aplicación adaptable a móviles y PWA hecha con HTML, CSS y JavaScript nativos.
    py -m http.server 5500 --directory frontend
    ```
 
-3. Abre `http://127.0.0.1:5500` e inicia sesión con una cuenta de plataforma o registra una cuenta de pasajero.
+3. Abre `http://127.0.0.1:5500` e inicia sesión con una cuenta creada desde la gestión de QrPass o registra una cuenta de pasajero.
 4. La documentación interactiva de la API está en `http://127.0.0.1:8000/docs`.
 
 La dirección de la API puede establecerse con `window.QRPASS_API_BASE_URL` antes de cargar `api.js`; el origen del sitio debe estar permitido en `QR_PASS_CORS_ORIGINS`.
@@ -40,10 +40,10 @@ La tabla de los tres módulos principales (autenticación, pasajero/pagos y cond
 
 ## Flujos y límites
 
-El servidor asigna y verifica roles; solo una cuenta con `DRIVER` puede usar las funciones de conductor. El pasajero consulta saldo e historial, simula pagos y recargas, escanea el QR firmado que muestra el bus y solicita un transbordo si abordó la ruta equivocada. El conductor puede iniciar el turno asignado, mostrar el QR temporal de abordaje, registrar recaudos simulados y consultar los cierres persistidos.
+El servidor asigna y verifica roles; solo una cuenta con `DRIVER` puede usar las funciones de conductor y solo una cuenta con `ADMIN` puede consultar las métricas globales. El pasajero consulta saldo e historial, paga con su billetera, escanea el QR firmado que muestra el bus y solicita un transbordo si abordó la ruta equivocada. El conductor puede iniciar el turno asignado, mostrar el QR temporal de abordaje, registrar recaudos y consultar los cierres persistidos.
 
-Las operaciones financieras y los resultados son ficticios. La PWA cachea la interfaz, pero **no permite autorizar viajes, cobrar o sincronizar movimientos sin conexión**. Los QR actuales dependen de la API para verificar la firma.
+Las operaciones se liquidan con la billetera QrPass; no se mueve dinero real ni se conecta una pasarela bancaria. La PWA cachea la interfaz, pero **no permite autorizar viajes, cobrar o sincronizar movimientos sin conexión**. Los QR actuales dependen de la API para verificar la firma.
 
-TLS 1.3, operación productiva, compatibilidad certificada con Android 8+, pagos/POS, regulación sectorial y revisión jurídica de privacidad siguen pendientes. Consulta la [trazabilidad de requisitos](../documentacion/trazabilidad.md) para conocer el alcance y las dependencias.
+TLS 1.3, operación productiva, compatibilidad certificada con Android 8+, integración POS, regulación sectorial y revisión jurídica de privacidad siguen pendientes. Consulta la [trazabilidad de requisitos](../documentacion/trazabilidad.md) para conocer el alcance y las dependencias.
 
-No uses información personal ni financiera real.
+No ingreses datos financieros sensibles en la plataforma.

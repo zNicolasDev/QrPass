@@ -20,7 +20,7 @@ class Tarjeta(Base):
     usuario_id: Mapped[int] = mapped_column(
         "user_id", ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # La versión de demostración guarda banco, tipo y estado, no el número completo.
+    # La tarjeta guarda banco, tipo y estado; no almacena el número completo.
     nombre_banco: Mapped[str] = mapped_column("bank_name", String(100), nullable=False)
     tipo_tarjeta: Mapped[str] = mapped_column("card_type", String(12), nullable=False)
     estado: Mapped[str] = mapped_column("status", String(20), nullable=False, default="active")

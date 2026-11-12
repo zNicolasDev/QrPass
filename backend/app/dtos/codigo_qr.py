@@ -27,4 +27,3 @@ class CodigoQrRespuesta(EsquemaBase):
     # La imagen viene lista para mostrar en el navegador como data URI.
     escaneable: bool = Field(default=True, validation_alias="scannable", serialization_alias="scannable")
     imagen_data_uri: str = Field(validation_alias="image_data_uri", serialization_alias="image_data_uri")
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")

@@ -16,8 +16,7 @@ class AsignacionConductorRespuesta(EsquemaBase):
     ruta_id: int = Field(validation_alias="route_id", serialization_alias="route_id")
     nombre_ruta: str = Field(validation_alias="route_name", serialization_alias="route_name")
     placa_vehiculo: str = Field(validation_alias="vehicle_plate", serialization_alias="vehicle_plate")
-    estado_turno: str = Field(default="demo_assignment", validation_alias="shift_status", serialization_alias="shift_status")
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
+    estado_turno: str = Field(default="assigned", validation_alias="shift_status", serialization_alias="shift_status")
 
 
 # Un recaudo incluido en el detalle del turno.
@@ -53,7 +52,6 @@ class TurnoConductorRespuesta(EsquemaBase):
     efectivo_contado: int | None = Field(default=None, validation_alias="cash_counted", serialization_alias="cash_counted")
     diferencia_efectivo: int | None = Field(default=None, validation_alias="cash_difference", serialization_alias="cash_difference")
     moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
 
 
 # Medio de pago que el conductor registra durante su turno.

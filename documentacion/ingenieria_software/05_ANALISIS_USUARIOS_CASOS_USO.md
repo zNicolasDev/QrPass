@@ -9,7 +9,7 @@
 | Pasajero | Usuario final del servicio | Consultar rutas, recargar, pagar, transferir, historial |
 | Conductor | Operador del bus | Iniciar/cerrar turno, generar QR, registrar pagos |
 | Sistema QrPass | Backend | Validar, persistir, responder |
-| Jurado/Docente | Evaluador | Consultar documentación y demo |
+| Jurado/Docente | Evaluador | Consultar documentación y funcionalidades |
 
 ## 6.2 Diagramas de casos de uso
 

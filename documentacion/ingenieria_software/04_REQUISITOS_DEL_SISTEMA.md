@@ -8,11 +8,11 @@
 |---|---|---|
 | RF-01 | Registro y autenticación de pasajero | `POST /api/v1/auth/register`, `POST /api/v1/auth/login` |
 | RF-02 | Consulta de identidad y roles | `GET /api/v1/auth/me` |
-| RF-03 | Billetera y saldo | `GET /api/v1/demo/account` |
-| RF-04 | Recarga ficticia e idempotente | `POST /api/v1/demo/account/top-ups` |
-| RF-05 | Pago manual (efectivo/tarjeta) | `POST /api/v1/demo/account/payments` |
-| RF-06 | Pago mediante QR del bus | `POST /api/v1/demo/account/qr/validate` |
-| RF-07 | Traspaso a otra ruta (≤ 20 min) | `POST /api/v1/demo/account/transfers` |
+| RF-03 | Billetera y saldo | `GET /api/v1/account` |
+| RF-04 | Recarga idempotente | `POST /api/v1/account/top-ups` |
+| RF-05 | Pago manual (efectivo/tarjeta) | `POST /api/v1/account/payments` |
+| RF-06 | Pago mediante QR del bus | `POST /api/v1/account/qr/validate` |
+| RF-07 | Traspaso a otra ruta (≤ 20 min) | `POST /api/v1/account/transfers` |
 | RF-08 | Historial de viajes y movimientos | `GET /api/v1/trips`, `GET /api/v1/payments/history` |
 | RF-09 | Tarifa vigente por ruta y día | `GET /api/v1/fares/current` |
 | RF-10 | Gestión de turno del conductor | `POST /api/v1/driver/shift/start`, `GET /api/v1/driver/shift` |
@@ -27,7 +27,7 @@
 - **RF-04:** La recarga debe ser idempotente mediante clave; montos entre $1 y $500.000.
 - **RF-06:** El QR debe estar firmado con HMAC, vencer en 15 minutos y asociarse al turno activo.
 - **RF-07:** El traspaso solo se permite una vez por viaje, entre rutas distintas y dentro de 20 minutos.
-- **RF-09:** La tarifa depende de la ruta, el destino y el tipo de día (hábil $3.300, fin de semana/festivo $3.400).
+- **RF-09:** La tarifa depende de la ruta, el destino y el tipo de día; los valores se importan desde el catálogo maestro de rutas y tarifas.
 - **RF-13:** El cierre de turno consolida efectivo, QR y tarjeta, y calcula la diferencia.
 
 ## 5.2 Requisitos no funcionales

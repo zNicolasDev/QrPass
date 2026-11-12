@@ -33,7 +33,7 @@ from app.servicios.viajes import listar_viajes
 
 SessionDependency = Annotated[Session, Depends(obtener_sesion)]
 logger = logging.getLogger(__name__)
-demo_router = APIRouter(prefix="/demo/account", tags=["Cuenta pasajera"])
+account_router = APIRouter(prefix="/account", tags=["Cuenta pasajera"])
 router = APIRouter()
 
 # El servicio entrega un viaje con sus relaciones; esta función lo convierte
@@ -53,12 +53,12 @@ def _representar_viaje(trip: Viaje) -> ViajeRespuesta:
     )
 
 # Devuelve el saldo de la cuenta autenticada.
-@demo_router.get("", response_model=CuentaRespuesta, summary="Consultar la cuenta autenticada")
-def endpoint_cuenta_demo(user: UsuarioAutenticado) -> CuentaRespuesta:
+@account_router.get("", response_model=CuentaRespuesta, summary="Consultar la cuenta autenticada")
+def endpoint_cuenta(user: UsuarioAutenticado) -> CuentaRespuesta:
     # El usuario ya fue autenticado por la dependencia; solo se muestra su saldo.
     return CuentaRespuesta(usuario_id=user.id, nombres=user.nombres, saldo_billetera=user.saldo_billetera)
 
-@demo_router.post("/qr/validate", response_model=ReciboPago, status_code=status.HTTP_201_CREATED)
+@account_router.post("/qr/validate", response_model=ReciboPago, status_code=status.HTTP_201_CREATED)
 def endpoint_pagar_con_qr_del_bus(
     payload: ValidacionQrPasajeroSolicitud,
     request: Request,
@@ -120,13 +120,8 @@ def endpoint_detalle_viaje(trip_id: int, user: UsuarioAutenticado, session: Sess
     # El servicio comprueba que el viaje exista y pertenezca a esta cuenta.
     return _representar_viaje(obtener_viaje(session, user, trip_id))
 
-@demo_router.get("/trips", response_model=list[ViajeRespuesta], summary="Consultar el historial de prueba")
-def endpoint_historial_viajes_demo(user: UsuarioAutenticado, session: SessionDependency) -> list[ViajeRespuesta]:
-    # Esta ruta de demostración usa el mismo historial del usuario autenticado.
-    return [_representar_viaje(trip) for trip in listar_viajes(session, user)]
-
 # Solicita al servicio cobrar la tarifa y crear el viaje.
-@demo_router.post("/payments", response_model=ReciboPago, status_code=status.HTTP_201_CREATED)
+@account_router.post("/payments", response_model=ReciboPago, status_code=status.HTTP_201_CREATED)
 def endpoint_pagar_viaje(payload: CrearPagoSolicitud, user: UsuarioAutenticado, session: SessionDependency) -> ReciboPago:
     # El servicio aplica las reglas del cobro y crea el pago y el viaje.
     payment, trip, wallet_balance = crear_pago(session, user, payload)
@@ -147,7 +142,7 @@ def endpoint_pagar_viaje(payload: CrearPagoSolicitud, user: UsuarioAutenticado, 
     )
 
 # Solicita al servicio acreditar una recarga.
-@demo_router.post("/top-ups", response_model=ReciboRecarga, status_code=status.HTTP_201_CREATED)
+@account_router.post("/top-ups", response_model=ReciboRecarga, status_code=status.HTTP_201_CREATED)
 def endpoint_recargar_billetera(payload: CrearRecargaSolicitud, user: UsuarioAutenticado, session: SessionDependency) -> ReciboRecarga:
     # El servicio valida y acredita el saldo; el controlador prepara el recibo.
     payment = crear_recarga(session, user, payload)
@@ -160,7 +155,7 @@ def endpoint_recargar_billetera(payload: CrearRecargaSolicitud, user: UsuarioAut
     )
 
 # Solicita al servicio cambiar la ruta de un viaje elegible.
-@demo_router.post("/transfers", response_model=TransbordoRespuesta, status_code=status.HTTP_201_CREATED)
+@account_router.post("/transfers", response_model=TransbordoRespuesta, status_code=status.HTTP_201_CREATED)
 def endpoint_transferir_viaje(payload: CrearTransbordoSolicitud, user: UsuarioAutenticado, session: SessionDependency) -> TransbordoRespuesta:
     # El servicio valida tiempo, propiedad y rutas antes de crear el transbordo.
     transfer = crear_transbordo(session, user, payload)

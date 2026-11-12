@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -52,7 +52,7 @@ def crear_pago(session: Session, user: Usuario, request: CrearPagoSolicitud) -> 
         clave_idempotencia=request.clave_idempotencia,
         saldo_anterior=balance_before,
         saldo_posterior=balance_after,
-        estado="completed_demo",
+        estado="completed",
         creado_en=now,
     )
     session.add(payment)
@@ -102,7 +102,7 @@ def crear_recarga(session: Session, user: Usuario, request: CrearRecargaSolicitu
         monto=request.monto,
         saldo_anterior=balance_after - request.monto,
         saldo_posterior=balance_after,
-        estado="completed_demo",
+        estado="completed",
         creado_en=now,
     )
     session.add(payment)

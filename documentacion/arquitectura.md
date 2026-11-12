@@ -81,7 +81,7 @@ La implementación actual cubre gran parte del núcleo funcional del sistema y s
 - `Transfer` para el flujo de transbordo.
 - `BoardingDevice` y `OfflineSync` para el diseño del modo offline.
 
-La versión demo actual modela los roles `PASSENGER` y `DRIVER`. El bloque de administración que aparece en la especificación formal queda como extensión pendiente de diseño, no como rol activo del backend. Lo mismo ocurre con la sincronización offline completa: la base ya tiene las tablas de soporte y el flujo conceptual, pero la puesta en producción del lote masivo requiere una capa adicional de sincronización y validación de consistencia.
+El backend modela los roles `PASSENGER`, `DRIVER` y `ADMIN`. El rol `ADMIN` habilita el módulo de administración y métricas; los conductores y administradores se aprovisionan con la CLI de gestión. La sincronización offline completa permanece como extensión: la base ya tiene las tablas de soporte y el flujo conceptual, pero la puesta en producción del lote masivo requiere una capa adicional de sincronización y validación de consistencia.
 
 ### Matriz funcional resumida recomendada
 
@@ -89,19 +89,19 @@ La versión demo actual modela los roles `PASSENGER` y `DRIVER`. El bloque de ad
 |---|---|---|
 | RF-01.1 | Registro de pasajero | `POST /api/v1/auth/register` |
 | RF-01.2 | Login y token bearer firmado con HMAC | `POST /api/v1/auth/login` |
-| RF-01.3 | Perfil y saldo | `GET /api/v1/auth/me` + `GET /api/v1/demo/account` |
+| RF-01.3 | Perfil y saldo | `GET /api/v1/auth/me` + `GET /api/v1/account` |
 | RF-02.1 | Login del conductor | `POST /api/v1/auth/login` (login compartido); la autorización de conductor se valida después mediante rol |
 | RF-02.2 | Inicio de turno | `POST /api/v1/driver/shift/start?route_id={id}` |
-| RF-03.1 | Pago con QR del bus | `POST /api/v1/demo/account/qr/validate` (verifica turno/ruta, debita billetera y crea viaje) |
-| RF-03.2 | Pago en efectivo o tarjeta | `POST /api/v1/driver/shift/payments` o `/api/v1/demo/account/payments` (simulado; no consulta tarjeta guardada ni POS) |
+| RF-03.1 | Pago con QR del bus | `POST /api/v1/account/qr/validate` (verifica turno/ruta, debita billetera y crea viaje) |
+| RF-03.2 | Pago en efectivo o tarjeta | `POST /api/v1/driver/shift/payments` o `/api/v1/account/payments` (registra el pago; no consulta tarjeta guardada ni POS) |
 | RF-04.1 | Mostrar QR del bus | `POST /api/v1/driver/shift/qr` |
-| RF-04.2 | Escanear y pagar | `POST /api/v1/demo/account/qr/validate` |
+| RF-04.2 | Escanear y pagar | `POST /api/v1/account/qr/validate` |
 | RF-05.1 | Ver tarifa por ruta y día | `GET /api/v1/fares/current` |
 | RF-06.1 | Cobro efectivo | `POST /api/v1/driver/shift/payments` |
-| RF-07.1 | Consultar saldo | `GET /api/v1/demo/account` |
-| RF-07.2 | Recarga | `POST /api/v1/demo/account/top-ups` |
+| RF-07.1 | Consultar saldo | `GET /api/v1/account` |
+| RF-07.2 | Recarga | `POST /api/v1/account/top-ups` |
 | RF-07.4 | Historial unificado de ingresos y egresos | `GET /api/v1/payments/history` |
-| RF-08.1 | Transbordo | `POST /api/v1/demo/account/transfers` |
+| RF-08.1 | Transbordo | `POST /api/v1/account/transfers` |
 | RF-09.1 | Historial de viajes | `GET /api/v1/trips` |
 | RF-09.2 | Detalle de viaje | `GET /api/v1/trips/{trip_id}` |
 | RF-10.1 | Resumen del turno | `GET /api/v1/driver/shift` |
@@ -110,14 +110,14 @@ La versión demo actual modela los roles `PASSENGER` y `DRIVER`. El bloque de ad
 
 Los recursos `/payments/history`, `/trips` y `/trips/{trip_id}` son endpoints nuevos alineados con la especificación. La pantalla del conductor genera un QR temporal cuando su turno está activo. El pasajero autenticado lo presenta desde su aplicación; el QR identifica al bus y puede ser usado por varios pasajeros hasta vencer o ser renovado.
 
-La alineación funcional no implica que todas las URI, métodos HTTP o integraciones sean idénticos a la matriz del PDF. En particular, el pago con tarjeta no usa una tarjeta registrada (`Payment.card_id` todavía no se asocia), el login de conductor reutiliza el login general y el cierre se modela como acción POST. La tabla muestra el contrato actual y explicita estas decisiones para no reportar como completo lo que solo es una simulación.
+La alineación funcional no implica que todas las URI, métodos HTTP o integraciones sean idénticos a la matriz del PDF. En particular, el pago con tarjeta no usa una tarjeta registrada (`Payment.card_id` todavía no se asocia), el login de conductor reutiliza el login general y el cierre se modela como acción POST. La tabla muestra el contrato actual y explicita estas decisiones para no reportar como completo lo que solo está implementado parcialmente.
 
 ## Persistencia, transacciones y disponibilidad
 
 - `get_session` entrega una sesión SQLAlchemy por solicitud. SQLite habilita `PRAGMA foreign_keys=ON` al abrir cada conexión.
 - Débitos y recargas aplican el cambio de saldo y crean el pago (y, para pasajes, el viaje) en la misma transacción de base de datos. El commit es el límite de confirmación; si falla antes de terminar, el cierre de la sesión revierte los cambios pendientes.
 - Hay controles de integridad para saldo no negativo, importes, unicidad de idempotencia y relaciones FK. Las claves de idempotencia ayudan a evitar aplicar de nuevo una petición reintentada; todavía falta probar explícitamente las carreras concurrentes sobre el motor productivo elegido.
-- `GET /api/v1/health` es una señal de vida del proceso y no toca la base. `GET /api/v1/ready` solicita a `database.py` que ejecute `SELECT 1`; devuelve 503 y deja registro de error si la base no está disponible. El controlador no construye consultas SQL. Esto verifica conectividad, no que migraciones, semillas o servicios externos estén listos.
+- `GET /api/v1/health` es una señal de vida del proceso y no toca la base. `GET /api/v1/ready` solicita a `database.py` que ejecute `SELECT 1`; devuelve 503 y deja registro de error si la base no está disponible. El controlador no construye consultas SQL. Esto verifica conectividad, no que migraciones, datos maestros o servicios externos estén listos.
 - La base SQLite local se crea con `metadata.create_all` y conserva upgrades manuales de compatibilidad. Aún no hay historial de migraciones versionadas; cualquier cambio de esquema que deba conservar datos necesita migración explícita y prueba sobre una copia representativa.
 - No existe cola de mensajería o sincronización offline operativa. No se debe introducir broker, protocolo de eventos o garantías de entrega hasta definir qué eventos se producen, cómo se identifican/reintentan y cómo se resuelven duplicados/conflictos entre dispositivos.
 
@@ -316,8 +316,8 @@ Lo importante no es solo el diagrama: el dominio queda materializado en capas re
 - Contratos de entrada/salida: `backend/app/dtos/` (DTOs Pydantic agrupados por tema)
   - Define payloads y respuesta para rutas, pagos, tarjetas, top-ups, transferencias, turnos, QR y salud del servicio.
 
-- Base de datos y semillas: `backend/app/database.py`
-  - Crea la base SQLite en desarrollo, carga rutas, tarifas y usuarios demo, y prepara el entorno para pruebas.
+- Base de datos e inicialización: `backend/app/core/database.py` y `backend/app/management.py`
+  - Crean el esquema SQLite, aseguran los roles del sistema e importan rutas y tarifas desde el catálogo maestro mediante un comando explícito.
 
 La composición real es entonces:
 
@@ -339,7 +339,7 @@ Los ejercicios de gestión hospitalaria practican conceptos que también se usan
 | Reglas y estados | Los métodos de `Cita` evitan atender citas canceladas, repetir atenciones o cancelar después de atender. | Los servicios aplican las reglas de pagos, QR, viajes, transbordos y turnos; los esquemas Pydantic validan solicitudes y la API traduce errores de dominio a respuestas HTTP. |
 | Interacción y persistencia | Menú de consola, colecciones en memoria y exportación de texto. | Interfaz web/PWA y API HTTP; SQLite persiste el estado y los endpoints de historial consultan pagos y viajes. Las pruebas con `TestClient` verifican las operaciones y restricciones. |
 
-La intención que se conserva es modelar el dominio, sus relaciones y sus reglas antes de implementar los flujos. No corresponde añadir al transporte conceptos hospitalarios como médicos, citas, atenciones o un menú de consola. Tampoco hace falta replicar la herencia o las listas en memoria: QrPass ya expresa esos conceptos mediante roles, relaciones ORM, servicios y persistencia. Para este alcance demo no se identifica una brecha funcional de modelado que requiera agregar código; las limitaciones operativas y de producción se registran en la trazabilidad.
+La intención que se conserva es modelar el dominio, sus relaciones y sus reglas antes de implementar los flujos. No corresponde añadir al transporte conceptos hospitalarios como médicos, citas, atenciones o un menú de consola. Tampoco hace falta replicar la herencia o las listas en memoria: QrPass ya expresa esos conceptos mediante roles, relaciones ORM, servicios y persistencia. Para este alcance no se identifica una brecha funcional de modelado que requiera agregar código; las limitaciones operativas y de producción se registran en la trazabilidad.
 
 ## Secuencia de pago manual en efectivo o tarjeta
 
@@ -352,7 +352,7 @@ sequenceDiagram
     participant Service as Servicio de pagos
     participant DB as SQLAlchemy / SQLite
     Pasajero->>Frontend: Selecciona ruta y efectivo o tarjeta
-    Frontend->>Controller: POST /api/v1/demo/account/payments
+    Frontend->>Controller: POST /api/v1/account/payments
     Controller->>DTO: Valida ruta y medio de pago
     DTO-->>Controller: Solicitud validada
     Controller->>Service: crear_pago(solicitud)
@@ -363,7 +363,7 @@ sequenceDiagram
         Controller-->>Frontend: Informa el motivo
     else Datos correctos
         Service->>DB: Guarda pago y viaje
-        DB-->>Service: Operacion confirmada (demo)
+        DB-->>Service: Operacion confirmada
         Service-->>Controller: Pago y viaje
         Controller-->>Frontend: Recibo de pago ? HTTP 201
     end
@@ -372,13 +372,13 @@ sequenceDiagram
 ## Contrato de pago manual
 
 ```http
-POST /api/v1/demo/account/payments
+POST /api/v1/account/payments
 Content-Type: application/json
 
 {"route_id": 1, "method": "cash", "idempotency_key": "pago-intento-0001"}
 ```
 
-La ruta manual acepta `cash` o `card`; el pago con saldo se realiza escaneando el QR del bus en `POST /api/v1/demo/account/qr/validate`. Para tarjeta, `card_type` debe ser `debit` o `credit`. Las respuestas incluyen `mode: "demo"` y estado `completed_demo`.
+La ruta manual acepta `cash` o `card`; el pago con saldo se realiza escaneando el QR del bus en `POST /api/v1/account/qr/validate`. Para tarjeta, `card_type` debe ser `debit` o `credit`. Las respuestas usan el estado `completed`.
 
 ## Secuencia QR y turno conductor
 
@@ -397,10 +397,10 @@ sequenceDiagram
     Service-->>API: Token HMAC ligado a turno, ruta y vencimiento
     API-->>Frontend: Imagen QR para mostrar en el bus
     Pasajero->>Frontend: Escanea el QR que muestra el bus
-    Frontend->>API: POST /api/v1/demo/account/qr/validate · bearer
+    Frontend->>API: POST /api/v1/account/qr/validate · bearer
     API->>Service: Verifica firma, vigencia y turno/ruta activos
     Service->>DB: Debita saldo y asocia viaje al turno
-    API-->>Frontend: Recibo demo y saldo actualizado
+    API-->>Frontend: Recibo y saldo actualizado
     Conductor->>API: POST /api/v1/driver/shift/close · cash_counted
     API->>Service: Consolida recaudo y diferencia de efectivo
     Service->>DB: Persiste cierre de turno

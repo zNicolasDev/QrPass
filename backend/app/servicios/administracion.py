@@ -3,8 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from app.models import Usuario, Turno, Viaje, Transbordo, Ruta, Pago, Conductor
-from app.servicios.comun import ErrorDominio, ahora_servicio
+from app.models import Usuario, Turno, Viaje, Transbordo, Ruta, Pago
 
 
 def obtener_metricas_gerenciales(session: Session) -> dict[str, int]:
@@ -45,34 +44,4 @@ def obtener_metricas_gerenciales(session: Session) -> dict[str, int]:
         "active_shifts": int(turnos_activos),
         "total_users": int(total_usuarios),
         "total_routes": int(total_rutas),
-    }
-
-
-def reiniciar_datos_demo(session: Session) -> dict[str, object]:
-    pasajero = session.get(Usuario, 1)
-    if pasajero is not None:
-        pasajero.saldo_billetera = 50000
-
-    conductor_user = session.get(Usuario, 2)
-    if conductor_user is not None:
-        driver = session.scalar(select(Conductor).where(Conductor.usuario_id == conductor_user.id))
-        if driver is not None:
-            ultimo_turno = session.scalar(
-                select(Turno).where(Turno.conductor_id == driver.usuario_id).order_by(Turno.id.desc())
-            )
-            if ultimo_turno is not None and ultimo_turno.estado == "closed":
-                nuevo_turno = Turno(
-                    conductor_id=driver.usuario_id,
-                    vehiculo_id=ultimo_turno.vehiculo_id,
-                    ruta_id=ultimo_turno.ruta_id,
-                    inicia_en=ahora_servicio(),
-                    estado="active",
-                )
-                session.add(nuevo_turno)
-
-    session.commit()
-    return {
-        "status": "ok",
-        "message": "Datos de demostracion restablecidos exitosamente a su estado inicial.",
-        "passenger_balance": pasajero.saldo_billetera if pasajero else 50000,
     }

@@ -1,22 +1,40 @@
 from __future__ import annotations
 
+import secrets
 from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
-from app.models import Usuario, Rol, RolUsuario, Conductor
-from app.servicios.comun import ErrorDominio, ahora_servicio
+from app.models import Conductor, Rol, RolUsuario, Usuario
 from app.seguridad.passwords import crear_hash_contrasena, verificar_contrasena
-import secrets
+from app.servicios.comun import ErrorDominio, ahora_servicio
 
 
-def registrar_pasajero(session: Session, names: str, email: str, password: str) -> Usuario:
+ROLES_PASAJERO = ("PASSENGER",)
+ROLES_CONDUCTOR = ("PASSENGER", "DRIVER")
+ROLES_ADMINISTRADOR = ("PASSENGER", "ADMIN")
+
+
+def _obtener_rol(session: Session, codigo: str) -> Rol:
+    rol = session.scalar(select(Rol).where(Rol.codigo == codigo))
+    if rol is None:
+        raise ErrorDominio(503, "Los roles del sistema no están inicializados.")
+    return rol
+
+
+def _crear_usuario(
+    session: Session,
+    names: str,
+    email: str,
+    password: str,
+    roles: tuple[str, ...],
+) -> Usuario:
+    # Punto único para crear cuentas; cada perfil decide qué roles recibe.
     normalized_email = email.strip().lower()
     if session.scalar(select(Usuario.id).where(Usuario.correo == normalized_email)) is not None:
         raise ErrorDominio(409, "Ya existe una cuenta con ese correo.")
-    passenger_role = session.scalar(select(Rol).where(Rol.codigo == "PASSENGER"))
-    if passenger_role is None:
-        raise ErrorDominio(503, "Los roles del sistema no están inicializados.")
+    roles_sistema = [_obtener_rol(session, codigo) for codigo in roles]
     user = Usuario(
         nombres=" ".join(names.split()),
         nombre_usuario=normalized_email,
@@ -29,7 +47,37 @@ def registrar_pasajero(session: Session, names: str, email: str, password: str) 
     )
     session.add(user)
     session.flush()
-    user.roles.append(RolUsuario(rol=passenger_role))
+    user.roles.extend(RolUsuario(rol=rol) for rol in roles_sistema)
+    session.flush()
+    return user
+
+
+def registrar_pasajero(session: Session, names: str, email: str, password: str) -> Usuario:
+    user = _crear_usuario(session, names, email, password, ROLES_PASAJERO)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def crear_conductor(
+    session: Session,
+    names: str,
+    email: str,
+    password: str,
+    license_number: str,
+) -> Usuario:
+    licencia = license_number.strip()
+    if session.scalar(select(Conductor.usuario_id).where(Conductor.numero_licencia == licencia)) is not None:
+        raise ErrorDominio(409, "Ya existe un conductor con esa licencia.")
+    user = _crear_usuario(session, names, email, password, ROLES_CONDUCTOR)
+    session.add(Conductor(usuario_id=user.id, numero_licencia=licencia))
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def crear_administrador(session: Session, names: str, email: str, password: str) -> Usuario:
+    user = _crear_usuario(session, names, email, password, ROLES_ADMINISTRADOR)
     session.commit()
     session.refresh(user)
     return user
@@ -58,11 +106,8 @@ def usuario_tiene_rol(user: Usuario, role_code: str) -> bool:
     return any(user_role.rol.codigo == role_code for user_role in user.roles)
 
 
-def obtener_usuario_demo(session: Session) -> Usuario:
-    user = session.get(Usuario, 1) if hasattr(session, "get") else session.get(Usuario, 1)
-    if user is None or user.estado != "active":
-        raise ErrorDominio(404, "La cuenta de demostración no existe o está inactiva.")
-    return user
+def obtener_perfil_conductor(session: Session, user: Usuario) -> Conductor | None:
+    return session.get(Conductor, user.id)
 
 
 def obtener_datos_asignacion_conductor(session: Session, user: Usuario) -> tuple[Conductor | None, Any]:

@@ -29,7 +29,7 @@ class Bus:
 
 
 class Repositorio:
-    """Guarda los pagos y viajes en memoria para esta demostracion."""
+    """Guarda los pagos y viajes en memoria para esta verificación."""
 
     def __init__(self):
         self.pagos = []

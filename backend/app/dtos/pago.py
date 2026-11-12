@@ -48,7 +48,6 @@ class ReciboPago(EsquemaBase):
     saldo_billetera: int = Field(validation_alias="wallet_balance", serialization_alias="wallet_balance")
     estado: str = Field(validation_alias="status", serialization_alias="status")
     creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")
 
 
 # Movimiento de pago o recarga presentado en el historial.
@@ -72,7 +71,7 @@ class HistorialPagosRespuesta(EsquemaBase):
 # Monto y clave que identifican una solicitud de recarga.
 class CrearRecargaSolicitud(EsquemaBase):
     # Solicitud de recarga con monto acotado y clave para evitar duplicados.
-    # amount está expresado en pesos y no puede superar el límite de demostración.
+    # amount está expresado en pesos y no puede superar el límite por operación.
     monto: Annotated[int, Field(gt=0, le=500000, validation_alias="amount", serialization_alias="amount")]
     clave_idempotencia: Annotated[str, Field(min_length=8, max_length=80, validation_alias="idempotency_key", serialization_alias="idempotency_key")]
 
@@ -87,4 +86,3 @@ class ReciboRecarga(EsquemaBase):
     saldo_billetera: int = Field(validation_alias="wallet_balance", serialization_alias="wallet_balance")
     estado: str = Field(validation_alias="status", serialization_alias="status")
     creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")

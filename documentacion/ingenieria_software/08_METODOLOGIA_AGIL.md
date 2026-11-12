@@ -12,7 +12,7 @@ El equipo seleccionó **Scrum** por su adaptación a proyectos académicos itera
 
 - **Product Backlog:** requisitos RF/RNF.
 - **Sprint Backlog:** tareas por sprint.
-- **Incremento:** prototipo funcional.
+- **Incremento:** plataforma funcional.
 
 ## Eventos
 

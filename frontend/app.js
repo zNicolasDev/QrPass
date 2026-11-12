@@ -33,12 +33,31 @@ const DRIVER_PAYMENTS_POLL_MS = 2000;
 let driverPaymentsTimer = null;
 let driverPaymentsSyncing = false;
 let driverPaymentsSignature = "";
+
+let serverTimeOffsetMs = 0;
+let driverClockTimer = null;
+
+async function syncServerTime() {
+  try {
+    const response = await apiRequest("/time");
+    const serverNow = new Date(response.server_time).getTime();
+    serverTimeOffsetMs = serverNow - Date.now();
+    const synced = new Date(Date.now() + serverTimeOffsetMs);
+    showToast(`Hora sincronizada: ${formatTime(synced)} · ${formatDate(synced)}`);
+  } catch (error) {
+    showToast(error.message || "No se pudo sincronizar la hora.", true);
+  }
+  renderCurrentView();
+}
 let selectedPaymentMethod = "saldo";
 let deferredInstallPrompt = null;
 let routeCatalog = [];
-let currentFare = 3300;
+let currentFare = 0;
+let currentDayType = "weekday";
 let fareCatalog = [];
 let driverAssignment = null;
+let driverAssignments = [];
+let selectedDriverRouteId = null;
 let activeCameraStream = null;
 let scanLoopTimer = null;
 
@@ -135,7 +154,7 @@ function mapPaymentFromApi(payment) {
     balanceAfter: payment.balance_after,
     route: payment.route_name,
     tripId: payment.trip_id,
-    status: payment.status === "completed_demo" ? "Registrado" : payment.status,
+    status: payment.status === "completed" ? "Registrado" : payment.status,
     createdAt: payment.created_at,
     reference: `PAGO-${payment.payment_id}`,
   };
@@ -146,8 +165,8 @@ async function refreshPassengerData() {
   // servidor: la memoria de esta pestaña no es el registro oficial.
   // Saldo e historial se piden en paralelo para que la pantalla muestre datos actuales.
   const [account, trips, history] = await Promise.all([
-    apiRequest("/demo/account"),
-    apiRequest("/demo/account/trips"),
+    apiRequest("/account"),
+    apiRequest("/trips"),
     apiRequest("/payments/history"),
   ]);
   state = {
@@ -198,6 +217,25 @@ async function refreshDriverShift() {
   driverPaymentsSignature = driverPaymentsSignatureOf(driverState.activeShift);
   const qr = await apiRequest("/driver/shift/qr", { method: "POST" });
   activeBusQr = { image: qr.image_data_uri, expiresAt: new Date(qr.expires_at), token: qr.token };
+}
+
+async function refreshDriverAssignments() {
+  try {
+    const list = await apiRequest("/driver/assignments");
+    driverAssignments = Array.isArray(list) ? list : [list];
+  } catch (error) {
+    if (error.status !== 404) throw error;
+    driverAssignments = [];
+  }
+  if (driverAssignments.length) {
+    const preferred = selectedDriverRouteId
+      ? driverAssignments.find((item) => item.route_id === selectedDriverRouteId)
+      : null;
+    driverAssignment = preferred ?? driverAssignments[0];
+    selectedDriverRouteId = driverAssignment.route_id;
+  } else {
+    driverAssignment = null;
+  }
 }
 
 // Texto del contador que ve el conductor debajo del QR.
@@ -274,7 +312,7 @@ function renderDriverLivePayments(entries) {
     <small>${escapeHtml(entry.reference)}</small>
   </li>`).join("");
   return `<div class="driver-live-head"><h3>Pagos recibidos</h3><span class="driver-live-count">${count} ${count === 1 ? "pago" : "pagos"} · ${money(total)}</span></div>
-    ${rows ? `<ul class="driver-live-list" aria-live="polite">${rows}</ul>` : `<p class="driver-live-empty">Aún no hay pagos. Cuando un pasajero pague, aparecerá aquí al instante.</p>`}`;
+    ${rows ? `<ul class="driver-live-list" aria-live="polite">${rows}</ul>` : `<p class="driver-live-empty">Aún no hay pagos. Cuando un pasajero pague, aparecerá aquí.</p>`}`;
 }
 
 function driverPaymentsSignatureOf(shift) {
@@ -403,7 +441,9 @@ async function activateSession(user) {
   routeCatalog = routes;
   // Se conserva la lista completa: incluye las tarifas por destino (ruta 48).
   fareCatalog = fares;
-  currentFare = fares.find((fare) => !fare.destination)?.amount ?? 3300;
+  const ordinaryFare = fares.find((fare) => !fare.destination);
+  currentFare = ordinaryFare?.amount ?? 0;
+  currentDayType = ordinaryFare?.day_type ?? "weekday";
   await refreshPassengerData();
   driverState = { activeShift: null, completedShifts: [] };
 
@@ -411,10 +451,11 @@ async function activateSession(user) {
     // El rol habilita el espacio; la asignación indica si hay un turno que
     // iniciar. La autorización de cada operación sigue estando en el servidor.
     try {
-      driverAssignment = await apiRequest("/driver/demo/assignment");
+      await refreshDriverAssignments();
     } catch (error) {
       if (error.status !== 404) throw error;
       driverAssignment = null;
+      driverAssignments = [];
     }
     try {
       await refreshDriverShift();
@@ -423,6 +464,9 @@ async function activateSession(user) {
       driverState.activeShift = null;
       activeBusQr = null;
     }
+    await syncServerTime();
+    if (driverClockTimer) window.clearInterval(driverClockTimer);
+    driverClockTimer = window.setInterval(() => syncServerTime(), 60000);
     await refreshDriverShiftHistory();
     startBusQrAutoRefresh();
   }
@@ -444,7 +488,8 @@ function logout(reason = "") {
   authenticatedUser = null;
   currentProfile = "pasajero";
   driverAssignment = null;
-  activeBusQr = null;
+  driverAssignments = [];
+  selectedDriverRouteId = null;
   routeCatalog = [];
   state = { balance: 0, trips: [], payments: [] };
   driverState = { activeShift: null, completedShifts: [] };
@@ -493,7 +538,7 @@ function currentDateLong(date = new Date()) {
 
 function pageHeading(eyebrow, title, description, action = "") {
   return `<div class="page-heading">
-    <div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${description}</p></div>
+    <div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1>${description ? `<p>${description}</p>` : ""}</div>
     ${action}
   </div>`;
 }
@@ -516,10 +561,10 @@ function tripRow(trip) {
 
 function pageTable(trips, className = "") {
   return `<div class="surface">
-    <div class="surface-header"><div><h2>Actividad reciente</h2><p>El detalle de tus últimos viajes</p></div></div>
+    <div class="surface-header"><div><h2>Actividad reciente</h2></div></div>
     <div class="table-wrap"><table class="trip-table ${className}">
       <thead><tr><th>Ruta</th><th>Fecha</th><th>Medio de pago</th><th>Valor</th><th>Estado</th></tr></thead>
-      <tbody>${trips.length ? trips.map(tripRow).join("") : emptyTrips("Aún no hay viajes. Tu primera salida está a un clic.")}</tbody>
+      <tbody>${trips.length ? trips.map(tripRow).join("") : emptyTrips("Cuando pagues tu primer viaje, aparecerá aquí.")}</tbody>
     </table></div>
   </div>`;
 }
@@ -529,111 +574,47 @@ function getRecentTrips() {
   return [...state.trips].reverse().slice(0, 4);
 }
 
-// Día calendario (AAAA-MM-DD) en hora de Bogotá; Colombia no cambia de hora en el año.
-function bogotaDayKey(date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(date);
-}
-
-function getWeeklyActivity() {
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(now - (6 - index) * DAY_MS);
-    return { date: day, key: bogotaDayKey(day), amount: 0, trips: 0 };
-  });
-
-  for (const trip of state.trips) {
-    const tripDate = new Date(trip.createdAt);
-    if (Number.isNaN(tripDate.getTime())) continue;
-    const tripKey = bogotaDayKey(tripDate);
-    const index = days.findIndex((day) => day.key === tripKey);
-    if (index !== -1) {
-      days[index].amount += trip.amount;
-      days[index].trips += 1;
-    }
-  }
-
-  return days;
-}
-
-function renderWeeklyActivity() {
-  const days = getWeeklyActivity();
-  const totalAmount = days.reduce((sum, day) => sum + day.amount, 0);
-  const totalTrips = days.reduce((sum, day) => sum + day.trips, 0);
-  const maxAmount = Math.max(...days.map((day) => day.amount), 1);
-  const points = days.map((day, index) => {
-    const x = 12 + (index * 456) / 6;
-    const y = 92 - (day.amount / maxAmount) * 64;
-    return { ...day, x, y };
-  });
-  const linePath = points.map((point, index) =>
-    `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
-  const areaPath = `${linePath} L 468 104 L 12 104 Z`;
-  const labels = points.map((point) =>
-    `<span>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "short", timeZone: APP_TIME_ZONE }).format(point.date).replace(".", ""))}</span>`).join("");
-  const accessibleSummary = points.map((point) =>
-    `${new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", timeZone: APP_TIME_ZONE }).format(point.date)}: ${point.trips} viajes, ${money(point.amount)}`).join(". ");
-
-  return `<article class="weekly-card">
-    <div class="weekly-header">
-      <div><div class="eyebrow">${icon("route")} TU MOVILIDAD</div><h2>Tu semana en movimiento</h2><p>Pasajes registrados en los últimos 7 días</p></div>
-      <span class="weekly-demo-badge"><span></span> BETA</span>
-    </div>
-    <div class="weekly-summary"><div><span>Gasto simulado</span><strong>${money(totalAmount)}</strong></div><div><span>Viajes</span><strong>${totalTrips}</strong></div></div>
-    <svg class="weekly-chart" viewBox="0 0 480 116" role="img" aria-label="${escapeHtml(accessibleSummary)}" preserveAspectRatio="none">
-      <defs><linearGradient id="weekly-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#62b970" stop-opacity=".22"/><stop offset="100%" stop-color="#62b970" stop-opacity="0"/></linearGradient></defs>
-      <path class="weekly-gridline" d="M 12 28 H 468 M 12 60 H 468 M 12 104 H 468"/>
-      <path class="weekly-area" d="${areaPath}"/>
-      <path class="weekly-line" d="${linePath}"/>
-      ${points.map((point) => `<circle class="weekly-point${point.trips ? " has-trips" : ""}" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${point.trips ? 4 : 2.5}"><title>${escapeHtml(new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", timeZone: APP_TIME_ZONE }).format(point.date))}: ${point.trips} viajes, ${money(point.amount)}</title></circle>`).join("")}
-    </svg>
-    <div class="weekly-day-labels" aria-hidden="true">${labels}</div>
-    <p class="weekly-footnote">${totalTrips ? "El resumen se calcula con los movimientos devueltos por la API." : "Cuando registres viajes, aquí verás tu actividad de la semana."}</p>
-  </article>`;
-}
-
 function renderDashboard() {
   const fare = getFare();
   const tripCount = state.trips.length;
-  const lastMethod = state.trips.at(-1)?.method ?? "Todavía no tienes viajes";
+  const lastTrip = state.trips.at(-1);
+  const lastMethod = lastTrip?.method ?? "—";
+  const lastTripNote = lastTrip
+    ? `Último viaje: ${formatDate(new Date(lastTrip.createdAt))}`
+    : "Sin viajes todavía";
+  const lastMethodNote = lastTrip?.route
+    ? `Ruta ${escapeHtml(lastTrip.route)}`
+    : "Tu actividad aparecerá aquí";
   return `${pageHeading(
-    `<span class="eyebrow-dot"></span> TU DÍA, A TU RITMO`,
+    `<span class="eyebrow-dot"></span> RESUMEN DE TU CUENTA`,
     `Hola, ${escapeHtml(authenticatedUser.names)}`,
-    "Todo lo que necesitas para moverte por Ibagué, en un solo lugar.",
+    "",
     `<span class="heading-date">${currentDateLong()}</span>`,
   )}
   <section class="welcome-banner">
-    <button class="welcome-demo-badge" type="button" data-action="demo-info"><span></span> MODO PRUEBA</button>
     <div class="welcome-copy">
-      <div class="eyebrow">${icon("spark")} MENOS VUELTAS, MÁS CIUDAD</div>
-      <h2>Tu próximo viaje empieza aquí.</h2>
-      <p>Escanea el código del bus para pagar tu abordaje.</p>
-      <button class="button button-mint" data-view="qr">Escanear QR del bus ${icon("arrow")}</button>
+      <div class="eyebrow">${icon("qr")} PAGO DEL PASAJE</div>
+      <h2>Paga tu pasaje aquí.</h2>
+      <p>El valor se descuenta de tu saldo.</p>
+      <button class="button button-mint" data-action="pay-qr">Escanear QR del bus ${icon("arrow")}</button>
     </div>
-    <div class="welcome-orbit" aria-hidden="true"></div>
     <div class="welcome-illustration" aria-hidden="true">
-      <span class="orbit-chip orbit-chip-one">${icon("qr")}</span>
       ${icon("bus")}
-      <span class="orbit-chip orbit-chip-two">${icon("route")}</span>
     </div>
   </section>
   <section class="stats-grid" aria-label="Resumen de tu cuenta">
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">SALDO DISPONIBLE</span><span class="stat-icon">${icon("wallet")}</span></div><div class="stat-value">${money(state.balance)}</div><div class="stat-note"><span class="positive">●</span> Listo para tu próximo viaje</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">TARIFA DE HOY</span><span class="stat-icon amber">${icon("route")}</span></div><div class="stat-value">${money(fare)}</div><div class="stat-note">${fare === 3400 ? "Domingos y festivos" : "Tarifa ordinaria · lunes a sábado"}</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">VIAJES REGISTRADOS</span><span class="stat-icon green">${icon("bus")}</span></div><div class="stat-value">${tripCount}</div><div class="stat-note">En tu cuenta</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">ÚLTIMO MÉTODO</span><span class="stat-icon dark">${icon("clock")}</span></div><div class="stat-value stat-value-method">${escapeHtml(lastMethod)}</div><div class="stat-note">${state.trips.length ? "Tu movimiento más reciente" : "Tu actividad aparecerá aquí"}</div></article>
+    <article class="stat-card"><div class="stat-top"><span class="stat-label">SALDO DISPONIBLE</span><span class="stat-icon">${icon("wallet")}</span></div><div class="stat-value">${money(state.balance)}</div><div class="stat-note">${state.balance > 0 ? "Disponible para viajar" : "Recarga para viajar"}</div></article>
+    <article class="stat-card"><div class="stat-top"><span class="stat-label">TARIFA VIGENTE</span><span class="stat-icon amber">${icon("route")}</span></div><div class="stat-value">${money(fare)}</div><div class="stat-note">${currentDayType === "weekend" ? "Domingos y festivos" : "Lunes a sábado"} · por viaje</div></article>
+    <article class="stat-card"><div class="stat-top"><span class="stat-label">VIAJES REGISTRADOS</span><span class="stat-icon green">${icon("bus")}</span></div><div class="stat-value">${tripCount}</div><div class="stat-note">${lastTripNote}</div></article>
+    <article class="stat-card"><div class="stat-top"><span class="stat-label">ÚLTIMO MÉTODO</span><span class="stat-icon dark">${icon("clock")}</span></div><div class="stat-value stat-value-method">${escapeHtml(lastMethod)}</div><div class="stat-note">${lastMethodNote}</div></article>
   </section>
-  ${renderWeeklyActivity()}
   <section class="content-grid">
     <div>${pageTable(getRecentTrips())}</div>
     <div class="side-stack">
-      <article class="fare-card"><div class="fare-heading"><span>Tarifa vigente</span>${icon("route")}</div><div class="fare-amount">${money(fare)}</div><div class="fare-foot"><span>${fare === 3400 ? "Domingo o festivo" : "Lunes a sábado"}</span><strong>Por viaje</strong></div></article>
-      <article class="quick-card"><h2 class="quick-card-heading">¿Qué necesitas hoy?</h2><p class="quick-card-copy">Elige cómo quieres continuar tu viaje.</p><div class="quick-actions">
-        <button class="quick-action" data-view="qr">${icon("qr")}<span>Pagar con saldo: escanea el QR del bus</span>${icon("arrow", "icon quick-arrow")}</button>
-        <button class="quick-action" data-action="payment" data-method="efectivo">${icon("bus")}<span>Registrar pago en efectivo</span>${icon("arrow", "icon quick-arrow")}</button>
-        <button class="quick-action" data-view="recarga">${icon("plus")}<span>Recargar mi saldo</span>${icon("arrow", "icon quick-arrow")}</button>
+      <article class="quick-card"><h2 class="quick-card-heading">Acciones rápidas</h2><div class="quick-actions">
+        <button class="quick-action" data-action="pay-qr">${icon("qr")}<span>Pagar con saldo</span>${icon("arrow", "icon quick-arrow")}</button>
+        <button class="quick-action" data-action="payment" data-method="efectivo">${icon("bus")}<span>Pago en efectivo</span>${icon("arrow", "icon quick-arrow")}</button>
+        <button class="quick-action" data-action="quick-top-up">${icon("plus")}<span>Recargar saldo</span>${icon("arrow", "icon quick-arrow")}</button>
       </div></article>
     </div>
   </section>`;
@@ -664,10 +645,10 @@ function renderDriverDashboard() {
           <h2>No hay un turno activo</h2><p>${driverAssignment ? "Revisa la ruta y el vehículo asignados. Al iniciar el turno podrás mostrar el QR y registrar los pagos recibidos." : "No tienes una ruta asignada por ahora. Puedes consultar los turnos anteriores o pedir una asignación al administrador."}</p>
         </div>
         <div class="assigned-shift"><span>RUTA ASIGNADA</span><strong>Ruta ${escapeHtml(driverAssignment?.route_name ?? "—")} <i>·</i> Vehículo ${escapeHtml(driverAssignment?.vehicle_plate ?? "—")}</strong><small>Conductor ${escapeHtml(driverAssignment?.driver_name ?? authenticatedUser.names)}</small></div>
+        ${driverAssignments.length > 1 ? `<div class="form-field section-gap"><label for="driver-route-select">Ruta a iniciar</label><select class="select" id="driver-route-select">${driverAssignments.map((item) => `<option value="${item.route_id}"${item.route_id === selectedDriverRouteId ? " selected" : ""}>Ruta ${escapeHtml(item.route_name)} · ${escapeHtml(item.vehicle_plate)}</option>`).join("")}</select></div>` : ""}
         <button class="button button-mint" type="button" data-action="start-driver-shift"${driverAssignment ? "" : " disabled"}>${icon("check")} ${driverAssignment ? "Iniciar turno" : "No hay ruta asignada"}</button>
       </section>
-      ${latestSummary}
-      <article class="driver-integrity-note">${icon("shield")}<div><strong>Turno asignado a tu cuenta</strong><p>Solo puedes iniciar la ruta que tienes asignada. Los pagos con tarjeta son de prueba; no se realiza ningún cobro.</p></div></article>`;
+      ${latestSummary}`;
   }
 
   const entries = shift.entries;
@@ -706,12 +687,10 @@ function renderDriverDashboard() {
       <article class="driver-capture-card">
         <div class="eyebrow">${icon("plus")} REGISTRO DE PAGO · TURNO ACTIVO</div>
         <h2>¿Cómo pagó el pasajero?</h2>
-        <p>Elige el medio de pago que recibiste para sumarlo al total del turno.</p>
         <div class="driver-payment-actions">
           <button type="button" data-action="driver-payment" data-method="cash">${icon("wallet")}<span><strong>Efectivo</strong><small>Recibido en la unidad</small></span>${icon("arrow")}</button>
           <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Solo queda anotado</small></span>${icon("arrow")}</button>
         </div>
-        <div class="driver-demo-warning">${icon("clock")} Los pagos con tarjeta son de prueba; no se cobra al pasajero.</div>
       </article>
       <article class="driver-close-card">
         <div class="eyebrow">${icon("check")} TERMINAR TURNO</div><h2>Revisa el efectivo recibido</h2>
@@ -731,7 +710,7 @@ function renderDriverDashboard() {
         <tbody id="driver-ledger-body">${rows || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`}</tbody>
       </table></div>
     </section>
-    <article class="driver-integrity-note">${icon("shield")}<div><strong>Pagos de prueba</strong><p>Los pagos con QR descuentan el saldo de prueba del pasajero. El efectivo y la tarjeta solo se anotan; no se mueve dinero real.</p></div></article>`;
+    <article class="driver-integrity-note">${icon("shield")}<div><strong>Registro de pagos</strong><p>Los pagos con QR descuentan el saldo del pasajero en su billetera QrPass. El efectivo y la tarjeta se anotan para el control del turno.</p></div></article>`;
 }
 
 function finderCell(row, column, top, left) {
@@ -759,10 +738,9 @@ function qrCells(seed) {
 }
 
 function renderQr() {
-  return `${pageHeading(`${icon("qr")} TU VIAJE`, "Escanear QR del bus", "Apunta la cámara de tu celular al código del bus para pagar el pasaje.")}
+  return `${pageHeading(`${icon("qr")} TU VIAJE`, "Escanear QR del bus", "Apunta la cámara al código del bus o escríbelo a mano.")}
     <article class="surface detail-card qr-generation-card">
-      <h2>Escanea el código del bus</h2>
-      <p>El pasaje cuesta <strong>${money(getFare())}</strong> y se descuenta de tu saldo al escanear o enviar el código. Elige <strong>Abrir cámara</strong> o escribe o pega el código completo aquí.</p>
+      <p>El pasaje cuesta <strong>${money(getFare())}</strong> y se descuenta de tu saldo al confirmar.</p>
       <form id="passenger-qr-form" data-idempotency-key="${createIdempotencyKey()}">
         <div class="form-field"><label for="passenger-qr-token">Código QR del bus</label><input class="input" id="passenger-qr-token" name="token" type="text" minlength="20" maxlength="512" autocomplete="off" autocapitalize="off" spellcheck="false" required /></div>
         <video id="passenger-qr-video" class="qr-camera-preview" playsinline muted hidden></video>
@@ -773,11 +751,10 @@ function renderQr() {
 
 function renderTopUp() {
   const amounts = [10000, 20000, 50000, 100000];
-  return `${pageHeading(`${icon("wallet")} TU BILLETERA`, "Recarga tu saldo", "Elige un monto para recargar tu saldo.")}
-  <section class="balance-banner"><div><div class="eyebrow">SALDO ACTUAL</div><h2>${money(state.balance)}</h2><p>Disponible en tu cuenta.</p></div>${icon("wallet")}</section>
-  <section class="surface detail-card"><h2>Elige cuánto quieres recargar</h2><p>Selecciona una de las opciones rápidas para actualizar tu saldo de prueba.</p><div class="amount-grid">${amounts.map((amount) => `<button class="amount-option" data-action="top-up" data-amount="${amount}"><strong>${money(amount)}</strong><span>Recarga</span></button>`).join("")}</div>
-  <form class="custom-amount" id="custom-top-up"><label for="custom-amount">O escribe otro monto (máximo ${money(500000)})</label><input class="input" id="custom-amount" name="amount" type="number" inputmode="numeric" min="1" max="500000" step="1" placeholder="Ej. 35.000" required /><button class="button" type="submit">${icon("plus")} Recargar</button></form></section>
-  <article class="subtle-card section-gap">${icon("shield")}<div><strong>Solo simulación local</strong><p>Esta recarga no mueve dinero real ni está conectada a una entidad financiera.</p></div></article>`;
+  return `${pageHeading(`${icon("wallet")} TU BILLETERA`, "Recarga tu saldo")}
+  <section class="balance-banner"><div><div class="eyebrow">SALDO ACTUAL</div><h2>${money(state.balance)}</h2></div>${icon("wallet")}</section>
+  <section class="surface detail-card"><h2>Elige el monto</h2><div class="amount-grid">${amounts.map((amount) => `<button class="amount-option" data-action="top-up" data-amount="${amount}"><strong>${money(amount)}</strong></button>`).join("")}</div>
+  <form class="custom-amount" id="custom-top-up"><label for="custom-amount">Otro monto (máximo ${money(500000)})</label><input class="input" id="custom-amount" name="amount" type="number" inputmode="numeric" min="1" max="500000" step="1" placeholder="Ej. 35.000" required /><button class="button" type="submit">${icon("plus")} Recargar</button></form></section>`;
 }
 
 function renderHistory() {
@@ -814,7 +791,7 @@ function renderHistory() {
     </tr>`;
   });
 
-  return `${pageHeading(`${icon("clock")} TU ACTIVIDAD`, "Movimientos y viajes", "Consulta pagos, recargas y traspasos registrados en tu cuenta.")}
+  return `${pageHeading(`${icon("clock")} TU ACTIVIDAD`, "Movimientos", "Pagos, recargas y traspasos de tu cuenta.")}
   <div class="history-summary">
     <div><span>Movimientos</span><br /><strong>${matches.length}</strong></div>
     <div><span>Pasajes pagados</span><br /><strong>${money(fareTotal)}</strong></div>
@@ -828,7 +805,7 @@ function renderHistory() {
       <option value="traspasos" ${activeFilter === "traspasos" ? "selected" : ""}>Traspasos</option>
     </select>
   </div>
-  <div class="surface"><div class="surface-header"><div><h2>Actividad de tu cuenta</h2><p>Ordenada de la m&aacute;s reciente a la m&aacute;s antigua. Incluye el saldo antes y despu&eacute;s de cada movimiento.</p></div></div>
+  <div class="surface"><div class="surface-header"><div><h2>Detalle de movimientos</h2></div></div>
     <div class="table-wrap"><table class="trip-table history-table">
       <thead><tr><th>Tipo</th><th>Fecha y hora</th><th>Medio</th><th>Ruta</th><th>Valor</th><th>Detalle</th></tr></thead>
       <tbody>${rows.length ? rows.join("") : emptyTrips("No hay movimientos con este filtro.", 6)}</tbody>
@@ -872,15 +849,13 @@ function renderCurrentView() {
   const hasMultipleRoles = hasProfileRole("pasajero") && hasProfileRole("conductor");
   const initials = authenticatedUser.names.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   document.querySelector("#workspace-switcher").hidden = !hasMultipleRoles;
-  document.querySelector("#single-profile-label").hidden = hasMultipleRoles;
-  document.querySelector("#single-profile-label").textContent = currentProfile === "conductor" ? "Conductor" : "Pasajero";
   document.querySelector("#sidebar-avatar").textContent = initials;
   document.querySelector("#topbar-avatar").textContent = initials;
   document.querySelector("#sidebar-name").textContent = authenticatedUser.names;
   document.querySelector("#sidebar-role").textContent = `${currentProfile === "conductor" ? "Espacio conductor" : "Espacio pasajero"}`;
   document.querySelector("#breadcrumb-context").textContent = currentProfile === "conductor"
-    ? "Cuenta con rol de conductor"
-    : "Espacio pasajero";
+    ? "Conductor"
+    : "Pasajero";
   document.querySelector("#today-date").textContent = currentDateLong();
 }
 
@@ -909,10 +884,11 @@ async function setProfile(profile) {
   if (profile === "conductor") {
     try {
       try {
-        driverAssignment = await apiRequest("/driver/demo/assignment");
+        await refreshDriverAssignments();
       } catch (error) {
         if (error.status !== 404) throw error;
         driverAssignment = null;
+        driverAssignments = [];
       }
       try {
         await refreshDriverShift();
@@ -944,12 +920,19 @@ async function setProfile(profile) {
 async function startDriverShift() {
   // La interfaz solicita iniciar el turno asignado; el backend valida la ruta
   // y decide si el cambio de estado está permitido.
-  if (!driverAssignment) {
+  if (!driverAssignment && !driverAssignments.length) {
     showToast("No hay una asignación disponible para iniciar.", true);
     return;
   }
+  const routeSelect = document.querySelector("#driver-route-select");
+  if (routeSelect) selectedDriverRouteId = Number(routeSelect.value);
+  const routeId = selectedDriverRouteId ?? driverAssignment?.route_id;
+  if (!routeId) {
+    showToast("Selecciona una ruta asignada para iniciar.", true);
+    return;
+  }
   try {
-    await apiRequest(`/driver/shift/start?route_id=${driverAssignment.route_id}`, { method: "POST" });
+    await apiRequest(`/driver/shift/start?route_id=${routeId}`, { method: "POST" });
     await refreshDriverShift();
     renderCurrentView();
     showToast("Turno iniciado.");
@@ -1096,12 +1079,14 @@ async function closeDriverShift(cashCounted) {
     driverState.activeShift = null;
     driverPaymentsSignature = "";
     activeBusQr = null;
-    // El conductor conserva su ruta y vehículo: se vuelve a consultar la asignación para poder iniciar otro turno.
+    // Conserva la asignación para que el conductor pueda iniciar un nuevo turno
+    // sin recargar la página ni depender de un administrador.
     try {
-      driverAssignment = await apiRequest("/driver/demo/assignment");
-    } catch (assignmentError) {
-      if (assignmentError.status !== 404) console.error("No se pudo consultar la asignación:", assignmentError);
+      await refreshDriverAssignments();
+    } catch (error) {
+      if (error.status !== 404) throw error;
       driverAssignment = null;
+      driverAssignments = [];
     }
     renderCurrentView();
     openShiftReceipt(closed);
@@ -1128,7 +1113,7 @@ function openShiftReceipt(shift) {
       <div class="detail-row"><span>Pasajes registrados</span><strong>${shift.payment_count}</strong></div>
       <div class="detail-row"><span>QR / saldo</span><strong>${money(shift.qr_total)}</strong></div>
       <div class="detail-row"><span>Efectivo anotado</span><strong>${money(shift.cash_total)}</strong></div>
-      <div class="detail-row"><span>Tarjeta simulada</span><strong>${money(shift.card_total)}</strong></div>
+      <div class="detail-row"><span>Recaudo con tarjeta</span><strong>${money(shift.card_total)}</strong></div>
       <div class="detail-row"><span>Total recaudado</span><strong>${money(total)}</strong></div>
       <div class="detail-row"><span>Efectivo contado</span><strong>${money(shift.cash_counted)}</strong></div>
       <div class="detail-row"><span>Diferencia de caja</span><strong>${difference ? money(Math.abs(difference)) : "Cuadra"}</strong></div>
@@ -1169,50 +1154,43 @@ function updateInstallButton() {
 }
 
 // Diálogos, avisos y acciones que acompañan el recorrido.
-function openDemoInfo() {
-  modal.classList.add("demo-info-open");
-  modalContent.innerHTML = `<article class="demo-info-container">
-    <header class="demo-info-header">
-      <span class="demo-info-title">${icon("document")}<span id="modal-title">Sobre la plataforma</span></span>
-      <button class="icon-button demo-info-close" type="button" data-action="close-modal" aria-label="Cerrar información">${icon("close")}</button>
+function openPlatformInfo() {
+  const canViewMetrics = authenticatedUser?.roles.includes("ADMIN") ?? false;
+  modal.classList.add("platform-info-open");
+  modalContent.innerHTML = `<article class="platform-info-container">
+    <header class="platform-info-header">
+      <span class="platform-info-title">${icon("document")}<span id="modal-title">Sobre la plataforma</span></span>
+      <button class="icon-button platform-info-close" type="button" data-action="close-modal" aria-label="Cerrar información">${icon("close")}</button>
     </header>
-    <section class="demo-info-body">
-      <span class="demo-info-intro">QrPass está en etapa de prueba.</span>
+    <section class="platform-info-body">
+      <span class="platform-info-intro">QrPass conecta tu billetera con el transporte público de Ibagué.</span>
       <p>Puedes usar las funciones de pasajero y, si tu cuenta tiene permiso, también las de conductor. Si tienes ambos permisos, puedes cambiar de espacio desde la parte superior.</p>
-      <p>Los saldos, pagos, viajes y turnos que ves son de prueba y se guardan en la computadora que ejecuta QrPass.</p>
-      <h3>Qué puedes probar</h3>
-      <ul><li>Como pasajero: escanear el QR del bus, pagar con el saldo de prueba, consultar tus viajes y pedir un cambio de ruta cuando esté permitido.</li><li>Como conductor: iniciar la ruta asignada, mostrar el QR, anotar pagos y terminar el turno contando el efectivo.</li></ul>
-      <h3>Qué no hace esta versión</h3>
-      <ul><li>No se cobra dinero real ni se conecta a bancos o terminales de tarjeta.</li><li>Para pagar con QR se necesita conexión a internet.</li><li>Las rutas, tarifas y reglas son de prueba y no están conectadas con una empresa de transporte.</li></ul>
-      <h3>Acerca de tus datos de prueba</h3>
-      <p>Los movimientos de prueba se guardan en el computador que ejecuta QrPass. No ingreses datos bancarios ni uses estas cuentas fuera de la prueba.</p>
-      <h3>Opciones para administrar la prueba</h3>
-      <p>Estas opciones permiten revisar los datos o restablecer la cuenta de pasajero de prueba.</p>
-      <div style="display:flex; gap:0.5rem; margin-top:0.75rem; flex-wrap:wrap;">
-        <button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver resumen general</button>
-        <button class="button button-outline" type="button" data-action="confirm-reset-demo-data"><svg class="icon"><use href="#icon-arrows"></use></svg> Restablecer cuenta de prueba</button>
-      </div>
-      <div class="demo-info-notice" style="margin-top:1rem;">${icon("shield")}<span>Esta plataforma aún está en pruebas; algunas funciones pueden cambiar.</span></div>
+      <h3>Qué puedes hacer</h3>
+      <ul><li>Como pasajero: escanear el QR del bus, pagar con tu saldo, consultar tus viajes y solicitar un cambio de ruta cuando esté permitido.</li><li>Como conductor: iniciar la ruta asignada, mostrar el QR, anotar pagos y terminar el turno contando el efectivo.</li></ul>
+      <h3>Alcance del servicio</h3>
+      <ul><li>Para pagar con QR se necesita conexión a internet.</li><li>Las rutas, tarifas y reglas se administran desde el catálogo de la plataforma.</li></ul>
+      <h3>Acerca de tus datos</h3>
+      <p>No ingreses datos bancarios ni compartas tu contraseña.</p>
+      ${canViewMetrics ? `<button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver resumen general</button>` : ""}
     </section>
-    <footer class="demo-info-footer"><span>Esta ventana es informativa; cerrarla no representa aceptar términos ni realizar una transacción.</span><button class="button" type="button" data-action="close-modal">Entendido</button></footer>
+    <footer class="platform-info-footer"><span>Ventana informativa. Cerrarla no realiza ninguna transacción.</span><button class="button" type="button" data-action="close-modal">Entendido</button></footer>
   </article>`;
   modal.showModal();
 }
 
 
 async function openGlobalMetrics() {
-  modal.classList.remove("demo-info-open");
+  modal.classList.remove("platform-info-open");
   try {
     const metrics = await apiRequest("/admin/metrics");
     modalContent.innerHTML = `<div class="modal-body">
       <div class="modal-kicker">CONSOLIDADO · GERENCIA DE TRANSPORTE</div>
       <h2 id="modal-title">Métricas Globales de Recaudo</h2>
-      <p>Consolidación de todo el recaudo y operación del transporte urbano de Ibagué.</p>
       <div class="receipt-list">
         <div class="receipt-row"><span>Total recaudado</span><strong>${money(metrics.total_collected)}</strong></div>
         <div class="receipt-row"><span>Recaudo en efectivo</span><span>${money(metrics.cash_collected)}</span></div>
         <div class="receipt-row"><span>Recaudo código QR</span><span>${money(metrics.qr_collected)}</span></div>
-        <div class="receipt-row"><span>Recaudo tarjeta simulada</span><span>${money(metrics.card_collected)}</span></div>
+        <div class="receipt-row"><span>Recaudo con tarjeta</span><span>${money(metrics.card_collected)}</span></div>
         <div class="receipt-row"><span>Total de viajes</span><span>${metrics.total_trips}</span></div>
         <div class="receipt-row"><span>Transbordos ($0 COP)</span><span>${metrics.total_transfers} transbordos</span></div>
         <div class="receipt-row"><span>Turnos activos de bus</span><span>${metrics.active_shifts} en servicio</span></div>
@@ -1229,52 +1207,19 @@ async function openGlobalMetrics() {
   }
 }
 
-async function resetDemoData() {
-  try {
-    const res = await apiRequest("/admin/demo/reset", { method: "POST" });
-    showToast(res.message || "Datos restablecidos.", "success");
-    modal.close();
-    await refreshPassengerData();
-    if (hasProfileRole("conductor")) {
-      try {
-        await refreshDriverShift();
-      } catch (e) {
-        driverState.activeShift = null;
-      }
-      await refreshDriverShiftHistory();
-    }
-    renderCurrentView();
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-function confirmResetDemoData() {
-  modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">OPCIÓN DE PRUEBA</div>
-    <h2 id="modal-title">¿Restablecer la cuenta de prueba?</h2>
-    <p>El saldo del pasajero de prueba volverá a $50.000. Si el turno del conductor está cerrado, se iniciará uno nuevo.</p>
-    <div class="modal-actions">
-      <button class="button button-outline" type="button" data-action="close-modal">Cancelar</button>
-      <button class="button" type="button" data-action="reset-demo-data">Restablecer cuenta</button>
-    </div>
-  </div>`;
-}
-
 function openPrivacyInfo() {
-  modal.classList.remove("demo-info-open");
+  modal.classList.remove("platform-info-open");
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">PRIVACIDAD · PROTOTIPO</div>
+    <div class="modal-kicker">DATOS</div>
     <h2 id="modal-title">Aviso de privacidad</h2>
-    <p>Este aviso explica el uso de datos en el prototipo. No es una política de tratamiento aprobada ni reemplaza la revisión legal antes de una operación real.</p>
+    <p>Este aviso explica cómo QrPass usa los datos de tu cuenta.</p>
     <div class="receipt-list">
       <div class="detail-row"><span>Datos de registro</span><strong>Nombre, correo y contraseña</strong></div>
-      <div class="detail-row"><span>Datos de uso</span><strong>Saldo, pagos y viajes de prueba</strong></div>
-      <div class="detail-row"><span>Para qué se usan</span><strong>Acceso a la cuenta y pruebas de los flujos</strong></div>
-      <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos local</strong></div>
+      <div class="detail-row"><span>Datos de uso</span><strong>Saldo, pagos y viajes</strong></div>
+      <div class="detail-row"><span>Para qué se usan</span><strong>Acceso a la cuenta y operación de los viajes</strong></div>
+      <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos de QrPass</strong></div>
     </div>
-    <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer derechos sobre datos del prototipo, contacta al responsable del proyecto que te dio acceso.</p>
-    <div class="demo-info-notice">${icon("shield")}<span>Antes de usar datos reales se necesita identificar al responsable, definir finalidades y retención, habilitar canales para solicitudes y aprobar el aviso conforme a la normativa aplicable.</span></div>
+    <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer tus derechos sobre los datos, contacta al administrador de la plataforma.</p>
     <div class="modal-actions"><button class="button" type="button" data-action="close-modal">Cerrar aviso</button></div>
   </div>`;
   modal.showModal();
@@ -1282,7 +1227,7 @@ function openPrivacyInfo() {
 
 async function installApp() {
   if (!deferredInstallPrompt) {
-    modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">QRPass EN TU BOLSILLO</div><h2 id="modal-title">Añade QrPass a tu pantalla de inicio</h2><p>Al instalarla podrás abrir la plataforma desde un icono, como una app.</p>
+    modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">INSTALACIÓN</div><h2 id="modal-title">Añade QrPass a tu pantalla de inicio</h2><p>Al instalarla podrás abrir la plataforma desde un icono, como una app.</p>
       <div class="receipt-list"><div class="detail-row"><span>En iPhone o iPad</span><strong>Safari → Compartir → Añadir a pantalla de inicio</strong></div><div class="detail-row"><span>En Android</span><strong>Chrome → ⋮ → Instalar aplicación o Añadir a pantalla de inicio</strong></div></div>
       <div class="validity-row">${icon("shield")}<span>Abre QrPass desde una dirección segura (HTTPS) o desde localhost. Abrir el archivo directamente no permite instalarla ni activar el modo sin conexión.</span></div>
       <div class="modal-actions"><button class="button" data-action="close-modal">Entendido</button></div></div>`;
@@ -1306,22 +1251,20 @@ function showToast(message, isError = false) {
 }
 
 function openReceipt(trip, isTransfer = false) {
-  // El recibo ayuda a entender qué acaba de pasar, pero siempre deja claro
-  // que este prototipo no es un comprobante financiero oficial.
+  // El recibo resume el movimiento confirmado por el servidor.
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="receipt-mark">${icon("check")}</div><div class="modal-kicker">${isTransfer ? "TRASPASO REGISTRADO" : "MOVIMIENTO REGISTRADO"}</div>
-    <h2 id="modal-title">${isTransfer ? "Tu pago fue transferido" : trip.movementType === "top_up" ? "Recarga registrada" : "&iexcl;Listo para seguir!"}</h2>
-    <p>Movimiento registrado por la API. No representa dinero real ni sustituye un comprobante oficial.</p>
+    <div class="receipt-mark">${icon("check")}</div><div class="modal-kicker">COMPROBANTE</div>
+    <h2 id="modal-title">${isTransfer ? "Tu pago fue transferido" : trip.movementType === "top_up" ? "Recarga registrada" : "Pago registrado"}</h2>
     <div class="receipt-list">
       <div class="detail-row"><span>Ruta</span><strong>${escapeHtml(trip.route)}</strong></div>
       <div class="detail-row"><span>Método</span><strong>${escapeHtml(trip.method)}</strong></div>
-      <div class="detail-row"><span>Valor simulado</span><strong>${trip.amount ? money(trip.amount) : "Sin costo adicional"}</strong></div>
+      <div class="detail-row"><span>Valor</span><strong>${trip.amount ? money(trip.amount) : "Sin costo adicional"}</strong></div>
       <div class="detail-row"><span>Referencia</span><strong>${escapeHtml(trip.code)}</strong></div>
       <div class="detail-row"><span>Fecha y hora</span><strong>${escapeHtml(formatDate(new Date(trip.createdAt)))} · ${escapeHtml(formatTime(new Date(trip.createdAt)))}</strong></div>
     </div>
     <div class="modal-actions"><button class="button" data-action="close-modal">Entendido</button></div>
   </div>`;
-  modal.showModal();
+  if (!modal.open) modal.showModal();
 }
 
 function openMovementDetails(movementId) {
@@ -1389,8 +1332,7 @@ function openPayment(method = "saldo") {
     { value: "tarjeta", label: "Tarjeta", detail: "Débito o crédito", icon: "card" },
   ];
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">PAGO DE plataforma</div><h2 id="modal-title">Registra tu viaje</h2>
-    <p>Elige la ruta y el método de pago para guardar un movimiento de prueba.</p>
+    <div class="modal-kicker">PAGO DE PASAJE</div><h2 id="modal-title">Registra tu viaje</h2>
     <form id="payment-form" data-idempotency-key="${createIdempotencyKey()}">
       <div class="payment-route-row" id="payment-route-row">
         <div class="form-field"><label for="payment-route">Ruta que vas a abordar</label><select class="select" id="payment-route" name="route" required><option value="" disabled selected>Selecciona una ruta</option>${routeOptions()}</select></div>
@@ -1469,15 +1411,26 @@ function openTransfer() {
     modal.showModal();
     return;
   }
-  modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTAÓN</div><h2 id="modal-title">Transfiere tu pago</h2><p>Si abordaste el bus equivocado, indica la ruta correcta dentro de los 20 minutos. El pago original no se vuelve a cobrar.</p>
+  modalContent.innerHTML = `<div class="modal-body"><div class="modal-kicker">CAMBIO DE RUTA</div><h2 id="modal-title">Transfiere tu pago</h2><p>Si abordaste el bus equivocado, indica la ruta correcta dentro de los 20 minutos. El pago original no se vuelve a cobrar.</p>
     <form id="transfer-form" data-trip-id="${latestPaidTrip.tripId}">
       <div class="validity-row">${icon("arrows")}<span>Pago ${escapeHtml(latestPaidTrip.code)} · Ruta ${escapeHtml(latestPaidTrip.route)} · ${money(latestPaidTrip.amount)}</span></div>
       <div class="form-field section-gap"><label for="transfer-route">Ruta correcta</label><select class="select" id="transfer-route" name="route" required><option value="" disabled selected>Selecciona otra ruta</option>${routeOptions(latestPaidTrip.route)}</select></div>
-      <div class="modal-total"><span>Costo adicional simulado</span><strong>${money(0)}</strong></div>
+      <div class="modal-total"><span>Costo adicional</span><strong>${money(0)}</strong></div>
       <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Confirmar traspaso</button></div>
     </form>
   </div>`;
   modal.showModal();
+}
+
+function openQuickTopUp() {
+  const amounts = [10000, 20000, 50000, 100000];
+  modalContent.innerHTML = `<div class="modal-body">
+    <div class="modal-kicker">BILLETERA</div><h2 id="modal-title">Recarga tu saldo</h2>
+    <p>Se abona de inmediato a tu saldo.</p>
+    <div class="amount-grid">${amounts.map((amount) => `<button class="amount-option" data-action="top-up" data-amount="${amount}"><strong>${money(amount)}</strong></button>`).join("")}</div>
+    <div class="modal-actions"><button class="button button-outline" type="button" data-action="view-recarga">Escribir otro monto</button><button class="button button-outline" type="button" data-action="close-modal">Cerrar</button></div>
+  </div>`;
+  if (!modal.open) modal.showModal();
 }
 
 async function topUp(amount, trigger) {
@@ -1489,7 +1442,7 @@ async function topUp(amount, trigger) {
   const idempotencyKey = trigger?.dataset.idempotencyKey ?? createIdempotencyKey();
   if (trigger) trigger.dataset.idempotencyKey = idempotencyKey;
   try {
-    const receipt = await apiRequest("/demo/account/top-ups", {
+    const receipt = await apiRequest("/account/top-ups", {
       method: "POST",
       body: JSON.stringify({ amount, idempotency_key: idempotencyKey }),
     });
@@ -1532,12 +1485,19 @@ document.addEventListener("click", async (event) => {
 
   const { action, method, amount } = target.dataset;
   if (action === "payment") openPayment(method || "saldo");
+  if (action === "pay-qr") {
+    navigateTo("qr");
+    startQrCamera("passenger-qr-form", "passenger-qr-token", "passenger-qr-video");
+  }
+  if (action === "quick-top-up") openQuickTopUp();
+  if (action === "view-recarga") {
+    modal.close();
+    navigateTo("recarga");
+  }
   if (action === "transfer") openTransfer();
-  if (action === "demo-info") openDemoInfo();
+  if (action === "platform-info") openPlatformInfo();
   if (action === "privacy-info") openPrivacyInfo();
   if (action === "view-global-metrics") openGlobalMetrics();
-  if (action === "confirm-reset-demo-data") confirmResetDemoData();
-  if (action === "reset-demo-data") resetDemoData();
   if (action === "logout") logout();
   if (action === "start-driver-shift") startDriverShift();
   if (action === "refresh-bus-qr") {
@@ -1605,8 +1565,7 @@ document.addEventListener("click", async (event) => {
 
 function openDriverCardPayment() {
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">PAGO CON TARJETA · PRUEBA</div><h2 id="modal-title">Anota el pago con tarjeta</h2>
-    <p>El pago quedará registrado en el turno, pero no se realizará ningún cobro.</p>
+    <div class="modal-kicker">TARJETA</div><h2 id="modal-title">Anota el pago con tarjeta</h2>
     <form id="driver-card-payment-form" data-idempotency-key="${createIdempotencyKey()}">
       <div class="form-field"><label for="driver-card-type">Tipo de tarjeta</label><select class="select" id="driver-card-type" name="cardType" required><option value="" disabled selected>Selecciona una opción</option><option value="debit">Débito</option><option value="credit">Crédito</option></select></div>
       <div class="modal-actions"><button class="button button-outline" type="button" data-action="close-modal">Cancelar</button><button class="button" type="submit">Guardar registro</button></div>
@@ -1630,7 +1589,7 @@ document.addEventListener("submit", async (event) => {
     submit.disabled = true;
     try {
       // La clave se conserva durante el envío para impedir cobros duplicados.
-      const result = await apiRequest("/demo/account/qr/validate", {
+      const result = await apiRequest("/account/qr/validate", {
         method: "POST",
         body: JSON.stringify({
           token: new FormData(form).get("token"),
@@ -1699,7 +1658,7 @@ document.addEventListener("submit", async (event) => {
     try {
       // Si hay un corte justo después de confirmar, el mismo formulario guarda
       // la misma clave para que el reintento no cree un segundo movimiento.
-      const receipt = await apiRequest("/demo/account/payments", {
+      const receipt = await apiRequest("/account/payments", {
         method: "POST",
         body: JSON.stringify({
           route_id: routeId,
@@ -1742,7 +1701,7 @@ document.addEventListener("submit", async (event) => {
       return;
     }
     try {
-      const transfer = await apiRequest("/demo/account/transfers", {
+      const transfer = await apiRequest("/account/transfers", {
         method: "POST",
         body: JSON.stringify({ trip_id: source.tripId, destination_route_id: destinationRouteId }),
       });
@@ -1811,7 +1770,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 modal.addEventListener("close", () => {
-  modal.classList.remove("demo-info-open");
+  modal.classList.remove("platform-info-open");
   stopQrCamera();
 });
 

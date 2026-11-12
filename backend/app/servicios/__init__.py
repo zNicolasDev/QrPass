@@ -11,4 +11,5 @@ from app.servicios.viajes import *  # noqa: F401,F403
 from app.servicios.transbordos import *  # noqa: F401,F403
 from app.servicios.turnos import *  # noqa: F401,F403
 from app.servicios.turnos import _resumir_turno  # noqa: F401
+from app.servicios.catalogo import *  # noqa: F401,F403
 from app.servicios.administracion import *  # noqa: F401,F403

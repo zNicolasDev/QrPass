@@ -1,4 +1,4 @@
-const CACHE_NAME = "qrpass-demo-shell-v33";
+const CACHE_NAME = "qrpass-shell-v38";
 const APP_FILES = [
   "./index.html",
   "./index.css",
@@ -39,7 +39,7 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((cacheNames) => Promise.all(
         cacheNames
-          .filter((cacheName) => cacheName.startsWith("qrpass-demo-shell-") && cacheName !== CACHE_NAME)
+          .filter((cacheName) => cacheName.startsWith("qrpass-") && cacheName !== CACHE_NAME)
           .map((cacheName) => caches.delete(cacheName)),
       ))
       .then(() => self.clients.claim()),

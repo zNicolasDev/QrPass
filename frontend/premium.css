@@ -1,6 +1,7 @@
-/* QrPass Premium Theme — capa visual elevada.
-   Se carga después de styles.css y solo sobreescribe apariencia.
-   La lógica de la app (app.js) no se modifica. */
+/* QrPass — capa de acabado.
+   Se carga después de styles.css y solo ajusta apariencia.
+   Reglas: superficies planas, bordes finos, sombras discretas y
+   movimiento sobrio. Nada de degradados, brillos ni desenfoques. */
 
 :root {
   --ink: #0a1f1f;
@@ -20,86 +21,124 @@
   --red: #b04a3e;
   --red-pale: #fdecea;
   --shadow-xs: 0 1px 2px rgb(12 30 24 / 4%);
-  --shadow-sm: 0 4px 12px rgb(12 30 24 / 6%), 0 1px 3px rgb(12 30 24 / 4%);
-  --shadow-md: 0 12px 32px rgb(12 30 24 / 8%), 0 4px 10px rgb(12 30 24 / 5%);
-  --shadow-lg: 0 24px 60px rgb(12 30 24 / 12%), 0 8px 20px rgb(12 30 24 / 6%);
-  --shadow-glow: 0 0 0 1px rgb(184 242 106 / 18%), 0 12px 40px rgb(184 242 106 / 12%);
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
-  --radius-xl: 28px;
+  --shadow-sm: 0 1px 3px rgb(12 30 24 / 6%);
+  --shadow-md: 0 4px 14px rgb(12 30 24 / 7%);
+  --shadow-lg: 0 8px 24px rgb(12 30 24 / 8%);
+  --shadow-glow: none;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
   font-family: "DM Sans", "Inter", system-ui, sans-serif;
 }
 
 body {
-  background:
-    radial-gradient(1200px 600px at 80% -10%, rgb(184 242 106 / 12%), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, rgb(31 107 96 / 8%), transparent 55%),
-    var(--canvas);
+  background: var(--canvas);
 }
 
-/* ---------- Sidebar ---------- */
-.sidebar {
-  background:
-    linear-gradient(180deg, #0b1f1f 0%, #0f2a29 100%);
-  box-shadow: 4px 0 24px rgb(11 31 31 / 18%);
-  padding: 32px 18px 20px;
-}
-
-.brand-mark {
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--mint), var(--mint-deep));
-  box-shadow: 0 6px 16px rgb(184 242 106 / 25%);
-}
-
-.brand-name {
-  letter-spacing: -1.3px;
-}
-
-.nav-link {
-  border-radius: 12px;
-  transition: background .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease;
-}
-
-.nav-link:hover {
-  background: rgb(255 255 255 / 8%);
-  transform: translateX(2px);
-}
-
-.nav-link.is-active {
-  background: linear-gradient(135deg, rgb(184 242 106 / 16%), rgb(184 242 106 / 8%));
-  color: #fff;
-  box-shadow: inset 0 0 0 1px rgb(184 242 106 / 25%);
-}
-
-.nav-link.is-active .icon {
-  color: var(--mint);
-}
-
-.help-card {
+/* ---------- Superficies ---------- */
+.surface,
+.stat-card,
+.driver-capture-card,
+.driver-close-card {
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 5%);
-  border: 1px solid rgb(255 255 255 / 10%);
-  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-xs);
 }
 
-.profile {
-  border-top: 1px solid rgb(255 255 255 / 12%);
+.surface-header h2 {
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
-.avatar {
-  border: 1px solid rgb(255 255 255 / 30%);
-  background: linear-gradient(135deg, #e8f2ed, #d6e6df);
+/* ---------- Botones ---------- */
+.button {
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: background-color .15s ease, border-color .15s ease;
 }
 
-/* ---------- Topbar ---------- */
+.button-mint {
+  background: var(--mint);
+  color: var(--forest);
+  box-shadow: none;
+}
+
+.button-mint:hover {
+  background: var(--mint-deep);
+}
+
+.button-outline {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.button-outline:hover {
+  border-color: var(--teal);
+  background: #f6faf7;
+}
+
+/* ---------- Foco y números ---------- */
+/* Foco visible nítido en todos los controles interactivos. */
+.button:focus-visible,
+.quick-action:focus-visible,
+.amount-option:focus-visible,
+.nav-link:focus-visible,
+.mobile-tab:focus-visible,
+.icon-button:focus-visible,
+.text-link:focus-visible,
+.footer-info-link:focus-visible,
+.profile-switcher button:focus-visible {
+  outline: 3px solid rgb(39 121 109 / 30%);
+  outline-offset: 2px;
+}
+
+/* Cifras tabulares para montos y contadores. */
+.stat-value,
+.amount-option strong,
+.modal-total strong,
+.driver-totals article strong,
+.receipt-list strong,
+.history-summary strong {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+/* Entrada de pantalla: 180 ms, un solo desplazamiento de 4 px.
+   Sin bucles, sin parallax y sin animar fondos completos. */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-content > * {
+  animation: view-enter .18s ease-out both;
+}
+
+/* Respuesta al toque: cambio de luminosidad, sin levantar la pieza. */
+.button:active,
+.quick-action:active,
+.amount-option:active,
+.nav-link:active,
+.mobile-tab:active,
+.icon-button:active {
+  transform: none;
+  filter: brightness(.97);
+}
+
+/* ---------- Cabecera ---------- */
 .topbar {
-  height: 72px;
+  height: 68px;
   padding: 0 40px;
-  border-bottom: 1px solid rgb(226 234 228 / 80%);
-  background: rgb(255 255 255 / 72%);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
 }
 
 .breadcrumb strong {
@@ -107,156 +146,46 @@ body {
 }
 
 .service-status {
-  padding: 6px 12px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgb(31 107 96 / 8%);
+  background: var(--paper);
 }
 
-.service-status > span:first-child {
-  box-shadow: 0 0 0 3px rgb(99 180 118 / 18%);
-}
-
-/* ---------- Buttons ---------- */
-.button {
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  letter-spacing: .15px;
-  transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, background .2s ease, filter .2s ease;
-}
-
-.button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgb(11 31 31 / 18%);
-}
-
-.button:active {
-  transform: translateY(0);
-}
-
-.button-mint {
-  background: linear-gradient(135deg, var(--mint), var(--mint-deep));
-  color: var(--forest);
-  box-shadow: 0 6px 18px rgb(184 242 106 / 30%);
-}
-
-.button-mint:hover {
-  box-shadow: 0 10px 24px rgb(184 242 106 / 40%);
-}
-
-.button-outline {
-  border: 1px solid #dde6e0;
-  border-radius: var(--radius-sm);
-  transition: background .2s ease, border-color .2s ease, transform .2s ease;
-}
-
-.button-outline:hover {
-  border-color: var(--teal);
-  background: #f6faf7;
-  transform: translateY(-1px);
-  box-shadow: none;
-}
-
-/* ---------- Surfaces & cards ---------- */
-.surface, .stat-card, .fare-card, .driver-capture-card, .driver-close-card {
-  border: 1px solid rgb(226 234 228 / 90%);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow .25s ease, transform .25s ease, border-color .25s ease;
-}
-
-.surface:hover, .stat-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-.surface-header h2 {
-  font-weight: 700;
-  letter-spacing: -.3px;
-}
-
-/* ---------- Welcome banner ---------- */
-.welcome-banner {
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  background:
-    radial-gradient(ellipse 50% 60% at 85% 100%, rgb(184 242 106 / 22%), transparent 50%),
-    linear-gradient(115deg, #0b1f1f 8%, #153533 60%, #1e4a40 100%);
-}
-
-.welcome-copy h2 {
-  font-weight: 700;
-  letter-spacing: -1px;
-}
-
-/* ---------- Stat cards ---------- */
-.stat-card {
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
-}
-
-.stat-card::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background: linear-gradient(90deg, var(--teal), var(--mint));
-  opacity: 0;
-  transition: opacity .25s ease;
-}
-
-.stat-card:hover::before {
-  opacity: 1;
-}
-
-.stat-value {
-  font-weight: 800;
-  letter-spacing: -1px;
-}
-
-.stat-icon {
-  border-radius: 12px;
-}
-
-/* ---------- Page content spacing ---------- */
-.page-content {
-  padding: 36px 44px 32px;
-}
-
-.page-heading h1 {
-  font-weight: 800;
-  letter-spacing: -1.3px;
-}
-
-/* ---------- Demo banner ---------- */
-.demo-banner {
-  background: linear-gradient(90deg, #f0f7f0, #f6faf6);
-  border-bottom: 1px solid #e2ece4;
-}
-
-/* ---------- Inputs globally ---------- */
+/* ---------- Entradas ---------- */
 .input {
   border-radius: var(--radius-sm);
-  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 
 .input:focus {
   border-color: var(--teal);
-  box-shadow: 0 0 0 4px rgb(31 107 96 / 12%);
+  box-shadow: 0 0 0 3px rgb(31 107 96 / 12%);
 }
 
-/* ---------- Modal ---------- */
+/* ---------- Diálogos ---------- */
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .modal {
-  border: none;
+  border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: 0;
   overflow: hidden;
 }
 
-/* ---------- Toast ---------- */
-.toast-region {
-  filter: drop-shadow(0 8px 24px rgb(12 30 24 / 12%));
+.modal[open] {
+  animation: modal-enter .16s ease-out both;
 }
 
 /* ---------- Scrollbar ---------- */
@@ -270,18 +199,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(12 30 24 / 12%);
+  background: rgb(12 30 24 / 16%);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(12 30 24 / 22%);
+  background: rgb(12 30 24 / 28%);
   background-clip: content-box;
 }
 
-/* ---------- High contrast / colorimetry ---------- */
+/* ---------- Contraste alto ---------- */
 @media (prefers-contrast: high) {
   :root {
     --ink: #000;
@@ -296,12 +225,12 @@ body {
   .button { border: 2px solid #000; }
 }
 
-/* Mejor legibilidad de texto secundario a distancia */
+/* Texto secundario legible */
 .eyebrow, .stat-label, .stat-note, .breadcrumb, .topbar-date, .page-heading p {
   color: var(--ink-soft);
 }
 
-/* ---------- Reduced motion ---------- */
+/* ---------- Movimiento reducido ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -309,7 +238,7 @@ body {
   }
 }
 
-/* ---------- Mobile tweaks ---------- */
+/* ---------- Móvil ---------- */
 @media (max-width: 768px) {
   .topbar { padding: 0 20px; }
   .page-content { padding: 24px 20px 20px; }

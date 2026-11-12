@@ -17,7 +17,7 @@ class CrearTransbordoSolicitud(EsquemaBase):
 
 # Resultado del cambio de ruta asociado al viaje.
 class TransbordoRespuesta(EsquemaBase):
-    # Confirma el origen/destino y el posible cobro adicional (cero en el demo).
+    # Confirma el origen/destino y el posible cobro adicional (cero en el transbordo).
     # Resume el movimiento y deja visibles ambas rutas para la interfaz.
     transbordo_id: int = Field(validation_alias="transfer_id", serialization_alias="transfer_id")
     viaje_origen_id: int = Field(validation_alias="origin_trip_id", serialization_alias="origin_trip_id")
@@ -27,4 +27,3 @@ class TransbordoRespuesta(EsquemaBase):
     cobro_adicional: int = Field(default=0, validation_alias="additional_charge", serialization_alias="additional_charge")
     moneda: str = Field(default="COP", validation_alias="currency", serialization_alias="currency")
     creado_en: datetime = Field(validation_alias="created_at", serialization_alias="created_at")
-    modo: str = Field(default="demo", validation_alias="mode", serialization_alias="mode")

@@ -25,7 +25,7 @@ Se implementaron handlers globales para validación (422), dominio (409/401/etc.
 
 ## 10.6 Flujo de integración (según evidencia PNG)
 
-El prototipo cumple el flujo exigido para la evidencia final de integración:
+La plataforma cumple el flujo exigido para la evidencia final de integración:
 
 1. La interfaz captura una acción del usuario (formularios de login, registro, pago, recarga, QR, traspaso, turno).
 2. JavaScript envía la solicitud al endpoint correcto mediante `fetch` (`apiRequest` en `frontend/app.js`).

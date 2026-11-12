@@ -5,10 +5,74 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.dtos import MedioPago
-from app.models import Usuario, Turno, Pago, Viaje, Ruta, Tarifa, Conductor
+from app.models import Usuario, Turno, Pago, Viaje, Ruta, Tarifa, Conductor, EmpresaTransporte, Vehiculo
 from app.servicios.comun import ErrorDominio, ahora_servicio, ResumenTurnoConductor, ResumenMovimientoTurno
-from app.servicios.rutas_tarifas import _obtener_tarifa_ruta
+from app.servicios.rutas_tarifas import _obtener_tarifa_ruta, _obtener_ruta_activa
 
+
+def obtener_asignaciones_conductor(session: Session, driver: Usuario) -> list[Turno]:
+    return list(
+        session.scalars(
+            select(Turno)
+            .options(joinedload(Turno.ruta), joinedload(Turno.vehiculo))
+            .where(
+                Turno.conductor_id == driver.id,
+                Turno.finaliza_en.is_(None),
+                Turno.estado.in_(("assigned", "active")),
+            )
+            .order_by(Turno.inicia_en.desc(), Turno.id.desc())
+        )
+    )
+
+
+def _asegurar_asignacion_ruta(session: Session, driver: Usuario, route_id: int) -> Turno | None:
+    """Garantiza una asignación para la ruta indicada.
+
+    Si ya existe una asignación para esa ruta, la devuelve. Si no, la recrea
+    a partir del último turno cerrado de esa misma ruta, para que el conductor
+    pueda volver a iniciar sin depender de un administrador.
+    """
+    shift = session.scalar(
+        select(Turno)
+        .options(joinedload(Turno.ruta), joinedload(Turno.vehiculo))
+        .where(
+            Turno.conductor_id == driver.id,
+            Turno.ruta_id == route_id,
+            Turno.finaliza_en.is_(None),
+            Turno.estado.in_(("assigned", "active")),
+        )
+        .order_by(Turno.inicia_en.desc(), Turno.id.desc())
+    )
+    if shift is not None:
+        return shift
+    last_closed = session.scalar(
+        select(Turno).where(
+            Turno.conductor_id == driver.id,
+            Turno.ruta_id == route_id,
+            Turno.estado == "closed",
+        ).order_by(Turno.finaliza_en.desc(), Turno.id.desc())
+    )
+    if last_closed is None:
+        return None
+    session.add(Turno(
+        conductor_id=driver.id,
+        vehiculo_id=last_closed.vehiculo_id,
+        ruta_id=route_id,
+        inicia_en=ahora_servicio(),
+        estado="assigned",
+    ))
+    session.commit()
+    return session.scalar(
+        select(Turno)
+        .options(joinedload(Turno.ruta), joinedload(Turno.vehiculo))
+        .where(
+            Turno.conductor_id == driver.id,
+            Turno.ruta_id == route_id,
+            Turno.finaliza_en.is_(None),
+            Turno.estado.in_(("assigned", "active")),
+        )
+        .order_by(Turno.inicia_en.desc(), Turno.id.desc())
+    )
 
 def obtener_turno_activo_conductor(session: Session, driver: Usuario) -> Turno | None:
     return session.scalar(
@@ -60,6 +124,56 @@ def _asegurar_asignacion_conductor(session: Session, driver: Usuario) -> Turno |
     return obtener_asignacion_conductor(session, driver)
 
 
+def asignar_turno_conductor(
+    session: Session,
+    driver: Usuario,
+    route_id: int,
+    plate: str,
+    company_name: str = "QrPass",
+) -> Turno:
+    # Provisionamiento operativo: deja al conductor con un turno asignado que
+    # todavía no está activo. La ruta debe existir en el catálogo importado.
+    if session.get(Conductor, driver.id) is None:
+        raise ErrorDominio(409, "La cuenta no tiene perfil de conductor.")
+    route = _obtener_ruta_activa(session, route_id)
+
+    company = session.scalar(select(EmpresaTransporte).where(EmpresaTransporte.nombre == company_name))
+    if company is None:
+        company = EmpresaTransporte(nombre=company_name)
+        session.add(company)
+        session.flush()
+
+    normalized_plate = plate.strip().upper()
+    vehicle = session.scalar(select(Vehiculo).where(Vehiculo.placa == normalized_plate))
+    if vehicle is None:
+        vehicle = Vehiculo(empresa_id=company.id, placa=normalized_plate)
+        session.add(vehicle)
+        session.flush()
+
+    existing = session.scalar(
+        select(Turno).where(
+            Turno.conductor_id == driver.id,
+            Turno.ruta_id == route.id,
+            Turno.finaliza_en.is_(None),
+            Turno.estado.in_(("assigned", "active")),
+        )
+    )
+    if existing is not None:
+        return existing
+
+    shift = Turno(
+        conductor_id=driver.id,
+        vehiculo_id=vehicle.id,
+        ruta_id=route.id,
+        inicia_en=ahora_servicio(),
+        estado="assigned",
+    )
+    session.add(shift)
+    session.commit()
+    session.refresh(shift)
+    return shift
+
+
 def iniciar_turno_conductor(session: Session, driver: Usuario, route_id: int) -> ResumenTurnoConductor:
     shift = obtener_turno_activo_conductor(session, driver)
     if shift is not None:
@@ -70,9 +184,9 @@ def iniciar_turno_conductor(session: Session, driver: Usuario, route_id: int) ->
             raise ErrorDominio(409, "No se pudo consultar el turno activo.")
         return summary
 
-    shift = _asegurar_asignacion_conductor(session, driver)
+    shift = _asegurar_asignacion_ruta(session, driver, route_id)
     if shift is None:
-        raise ErrorDominio(409, "No hay una asignación para iniciar.")
+        raise ErrorDominio(409, "No hay una asignación para esa ruta.")
     if shift.ruta_id != route_id:
         raise ErrorDominio(403, "Solo puedes iniciar la ruta asignada.")
 
@@ -122,7 +236,7 @@ def registrar_pago_conductor(
         monto=fare.monto,
         saldo_anterior=balance,
         saldo_posterior=balance,
-        estado="completed_demo",
+        estado="completed",
         creado_en=now,
     )
     session.add(payment)
@@ -214,4 +328,10 @@ def cerrar_turno_conductor(session: Session, driver: Usuario, cash_counted: int)
     session.refresh(shift)
     # El conductor conserva su ruta y vehículo para poder iniciar un nuevo turno.
     _asegurar_asignacion_conductor(session, driver)
+    # Prepara la siguiente asignación para que el conductor pueda iniciar
+    # un nuevo turno sin depender de la CLI ni de un administrador.
+    try:
+        asignar_turno_conductor(session, driver, shift.ruta_id, shift.vehiculo.placa)
+    except Exception:
+        pass
     return summary

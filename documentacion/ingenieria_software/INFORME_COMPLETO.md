@@ -40,17 +40,20 @@
 - Tabla 7. Cronograma del proyecto.
 - Tabla 8. Casos de prueba ejecutados.
 - Tabla 9. Colección de endpoints principales.
-- Tabla 10. Cuentas de demostración.
+- Tabla 10. Cuentas y aprovisionamiento.
 
 ---
 
 ## Lista de figuras
 
-- Figura 1. Arquitectura de componentes de QrPass.
-- Figura 2. Flujo de pago mediante código QR del bus.
-- Figura 3. Modelo entidad-relación del dominio.
-- Figura 4. Secuencia de pago manual en efectivo o tarjeta.
-- Figura 5. Secuencia de generación y validación de QR.
+- Figura 1. Casos de uso principales de QrPass.
+- Figura 2. Arquitectura de componentes de QrPass.
+- Figura 3. Modelo de dominio y relaciones persistentes.
+- Figura 4. Secuencia de pago manual.
+- Figura 5. Secuencia de generación y pago mediante QR.
+- Figura 6. Actividad de pago de abordaje con QR.
+- Figura 7. Secuencia de transbordo.
+- Figura 8. Actividad de validación del transbordo.
 
 ---
 
@@ -62,22 +65,22 @@
 
 ## 2.1 Descripción breve del proyecto
 
-QrPass es un prototipo funcional de plataforma de pago y recaudo digital para el transporte público de Ibagué. El sistema permite que un pasajero consulte rutas y tarifas, gestione una billetera virtual, realice pagos mediante el escaneo del código QR que muestra el bus y consulte su historial de viajes. De forma paralela, el conductor inicia un turno, genera un QR temporal firmado, registra pagos manuales y cierra el turno con conciliación de efectivo (Hernández & Pressman, 2021; Sommerville, 2016).
+QrPass es una plataforma funcional de pago y recaudo digital para el transporte público de Ibagué. El sistema permite que un pasajero consulte rutas y tarifas, gestione una billetera virtual, realice pagos mediante el escaneo del código QR que muestra el bus y consulte su historial de viajes. De forma paralela, el conductor inicia un turno, genera un QR temporal firmado, registra pagos manuales y cierra el turno con conciliación de efectivo (Hernández & Pressman, 2021; Sommerville, 2016).
 
-La solución se compone de una interfaz web adaptable y progresiva (PWA) y de una API REST construida con FastAPI, SQLAlchemy 2 y Pydantic. Los datos se persisten en SQLite durante el desarrollo y la demostración. Todas las operaciones son de demostración: no se procesa dinero real ni se integran pasarelas bancarias.
+La solución se compone de una interfaz web adaptable y progresiva (PWA) y de una API REST construida con FastAPI, SQLAlchemy 2 y Pydantic. Los datos se persisten en SQLite. Las operaciones utilizan la billetera interna de QrPass: no se procesa dinero real ni se integran pasarelas bancarias.
 
 ## 2.2 Objetivo general
 
-Desarrollar un prototipo de sistema de recaudo digital basado en códigos QR firmados que permita validar el flujo completo de pago, traspaso y conciliación de turnos en el transporte público de Ibagué, con trazabilidad de requisitos y evidencia de pruebas automatizadas.
+Desarrollar una plataforma de recaudo digital basada en códigos QR firmados que permita validar el flujo completo de pago, traspaso y conciliación de turnos en el transporte público de Ibagué, con trazabilidad de requisitos y evidencia de pruebas automatizadas.
 
 ## 2.3 Alcance
 
-**Dentro del alcance (demostración):**
+**Dentro del alcance:**
 
 - Registro y autenticación de pasajeros y conductores con roles.
-- Billetera virtual, recargas ficticias e idempotentes y consulta de saldo.
+- Billetera virtual, recargas idempotentes y consulta de saldo.
 - Pago de pasaje mediante escaneo del QR del bus (firma HMAC, vigencia y asociación al turno).
-- Pago manual simulado en efectivo o tarjeta.
+- Pago manual en efectivo o tarjeta.
 - Traspaso único a otra ruta dentro de 20 minutos.
 - Tarifa dinámica por ruta, día hábil, fin de semana y festivo colombiano.
 - Historial de viajes y movimientos.
@@ -94,7 +97,7 @@ Desarrollar un prototipo de sistema de recaudo digital basado en códigos QR fir
 
 ## 2.4 Público objetivo
 
-El sistema se orienta a tres actores: pasajeros (usuarios finales del servicio), conductores (operadores del bus) y personal técnico/administrativo encargado de la operación y el soporte. La documentación y las cuentas de demostración permiten que jurados, docentes y nuevos desarrolladores comprendan y validen el prototipo sin conocimiento previo del dominio.
+El sistema se orienta a tres actores: pasajeros (usuarios finales del servicio), conductores (operadores del bus) y personal técnico/administrativo encargado de la operación y el soporte. La documentación y las cuentas de acceso permiten que jurados, docentes y nuevos desarrolladores comprendan y validan la plataforma sin conocimiento previo del dominio.
 
 ## Referencias
 
@@ -136,7 +139,7 @@ QrPass demuestra, de extremo a extremo, el flujo de recaudo digital: desde la ca
 
 ## 4.1 Objetivo general
 
-Diseñar e implementar un prototipo de plataforma de recaudo digital con códigos QR firmados para el transporte público de Ibagué, que permita validar flujos de pago, traspaso y conciliación de turnos con trazabilidad de requisitos y pruebas automatizadas.
+Diseñar e implementar una plataforma de recaudo digital con códigos QR firmados para el transporte público de Ibagué, que permita validar flujos de pago, traspaso y conciliación de turnos con trazabilidad de requisitos y pruebas automatizadas.
 
 ## 4.2 Objetivos específicos
 
@@ -165,11 +168,11 @@ Diseñar e implementar un prototipo de plataforma de recaudo digital con código
 |---|---|---|
 | RF-01 | Registro y autenticación de pasajero | `POST /api/v1/auth/register`, `POST /api/v1/auth/login` |
 | RF-02 | Consulta de identidad y roles | `GET /api/v1/auth/me` |
-| RF-03 | Billetera y saldo | `GET /api/v1/demo/account` |
-| RF-04 | Recarga ficticia e idempotente | `POST /api/v1/demo/account/top-ups` |
-| RF-05 | Pago manual (efectivo/tarjeta) | `POST /api/v1/demo/account/payments` |
-| RF-06 | Pago mediante QR del bus | `POST /api/v1/demo/account/qr/validate` |
-| RF-07 | Traspaso a otra ruta (≤ 20 min) | `POST /api/v1/demo/account/transfers` |
+| RF-03 | Billetera y saldo | `GET /api/v1/account` |
+| RF-04 | Recarga idempotente | `POST /api/v1/account/top-ups` |
+| RF-05 | Pago manual (efectivo/tarjeta) | `POST /api/v1/account/payments` |
+| RF-06 | Pago mediante QR del bus | `POST /api/v1/account/qr/validate` |
+| RF-07 | Traspaso a otra ruta (≤ 20 min) | `POST /api/v1/account/transfers` |
 | RF-08 | Historial de viajes y movimientos | `GET /api/v1/trips`, `GET /api/v1/payments/history` |
 | RF-09 | Tarifa vigente por ruta y día | `GET /api/v1/fares/current` |
 | RF-10 | Gestión de turno del conductor | `POST /api/v1/driver/shift/start`, `GET /api/v1/driver/shift` |
@@ -236,11 +239,46 @@ Diseñar e implementar un prototipo de plataforma de recaudo digital con código
 | Pasajero | Usuario final del servicio | Consultar rutas, recargar, pagar, transferir, historial |
 | Conductor | Operador del bus | Iniciar/cerrar turno, generar QR, registrar pagos |
 | Sistema QrPass | Backend | Validar, persistir, responder |
-| Jurado/Docente | Evaluador | Consultar documentación y demo |
+| Jurado/Docente | Evaluador | Consultar documentación y funcionalidades |
 
 ## 6.2 Diagramas de casos de uso
 
-Los casos de uso se agrupan en: autenticación, billetera, pagos, traspasos, turnos y consulta. El diagrama UML se incluye en `documentacion/arquitectura.md`.
+Los casos de uso principales se agrupan en autenticación, billetera, pagos, transbordos, turnos e historial. La Figura 2 sintetiza las acciones disponibles para pasajeros y conductores en la API implementada.
+
+**Figura 1. Casos de uso principales de QrPass.**
+
+```mermaid
+flowchart LR
+    pasajero[/"Pasajero"/]
+    conductor[/"Conductor"/]
+    subgraph sistema["Sistema QrPass"]
+        login(("Registrarse / iniciar sesión"))
+        saldo(("Consultar saldo y tarifas"))
+        recargar(("Recargar billetera"))
+        pagoManual(("Pagar en efectivo o tarjeta"))
+        pagoQR(("Pagar con QR del bus"))
+        historial(("Consultar pagos e historial"))
+        transbordo(("Solicitar transbordo"))
+        iniciarTurno(("Iniciar turno asignado"))
+        mostrarQR(("Generar y mostrar QR"))
+        pagoAbordo(("Registrar pago a bordo"))
+        resumen(("Consultar recaudo del turno"))
+        cerrarTurno(("Cerrar y conciliar turno"))
+    end
+    pasajero --> login
+    pasajero --> saldo
+    pasajero --> recargar
+    pasajero --> pagoManual
+    pasajero --> pagoQR
+    pasajero --> historial
+    pasajero --> transbordo
+    conductor --> login
+    conductor --> iniciarTurno
+    conductor --> mostrarQR
+    conductor --> pagoAbordo
+    conductor --> resumen
+    conductor --> cerrarTurno
+```
 
 ## 6.3 Descripción de escenarios
 
@@ -282,7 +320,7 @@ Los casos de uso se agrupan en: autenticación, billetera, pagos, traspasos, tur
 
 La arquitectura sigue un estilo cliente-servidor con API REST. La interfaz (PWA) consume la API mediante JSON sobre HTTP. El backend se organiza en capas: controladores, servicios, modelos y base de datos.
 
-**Figura 1. Arquitectura de componentes de QrPass.**
+**Figura 2. Arquitectura de componentes de QrPass.**
 
 ```mermaid
 flowchart LR
@@ -297,13 +335,244 @@ flowchart LR
 
 ## 7.2 Diagramas UML
 
-Se incluyen diagramas de clases, secuencia y actividades.
+Los diagramas siguientes se derivan de los modelos SQLAlchemy y de los servicios que ejecutan los flujos. El pago manual crea un pago y un viaje sin debitar la billetera; el pago QR sí debita el saldo. El QR está ligado al conductor, turno y ruta, tiene firma HMAC y vence a los 15 minutos. Un mismo QR puede ser utilizado por varios pasajeros, pero cada pasajero solo puede pagar una vez con ese QR. El transbordo actualiza una ruta de destino para un viaje propio dentro de 20 minutos, sin crear un segundo pago.
 
-**Figura 3. Modelo entidad-relación del dominio.** (Ver `documentacion/arquitectura.md`.)
+**Figura 3. Modelo de dominio y relaciones persistentes.**
 
-**Figura 4. Secuencia de pago manual.** (Ver `documentacion/arquitectura.md`.)
+```mermaid
+classDiagram
+    class Usuario {
+        +id
+        +correo
+        +saldo_billetera
+        +estado
+    }
+    class Conductor {
+        +usuario_id
+        +numero_licencia
+    }
+    class Ruta {
+        +id
+        +nombre
+        +activa
+    }
+    class Tarifa {
+        +id
+        +tipo_dia
+        +destino
+        +monto
+        +activa
+    }
+    class Turno {
+        +id
+        +estado
+        +inicia_en
+        +finaliza_en
+        +efectivo_contado
+        +diferencia_efectivo
+    }
+    class CodigoQr {
+        +id
+        +token
+        +estado
+        +vence_en
+    }
+    class Pago {
+        +id
+        +medio
+        +tipo_movimiento
+        +monto
+        +clave_idempotencia
+        +estado
+    }
+    class Viaje {
+        +id
+        +creado_en
+    }
+    class Transbordo {
+        +id
+        +creado_en
+    }
+    Usuario "1" --> "0..1" Conductor : perfil
+    Conductor "1" --> "0..*" Turno : atiende
+    Ruta "1" --> "0..*" Turno : asignada
+    Usuario "1" --> "0..*" CodigoQr : genera
+    Usuario "1" --> "0..*" Pago : realiza
+    CodigoQr "0..1" --> "0..*" Pago : identifica abordajes
+    Pago "1" --> "0..1" Viaje : origina
+    Ruta "1" --> "0..*" Tarifa : define
+    Tarifa "1" --> "0..*" Viaje : aplicada
+    Ruta "1" --> "0..*" Viaje : recorrida
+    Turno "0..1" --> "0..*" Viaje : agrupa
+    Viaje "1" --> "0..1" Transbordo : origen
+    Ruta "1" <-- "0..*" Transbordo : destino
+    note for Pago "Una recarga no tiene viaje asociado. Cada pago de pasaje origina como máximo un viaje."
+```
 
-**Figura 5. Secuencia de generación y validación de QR.** (Ver `documentacion/arquitectura.md`.)
+**Figura 4. Secuencia de pago manual.**
+
+```mermaid
+sequenceDiagram
+    actor Pasajero
+    participant UI as Frontend
+    participant API as Controlador FastAPI
+    participant DTO as CrearPagoSolicitud
+    participant Servicio as servicios.pagos.crear_pago
+    participant DB as SQLAlchemy / SQLite
+    Pasajero->>UI: Elige ruta, medio y destino
+    UI->>API: POST /api/v1/account/payments
+    API->>DTO: Valida la solicitud
+    API->>Servicio: crear_pago(session, usuario, solicitud)
+    Servicio->>DB: Busca clave de idempotencia previa
+    alt Reintento idéntico
+        DB-->>Servicio: Pago y viaje existentes
+        Servicio-->>API: Devuelve el resultado previo
+    else Solicitud nueva
+        Servicio->>DB: Consulta ruta activa y tarifa vigente
+        DB-->>Servicio: Ruta y tarifa
+        alt Ruta o tarifa inválida / tarjeta incompleta
+            Servicio-->>API: Error de dominio (422)
+            API-->>UI: Respuesta de error
+        else Datos válidos
+            Servicio->>DB: Inserta pago y viaje
+            Note over Servicio,DB: No descuenta la billetera en el pago manual
+            Servicio->>DB: Confirma transacción
+            DB-->>Servicio: Pago y viaje persistidos
+            Servicio-->>API: Pago, viaje y saldo sin cambio
+            API-->>UI: Recibo (201)
+        end
+    end
+    UI-->>Pasajero: Muestra recibo o error
+```
+
+**Figura 5. Secuencia de generación y pago mediante QR.**
+
+```mermaid
+sequenceDiagram
+    actor Conductor
+    actor Pasajero
+    participant UI as Frontend PWA
+    participant API as Controladores FastAPI
+    participant Servicio as servicios.qr
+    participant DB as SQLAlchemy / SQLite
+    Conductor->>UI: Solicita mostrar QR
+    UI->>API: POST /api/v1/driver/shift/qr (rol DRIVER)
+    API->>Servicio: crear_qr_turno_conductor
+    Servicio->>DB: Busca turno activo y QR vigente reutilizable
+    alt No hay turno activo
+        Servicio-->>API: Error de dominio (409)
+        API-->>UI: Informa que debe iniciar el turno
+    else Turno activo
+        Servicio->>Servicio: Firma claims de QR con HMAC, vencimiento 15 min
+        Servicio->>DB: Persiste QR ligado a conductor, turno y ruta
+        API-->>UI: Token y representación gráfica del QR (201)
+        UI-->>Conductor: Muestra QR para pasajeros
+        Pasajero->>UI: Escanea el QR del bus e indica clave idempotente
+        UI->>API: POST /api/v1/account/qr/validate
+        API->>Servicio: validar_qr_de_abordaje
+        Servicio->>Servicio: Verifica firma y estructura de claims
+        Servicio->>DB: Busca reintento y abordaje previo de este pasajero
+        Servicio->>DB: Verifica expiración, QR, conductor y turno activos
+        Servicio->>DB: Consulta ruta activa y tarifa
+        Servicio->>DB: Debita saldo si el disponible cubre la tarifa
+        alt Saldo insuficiente o QR/turno inválidos
+            Servicio->>DB: Revierte débito si la operación no puede continuar
+            Servicio-->>API: Error de dominio (409/410/422)
+            API-->>UI: Informa el rechazo
+        else Saldo suficiente
+            Servicio->>DB: Inserta pago y viaje asociado al turno
+            Servicio->>DB: Confirma débito, pago y viaje en una transacción
+            API-->>UI: Recibo y saldo actualizado (201)
+        end
+        UI-->>Pasajero: Muestra recibo o error
+    end
+```
+
+**Figura 6. Actividad de pago de abordaje con QR.**
+
+```mermaid
+flowchart TD
+    A([Pasajero escanea el QR del bus]) --> B[API valida el formato y la firma HMAC]
+    B --> C{Claims y firma válidos}
+    C -- No --> X[Rechazar QR: 422]
+    C -- Sí --> D{¿Existe un reintento idempotente?}
+    D -- Sí --> E[Devolver pago y viaje previamente confirmados]
+    D -- No --> F{¿Este pasajero ya pagó con el QR?}
+    F -- Sí --> Y[Rechazar abordaje duplicado: 409]
+    F -- No --> G{¿QR vigente y asociado a turno activo?}
+    G -- No --> Z[Rechazar QR vencido o turno inactivo]
+    G -- Sí --> H[Consultar ruta activa, destino y tarifa]
+    H --> I{¿Cuenta activa y saldo suficiente?}
+    I -- No --> W[Rechazar pago: 409]
+    I -- Sí --> J[Debitar billetera y crear pago]
+    J --> K[Crear viaje asociado a ruta y turno]
+    K --> L{¿Transacción confirmada?}
+    L -- No --> M[Revertir cambios]
+    L -- Sí --> N[Devolver recibo y saldo actualizado]
+    X --> O([Fin])
+    E --> O
+    Y --> O
+    Z --> O
+    W --> O
+    M --> O
+    N --> O
+```
+
+**Figura 7. Secuencia de transbordo.**
+
+```mermaid
+sequenceDiagram
+    actor Pasajero
+    participant UI as Frontend PWA
+    participant API as Controlador de pasajero
+    participant Servicio as servicios.transbordos.crear_transbordo
+    participant DB as SQLAlchemy / SQLite
+    Pasajero->>UI: Selecciona viaje y ruta destino
+    UI->>API: POST /api/v1/account/transfers
+    API->>Servicio: crear_transbordo(usuario autenticado, solicitud)
+    Servicio->>DB: Busca viaje pagado que pertenezca al pasajero
+    alt Viaje ajeno o inexistente
+        Servicio-->>API: Error 404
+    else Viaje propio
+        Servicio->>DB: Verifica que sea un pago de pasaje y sin transbordo previo
+        Servicio->>Servicio: Verifica ventana máxima de 20 minutos
+        Servicio->>DB: Verifica ruta destino activa y diferente
+        alt Regla incumplida
+            Servicio-->>API: Error 409/422
+        else Elegible
+            Servicio->>DB: Inserta transbordo vinculado al viaje origen
+            Servicio->>DB: Confirma transacción
+            Servicio-->>API: Transbordo persistido
+            API-->>UI: Respuesta de transbordo (201)
+        end
+    end
+    UI-->>Pasajero: Muestra confirmación o motivo del rechazo
+```
+
+**Figura 8. Actividad de validación del transbordo.**
+
+```mermaid
+flowchart TD
+    A([Pasajero elige un viaje pagado]) --> B[Solicitar transbordo a otra ruta]
+    B --> C{¿El viaje existe y pertenece al pasajero?}
+    C -- No --> X[Rechazar solicitud]
+    C -- Sí --> D{¿Es un pago de pasaje?}
+    D -- No --> Y[Rechazar: el viaje no es transferible]
+    D -- Sí --> E{¿Ya tiene un transbordo?}
+    E -- Sí --> Z[Rechazar: límite de un transbordo]
+    E -- No --> F{¿Han pasado como máximo 20 minutos?}
+    F -- No --> W[Rechazar: ventana vencida]
+    F -- Sí --> G{¿Ruta destino activa y distinta?}
+    G -- No --> V[Rechazar ruta destino]
+    G -- Sí --> H[Guardar ruta destino sin segundo cobro]
+    H --> I[Confirmar transacción y mostrar resultado]
+    X --> J([Fin])
+    Y --> J
+    Z --> J
+    W --> J
+    V --> J
+    I --> J
+```
 
 ## 7.3 Diseño de interfaz de usuario
 
@@ -379,7 +648,7 @@ El equipo seleccionó **Scrum** por su adaptación a proyectos académicos itera
 
 - **Product Backlog:** requisitos RF/RNF.
 - **Sprint Backlog:** tareas por sprint.
-- **Incremento:** prototipo funcional.
+- **Incremento:** plataforma funcional.
 
 ## Eventos
 
@@ -422,7 +691,7 @@ Se implementaron handlers globales para validación (422), dominio (409/401/etc.
 
 ## 10.6 Flujo de integración (según evidencia PNG)
 
-El prototipo cumple el flujo exigido para la evidencia final de integración:
+La plataforma cumple el flujo exigido para la evidencia final de integración:
 
 1. La interfaz captura una acción del usuario (formularios de login, registro, pago, recarga, QR, traspaso, turno).
 2. JavaScript envía la solicitud al endpoint correcto mediante `fetch` (`apiRequest` en `frontend/app.js`).
@@ -482,17 +751,17 @@ Las pruebas cubren flujos de autenticación, pagos, QR, traspasos, turnos y vali
 
 ## 12.1 Logros alcanzados
 
-- Se implementó un prototipo funcional de recaudo digital con QR firmado, traspasos y conciliación de turnos.
+- Se implementó una plataforma funcional de recaudo digital con QR firmado, traspasos y conciliación de turnos.
 - Se validó el flujo de integración completo (pantalla → JavaScript → API → backend → base de datos) con casos exitosos y de error.
 - Se documentó la arquitectura, los requisitos, las pruebas y la trazabilidad.
-- Las 27 pruebas automatizadas pasan correctamente.
+- Las 28 pruebas automatizadas pasan correctamente.
 - Se mejoró el manejo de errores con mensajes intuitivos por campo.
 
 ## 12.2 Dificultades encontradas
 
 - Manejo de codificación (UTF-8) en consola Windows y Swagger.
 - Refactorización de un servicio monolítico a módulos por responsabilidad.
-- Alineación entre el esquema formal y la implementación demo.
+- Alineación entre el esquema formal y la implementación.
 
 ## 12.3 Posibles mejoras
 
@@ -519,11 +788,10 @@ Las referencias se presentan en formato APA (7.ª edición).
 - Hernández, R. K., & Pressman, R. S. (2021). *Software engineering: A practitioner's approach* (9.ª ed.). McGraw-Hill.
 - Jacobson, I., Booch, G., & Rumbaugh, J. (1999). *The unified software development process*. Addison-Wesley.
 - Myers, G. J., Sandler, C., & Badgett, T. (2011). *The art of software testing* (3.ª ed.). Wiley.
+- Pydantic. (2024). *Pydantic documentation*. https://docs.pydantic.dev/
 - Pressman, R. S., & Maxim, B. R. (2020). *Software engineering: A practitioner's approach* (9.ª ed.). McGraw-Hill.
 - Schwaber, K., & Sutherland, J. (2020). *The Scrum guide*. Scrum.org. https://scrumguides.org/
 - Sommerville, I. (2016). *Software engineering* (10.ª ed.). Pearson.
 - SQLAlchemy. (2024). *SQLAlchemy 2.0 documentation*. https://docs.sqlalchemy.org/
-- Pydantic. (2024). *Pydantic documentation*. https://docs.pydantic.dev/
 
 ---
-

@@ -36,16 +36,11 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
     if configured_secret is None:
         if is_production:
             raise RuntimeError("QR_PASS_AUTH_SECRET debe configurarse en producción.")
-        logger.warning("QR_PASS_AUTH_SECRET no esta configurado; las sesiones demo venceran al reiniciar la API.")
+        logger.warning("QR_PASS_AUTH_SECRET no esta configurado; las sesiones vencerán al reiniciar la API.")
         configured_secret = secrets.token_bytes(32)
     secret_bytes = configured_secret.encode("utf-8") if isinstance(configured_secret, str) else configured_secret
     if len(secret_bytes) < 32:
         raise RuntimeError("QR_PASS_AUTH_SECRET debe tener al menos 32 bytes.")
-    if is_production and (
-        not os.getenv("QR_PASS_DEMO_PASSENGER_PASSWORD")
-        or not os.getenv("QR_PASS_DEMO_DRIVER_PASSWORD")
-    ):
-        raise RuntimeError("Las contraseñas de demostración no deben utilizarse en producción.")
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
@@ -56,9 +51,8 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
     application = FastAPI(
         title="QrPass API",
         description=(
-            "API REST inicial para explorar QrPass. Incluye autenticación bearer y acceso "
-            "al espacio conductor según roles; los movimientos siguen siendo de demostración "
-            "y no se procesan pagos reales."
+            "API REST de QrPass. Gestiona la autenticación, la billetera interna, "
+            "el cobro de pasajes y la operación de los conductores."
         ),
         version="0.1.0",
         lifespan=lifespan,
@@ -68,7 +62,7 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
 
     configured_origins = os.getenv("QR_PASS_CORS_ORIGINS")
     if configured_origins is None:
-        # En desarrollo se permite cualquier origen para facilitar demos en red local (celular).
+        # En desarrollo se permite cualquier origen para facilitar pruebas en red local (celular).
         cors_origins = ["*"] if not is_production else []
     else:
         cors_origins = [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
@@ -162,7 +156,7 @@ def crear_aplicacion(database_url: str | None = None, auth_secret: str | bytes |
 
     @application.get("/health", include_in_schema=False)
     async def health_root() -> dict[str, str]:
-        return {"status": "ok", "service": "qrpass-api", "mode": "demo"}
+        return {"status": "ok", "service": "qrpass-api"}
 
     # Opcional: servir también la interfaz (carpeta frontend/) desde el mismo origen que la API.
     # Con QR_PASS_SERVE_FRONTEND=1 basta un solo puerto y un solo túnel HTTPS para abrir la app

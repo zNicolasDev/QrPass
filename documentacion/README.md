@@ -8,11 +8,12 @@ Esta carpeta centraliza toda la documentación técnica, especificación de requ
 
 ### 1. Requerimientos del Sistema
 * [`requisitos.pdf`](./requisitos.pdf): Documento formal de especificación de requerimientos (29 páginas). Define los requerimientos funcionales (RF-01 a RF-11), no funcionales (RNF-01 a RNF-06), de dominio (RD-01 a RD-04), matriz de partes interesadas (*stakeholders*), historias de usuario en formato Gherkin e inventario de casos de uso (CU-01 a CU-06).
-* [`trazabilidad.md`](./trazabilidad.md): Matriz de trazabilidad técnica que compara detalladamente los requisitos de la especificación frente a su estado de implementación real en el prototipo (funcionalidades completas, parciales/simuladas y requerimientos para producción).
+* [`trazabilidad.md`](./trazabilidad.md): Matriz de trazabilidad técnica que compara detalladamente los requisitos de la especificación frente a su estado de implementación real en el sistema (funcionalidades completas, parciales y requerimientos para producción).
 
 ### 2. Arquitectura y Diseño
 * [`arquitectura.md`](./arquitectura.md): Especificación de la arquitectura del sistema, diagramas de componentes en Mermaid, contratos de API REST, justificación técnica del patrón MVC adaptado y alineación entre requisitos y código.
 * [`ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md`](./ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md): Contrato de integración de los tres módulos principales del frontend, con RF, pantallas, endpoints, JSON de entrada y respuestas.
+* [`ingenieria_software/INFORME_COMPLETO.docx`](./ingenieria_software/INFORME_COMPLETO.docx): Informe de Ingeniería de Software en Word, con formato APA 7, diagramas UML y listas de contenido, tablas y figuras.
 
 ### 3. Modelado UML y Entregables Didácticos
 * [`uml_mvc_y_entregables.md`](./uml_mvc_y_entregables.md): Diagramas de secuencia y actividad en Mermaid con explicaciones paso a paso de los procesos críticos (pago con QR, pago manual y transbordos a $0 COP).
@@ -20,7 +21,7 @@ Esta carpeta centraliza toda la documentación técnica, especificación de requ
 ### 4. Convenciones y Buenas Prácticas
 * [`convenciones.md`](./convenciones.md): Pautas de trabajo en equipo, orden de sustentaciones e informes, y reglas de ejecución de pruebas de software.
 
-#### Programas de Demostración Independientes (Python)
+#### Programas de Apoyo Independientes (Python)
 Para sustentación académica y verificación de la lógica de los diagramas, se incluyen scripts autónomos que corren en memoria sin depender de la base de datos:
 
 | Proceso | Archivo | Comando de Ejecución |
@@ -42,8 +43,8 @@ Para explicar de forma simple el diseño ante profesores o compañeros (siguiend
    * Es la puerta de entrada de la API. Recibe la petición HTTP, revisa quién la envía (autenticación) y responde al cliente. No hace cálculos complejos directamente.
 3. **DTOs (`backend/app/dtos/`):**
    * Son las "aduanas" de datos. Definen exactamente qué datos deben llegar y cuáles deben salir en el JSON (validan tipos, correos y montos con Pydantic).
-4. **Servicios (`backend/app/services.py`):**
-   * Es el "cerebro" o lógica de negocio. Aplica las reglas del transporte: calcula si hoy es festivo para cobrar $3.400 o día hábil para $3.300, firma el código QR, verifica los 20 minutos de transbordo y suma los totales. Mantiene a los controladores limpios y simples.
+4. **Servicios (`backend/app/servicios/`):**
+   * Es el "cerebro" o lógica de negocio. Aplica las reglas del transporte: calcula si hoy es festivo para cobrar la tarifa de domingo o día hábil para la tarifa ordinaria, firma el código QR, verifica los 20 minutos de transbordo y suma los totales. Mantiene a los controladores limpios y simples.
 5. **Modelo (`backend/app/models/`):**
    * Es la persistencia. Son las clases de SQLAlchemy que representan las tablas en la base de datos (`qrpass.db`): Usuarios, Viajes, Pagos, Rutas y Turnos.
 
@@ -54,4 +55,3 @@ Para explicar de forma simple el diseño ante profesores o compañeros (siguiend
 * [`frontend/`](../frontend/): Interfaz PWA con páginas diferenciadas para acceso, pasajero y conductor, más plantilla compartida de trabajo (HTML5, CSS3 y JavaScript nativo).
 * [`backend/`](../backend/): API transaccional en FastAPI, modelos SQLAlchemy, contratos Pydantic y pruebas automatizadas.
 * [`documentacion/`](./): Documentación técnica, académica y normativa.
-* [`prototipo.py`](../prototipo.py): Prototipo inicial de escritorio (Tkinter), conservado como referencia histórica.

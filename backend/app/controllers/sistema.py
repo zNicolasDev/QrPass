@@ -2,6 +2,7 @@ from __future__ import annotations
 # Este controlador expone el estado de la API, las rutas disponibles y sus tarifas.
 import logging
 from datetime import date
+from datetime import datetime
 from typing import Annotated
 from fastapi import APIRouter
 from fastapi import Depends
@@ -30,7 +31,7 @@ router = APIRouter()
 @router.get("/health", response_model=EstadoServicioRespuesta, tags=["Sistema"])
 def endpoint_estado_salud() -> EstadoServicioRespuesta:
     # Solo confirma que FastAPI está atendiendo; no abre una conexión a la base.
-    return EstadoServicioRespuesta(estado="ok", servicio="qrpass-api", modo="demo")
+    return EstadoServicioRespuesta(estado="ok", servicio="qrpass-api")
 
 # Comprueba que la base de datos responda a una consulta.
 @router.get("/ready", response_model=EstadoServicioRespuesta, tags=["Sistema"], summary="Verificar disponibilidad de la base de datos")
@@ -45,7 +46,12 @@ def endpoint_verificar_disponibilidad(request: Request) -> EstadoServicioRespues
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="La base de datos no está disponible.",
         ) from error
-    return EstadoServicioRespuesta(estado="ready", servicio="qrpass-api", modo="demo")
+    return EstadoServicioRespuesta(estado="ready", servicio="qrpass-api")
+
+# Devuelve la hora actual del servidor para sincronizar clientes.
+@router.get("/time", tags=["Sistema"], summary="Obtener la hora del servidor")
+def endpoint_hora_servidor() -> dict[str, str]:
+    return {"server_time": datetime.now().isoformat()}
 
 # Devuelve el catálogo de rutas activas.
 @router.get("/routes", response_model=list[RutaRespuesta], tags=["Rutas"])

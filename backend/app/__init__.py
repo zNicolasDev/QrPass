@@ -1,1 +1,1 @@
-"""QrPass demo backend application."""
+"""QrPass backend application."""

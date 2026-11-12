@@ -15,10 +15,3 @@ class MetricasGerencialesRespuesta(EsquemaBase):
     turnos_activos: int = Field(default=0, validation_alias="active_shifts", serialization_alias="active_shifts")
     total_usuarios: int = Field(default=0, validation_alias="total_users", serialization_alias="total_users")
     total_rutas: int = Field(default=0, validation_alias="total_routes", serialization_alias="total_routes")
-
-
-# Confirmación del restablecimiento de saldos y turnos para pruebas de sustentación.
-class ReinicioDemoRespuesta(EsquemaBase):
-    estado: str = Field(default="ok", validation_alias="status", serialization_alias="status")
-    mensaje: str = Field(validation_alias="message", serialization_alias="message")
-    saldo_pasajero: int = Field(validation_alias="passenger_balance", serialization_alias="passenger_balance")

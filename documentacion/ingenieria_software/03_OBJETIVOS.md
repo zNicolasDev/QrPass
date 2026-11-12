@@ -2,7 +2,7 @@
 
 ## 4.1 Objetivo general
 
-Diseñar e implementar un prototipo de plataforma de recaudo digital con códigos QR firmados para el transporte público de Ibagué, que permita validar flujos de pago, traspaso y conciliación de turnos con trazabilidad de requisitos y pruebas automatizadas.
+Diseñar e implementar una plataforma de recaudo digital con códigos QR firmados para el transporte público de Ibagué, que permita validar flujos de pago, traspaso y conciliación de turnos con trazabilidad de requisitos y pruebas automatizadas.
 
 ## 4.2 Objetivos específicos
 

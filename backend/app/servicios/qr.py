@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import hashlib
@@ -219,7 +219,7 @@ def validar_qr_de_abordaje(
         monto=fare.monto,
         saldo_anterior=balance_before,
         saldo_posterior=balance_after,
-        estado="completed_demo",
+        estado="completed",
         creado_en=now,
     )
     session.add(payment)
