@@ -594,7 +594,7 @@ function renderDashboard() {
   <section class="welcome-banner">
     <div class="welcome-copy">
       <div class="eyebrow">${icon("qr")} PAGO DEL PASAJE</div>
-      <h2>Paga tu pasaje aquí.</h2>
+      <h2>Paga aquí.</h2>
       <p>El valor se descuenta de tu saldo.</p>
       <button class="button button-mint" data-action="pay-qr">Escanear QR del bus ${icon("arrow")}</button>
     </div>
@@ -602,7 +602,7 @@ function renderDashboard() {
       ${icon("bus")}
     </div>
   </section>
-  <section class="stats-grid" aria-label="Resumen de tu cuenta">
+  <section class="stats-grid" aria-label="Estadísticas de tu cuenta">
     <article class="stat-card"><div class="stat-top"><span class="stat-label">SALDO DISPONIBLE</span><span class="stat-icon">${icon("wallet")}</span></div><div class="stat-value">${money(state.balance)}</div><div class="stat-note">${state.balance > 0 ? "Disponible para viajar" : "Recarga para viajar"}</div></article>
     <article class="stat-card"><div class="stat-top"><span class="stat-label">TARIFA VIGENTE</span><span class="stat-icon amber">${icon("route")}</span></div><div class="stat-value">${money(fare)}</div><div class="stat-note">${currentDayType === "weekend" ? "Domingos y festivos" : "Lunes a sábado"} · por viaje</div></article>
     <article class="stat-card"><div class="stat-top"><span class="stat-label">VIAJES REGISTRADOS</span><span class="stat-icon green">${icon("bus")}</span></div><div class="stat-value">${tripCount}</div><div class="stat-note">${lastTripNote}</div></article>
@@ -1425,8 +1425,8 @@ function openTransfer() {
 function openQuickTopUp() {
   const amounts = [10000, 20000, 50000, 100000];
   modalContent.innerHTML = `<div class="modal-body">
-    <div class="modal-kicker">BILLETERA</div><h2 id="modal-title">Recarga tu saldo</h2>
-    <p>Se abona de inmediato a tu saldo.</p>
+    <div class="modal-kicker">BILLETERA</div><h2 id="modal-title">Añadir saldo</h2>
+    <p>Se abona de inmediato.</p>
     <div class="amount-grid">${amounts.map((amount) => `<button class="amount-option" data-action="top-up" data-amount="${amount}"><strong>${money(amount)}</strong></button>`).join("")}</div>
     <div class="modal-actions"><button class="button button-outline" type="button" data-action="view-recarga">Escribir otro monto</button><button class="button button-outline" type="button" data-action="close-modal">Cerrar</button></div>
   </div>`;

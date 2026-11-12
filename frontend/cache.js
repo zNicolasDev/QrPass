@@ -1,4 +1,4 @@
-const CACHE_NAME = "qrpass-shell-v38";
+const CACHE_NAME = "qrpass-shell-v39";
 const APP_FILES = [
   "./index.html",
   "./index.css",
