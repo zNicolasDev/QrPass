@@ -17,6 +17,9 @@ from app.models import Usuario, Pago, Viaje, CodigoQr, Turno, Ruta, Tarifa
 from app.servicios.comun import ErrorDominio, ahora_servicio
 from app.servicios.rutas_tarifas import _obtener_ruta_activa, _obtener_tarifa_ruta, _validar_destino_ruta
 
+# El QR del bus se renueva solo: dura 60 segundos y deja de servir en cuanto un pasajero lo usa.
+QR_VIGENCIA = timedelta(seconds=60)
+
 
 def _encode_qr_payload(payload: dict[str, object]) -> str:
     serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -85,7 +88,7 @@ def crear_qr_turno_conductor(
         token=secrets.token_urlsafe(48),
         estado="active",
         creado_en=now,
-        vence_en=now + timedelta(minutes=15),
+        vence_en=now + QR_VIGENCIA,
     )
     session.add(qr_code)
     session.flush()
@@ -155,7 +158,7 @@ def validar_qr_de_abordaje(
 
     now = ahora_servicio()
     if expires_at <= int(now.timestamp()):
-        raise ErrorDominio(410, "El QR del bus expiró. Pide que lo actualicen en la pantalla del bus.")
+        raise ErrorDominio(410, "El QR del bus expiró. Escanea el código nuevo que muestra el bus.")
     qr_code = session.scalar(select(CodigoQr).where(
         CodigoQr.id == qr_id,
         CodigoQr.usuario_id == driver_id,
@@ -170,6 +173,16 @@ def validar_qr_de_abordaje(
         Turno.ruta_id == route_id,
     ))
     driver = session.get(Usuario, driver_id)
+    if qr_code is None:
+        known_qr = session.scalar(select(CodigoQr).where(
+            CodigoQr.id == qr_id,
+            CodigoQr.usuario_id == driver_id,
+            CodigoQr.token == token,
+        ))
+        if known_qr is not None and known_qr.estado == "consumed":
+            raise ErrorDominio(409, "Este QR ya fue usado. Escanea el código nuevo que muestra el bus.")
+        if known_qr is not None and known_qr.estado == "revoked":
+            raise ErrorDominio(409, "Este QR ya cambió. Escanea el código actual que muestra el bus.")
     if qr_code is None or shift is None or driver is None or driver.estado != "active":
         raise ErrorDominio(409, "El QR ya no corresponde a un turno activo del bus.")
 
@@ -187,6 +200,16 @@ def validar_qr_de_abordaje(
     if balance_after is None:
         session.rollback()
         raise ErrorDominio(409, "Saldo insuficiente para pagar el viaje.")
+    # El QR es de un solo uso: se marca como consumido en la misma transacción del pago.
+    # Si otro pasajero lo usó primero, esta condición no cambia ninguna fila y se deshace el cobro.
+    consumed = session.execute(
+        update(CodigoQr)
+        .where(CodigoQr.id == qr_code.id, CodigoQr.estado == "active")
+        .values(estado="consumed")
+    )
+    if consumed.rowcount != 1:
+        session.rollback()
+        raise ErrorDominio(409, "Este QR ya fue usado. Escanea el código nuevo que muestra el bus.")
     payment = Pago(
         usuario_id=passenger.id,
         codigo_qr_id=qr_code.id,
