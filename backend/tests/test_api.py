@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import hashlib
 import hmac
 
@@ -529,14 +529,23 @@ def test_bus_qr_is_signed_and_each_passenger_pays_once(client: TestClient) -> No
     client.post("/api/v1/demo/account/top-ups", json={
         "amount": 5000, "idempotency_key": "qr-second-user-topup-1",
     }, headers=second_headers)
+    # El QR ya se usó: no vuelve a servir y el bus muestra uno nuevo automáticamente.
+    reused_scan = client.post("/api/v1/demo/account/qr/validate", json={
+        "token": qr.json()["token"], "idempotency_key": "qr-second-user-scan-0",
+    }, headers=second_headers)
+    assert reused_scan.status_code == 409
+    assert "ya fue usado" in reused_scan.json()["detail"]
+    next_qr = client.post("/api/v1/driver/shift/qr", headers=driver)
+    assert next_qr.status_code == 201
+    assert next_qr.json()["token"] != qr.json()["token"]
     second_scan = client.post("/api/v1/demo/account/qr/validate", json={
-        "token": qr.json()["token"], "idempotency_key": "qr-second-user-scan-1",
+        "token": next_qr.json()["token"], "idempotency_key": "qr-second-user-scan-1",
     }, headers=second_headers)
     assert second_scan.status_code == 201
     assert client.get("/api/v1/driver/shift", headers=driver).json()["qr_total"] == 6600
     renewed_qr = client.post("/api/v1/driver/shift/qr?renew=true", headers=driver)
     assert renewed_qr.status_code == 201
-    assert renewed_qr.json()["token"] != qr.json()["token"]
+    assert renewed_qr.json()["token"] != next_qr.json()["token"]
 
 
 def test_qr_rejects_invalid_signature_expiration_and_wrong_driver_route(
@@ -584,3 +593,98 @@ def test_qr_rejects_invalid_signature_expiration_and_wrong_driver_route(
     )
 
     assert expired.status_code == 410
+
+
+def _iso(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+def test_bus_qr_lasts_sixty_seconds_and_rotates_when_it_expires(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    passenger = auth_headers(client)
+    driver = auth_headers(client, "conductor.demo")
+    start_driver(client, driver)
+    qr = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+
+    assert _iso(qr["expires_at"]) - _iso(qr["created_at"]) == timedelta(seconds=60)
+
+    now = services.ahora_servicio()
+    monkeypatch.setattr(services, "ahora_servicio", lambda: now + timedelta(seconds=30))
+    still_same = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+    assert still_same["token"] == qr["token"]
+
+    monkeypatch.setattr(services, "ahora_servicio", lambda: now + timedelta(seconds=61))
+    expired = client.post(
+        "/api/v1/demo/account/qr/validate",
+        json={"token": qr["token"], "idempotency_key": "scan-after-sixty-001"},
+        headers=passenger,
+    )
+    assert expired.status_code == 410
+    rotated = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+    assert rotated["token"] != qr["token"]
+    assert rotated["status"] == "active"
+    assert _iso(rotated["expires_at"]) - _iso(rotated["created_at"]) == timedelta(seconds=60)
+
+
+def test_bus_qr_changes_automatically_after_it_is_used(client: TestClient) -> None:
+    passenger = auth_headers(client)
+    driver = auth_headers(client, "conductor.demo")
+    start_driver(client, driver)
+    qr = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+
+    # Sin uso, el mismo QR se mantiene dentro de su minuto de vigencia.
+    assert client.post("/api/v1/driver/shift/qr", headers=driver).json()["token"] == qr["token"]
+
+    paid = client.post(
+        "/api/v1/demo/account/qr/validate",
+        json={"token": qr["token"], "idempotency_key": "scan-rotation-0001"},
+        headers=passenger,
+    )
+    assert paid.status_code == 201
+
+    after_use = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+    assert after_use["token"] != qr["token"]
+    assert after_use["qr_id"] != qr["qr_id"]
+    assert after_use["status"] == "active"
+    # El nuevo QR también se mantiene estable hasta que alguien lo use.
+    assert client.post("/api/v1/driver/shift/qr", headers=driver).json()["token"] == after_use["token"]
+
+
+def test_failed_payment_does_not_consume_the_bus_qr(client: TestClient) -> None:
+    driver = auth_headers(client, "conductor.demo")
+    start_driver(client, driver)
+    qr = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+    registration = client.post("/api/v1/auth/register", json={
+        "names": "Sin Saldo", "email": "sin.saldo@example.com",
+        "password": "Clave-Segura-2026", "privacy_consent": True,
+    })
+    assert registration.status_code == 201
+    login = client.post("/api/v1/auth/login", json={
+        "username": "sin.saldo@example.com", "password": "Clave-Segura-2026",
+    })
+    broke = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    rejected = client.post(
+        "/api/v1/demo/account/qr/validate",
+        json={"token": qr["token"], "idempotency_key": "scan-no-balance-001"},
+        headers=broke,
+    )
+    assert rejected.status_code == 409
+    # Un cobro rechazado no gasta el QR: sigue siendo el mismo para el siguiente pasajero.
+    assert client.post("/api/v1/driver/shift/qr", headers=driver).json()["token"] == qr["token"]
+
+
+def test_api_dates_use_bogota_time_with_explicit_offset(client: TestClient) -> None:
+    driver = auth_headers(client, "conductor.demo")
+    start_driver(client, driver)
+    qr = client.post("/api/v1/driver/shift/qr", headers=driver).json()
+    for field in ("created_at", "expires_at"):
+        moment = _iso(qr[field])
+        assert qr[field].endswith("-05:00")
+        assert moment.utcoffset() == timedelta(hours=-5)
+
+    shift = client.get("/api/v1/driver/shift", headers=driver).json()
+    assert shift["starts_at"].endswith("-05:00")
+    # Es el mismo instante que el reloj del servidor, solo expresado en hora de Colombia.
+    assert abs(_iso(qr["created_at"]) - services.ahora_servicio()) < timedelta(minutes=1)
