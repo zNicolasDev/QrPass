@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "rutas": [
+    "1",
+    "2",
+    "4/7",
+    "6",
+    "8/39",
+    "9",
+    "11",
+    "14",
+    "15",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "28",
+    "29",
+    "31",
+    "33",
+    "35",
+    "37",
+    "40",
+    "43",
+    "48",
+    "50",
+    "53",
+    "82",
+    "90",
+    "ALIMENTADOR CHUCHUNI",
+    "SAN BERNARDO-SALADO"
+  ],
+  "tarifas_ordinarias": {
+    "weekday": 3300,
+    "weekend": 3400
+  },
+  "tarifas_por_destino": {
+    "48": {
+      "Tres Esquinas - Llanitos": {
+        "weekday": 3300,
+        "weekend": 3400
+      },
+      "Puerto Peru - Pastales": {
+        "weekday": 3300,
+        "weekend": 3400
+      },
+      "Villa Restrepo": {
+        "weekday": 3300,
+        "weekend": 3400
+      },
+      "Juntas": {
+        "weekday": 3800,
+        "weekend": 3900
+      }
+    }
+  }
+}
