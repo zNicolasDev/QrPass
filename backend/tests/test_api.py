@@ -333,6 +333,32 @@ def test_driver_records_cash_and_closes_immutable_server_shift(client: TestClien
     ).status_code == 409
 
 
+def test_driver_can_start_a_new_shift_after_closing_the_previous_one(client: TestClient) -> None:
+    headers = auth_headers(client, "conductor.demo")
+    first_route = start_driver(client, headers)
+    first = client.post("/api/v1/driver/shift/close", json={"cash_counted": 0}, headers=headers)
+    assert first.status_code == 200
+    first_id = first.json()["shift"]["shift_id"]
+
+    # Tras cerrar, la asignación sigue disponible y se puede iniciar otro turno.
+    assignment = client.get("/api/v1/driver/demo/assignment", headers=headers)
+    assert assignment.status_code == 200
+    assert assignment.json()["route_id"] == first_route
+    second_route = start_driver(client, headers)
+    assert second_route == first_route
+    second = client.get("/api/v1/driver/shift", headers=headers)
+    assert second.status_code == 200
+    assert second.json()["shift_id"] != first_id
+    assert second.json()["payment_count"] == 0
+
+    # Y el ciclo se puede repetir varias veces.
+    assert client.post("/api/v1/driver/shift/close", json={"cash_counted": 0}, headers=headers).status_code == 200
+    start_driver(client, headers)
+    assert client.get("/api/v1/driver/shift", headers=headers).status_code == 200
+    history = client.get("/api/v1/driver/shifts/history", headers=headers)
+    assert len(history.json()) == 2
+
+
 def test_saturday_sunday_and_colombian_holiday_fares(client: TestClient) -> None:
     weekday = client.get("/api/v1/fares/current", params={"route_id": 1, "on_date": "2026-10-08"})
     saturday = client.get("/api/v1/fares/current", params={"route_id": 1, "on_date": "2026-10-10"})
