@@ -248,7 +248,7 @@ function busQrCountdownText() {
 // Parte de la pantalla del conductor que cambia cuando llega un QR nuevo.
 function renderBusQrBlock(shift) {
   if (!activeBusQr) return "<p>El código QR aparecerá aquí cuando el turno esté listo.</p>";
-  return `<img class="qr-real-image" src="${activeBusQr.image}" alt="Código QR para pagar el pasaje de la ruta ${escapeHtml(shift.route)}" /><p class="bus-qr-countdown" id="bus-qr-countdown" role="timer" aria-live="off">${escapeHtml(busQrCountdownText())}</p><div class="qr-token-row"><label for="bus-qr-token">Código completo para compartir manualmente</label><textarea class="qr-token-full" id="bus-qr-token" rows="4" readonly spellcheck="false">${escapeHtml(activeBusQr.token)}</textarea><button class="button button-outline button-small" type="button" data-action="copy-qr-token">Copiar código completo</button></div>`;
+  return `<div class="bus-qr-frame"><img class="qr-real-image" src="${activeBusQr.image}" alt="Código QR para pagar el pasaje de la ruta ${escapeHtml(shift.route)}" /></div><p class="bus-qr-countdown" id="bus-qr-countdown" role="timer" aria-live="off">${escapeHtml(busQrCountdownText())}</p><div class="qr-token-row"><label class="sr-only" for="bus-qr-token">Código QR completo</label><input class="qr-token-full" id="bus-qr-token" type="text" readonly spellcheck="false" value="${escapeHtml(activeBusQr.token)}" /><button class="button button-outline button-small qr-token-action" type="button" data-action="copy-qr-token">Copiar</button><button class="button button-outline button-small qr-token-action" type="button" data-action="refresh-bus-qr">Nuevo QR</button></div>`;
 }
 
 function paintBusQr() {
@@ -301,18 +301,29 @@ function stopBusQrAutoRefresh() {
   busQrTimer = null;
 }
 
-// Lista de pagos que se muestra debajo del QR y se actualiza sola durante el turno.
-function renderDriverLivePayments(entries) {
-  const count = entries.length;
-  const total = entries.reduce((sum, entry) => sum + entry.amount, 0);
-  const rows = [...entries].reverse().map((entry) => `<li class="driver-live-payment">
-    <span class="driver-live-time">${escapeHtml(formatTime(new Date(entry.createdAt)))}</span>
-    <span class="payment-tag">${escapeHtml(entry.method)}</span>
-    <strong>${money(entry.amount)}</strong>
-    <small>${escapeHtml(entry.reference)}</small>
-  </li>`).join("");
-  return `<div class="driver-live-head"><h3>Pagos recibidos</h3><span class="driver-live-count">${count} ${count === 1 ? "pago" : "pagos"} · ${money(total)}</span></div>
-    ${rows ? `<ul class="driver-live-list" aria-live="polite">${rows}</ul>` : `<p class="driver-live-empty">Aún no hay pagos. Cuando un pasajero pague, aparecerá aquí.</p>`}`;
+// Filas del historial: icono por medio de pago, hora compacta y monto.
+function driverMethodKey(method) {
+  if (method === "QR / saldo") return "wallet";
+  if (method === "Tarjeta") return "card";
+  return "cash";
+}
+
+function driverMethodIcon(method) {
+  return driverMethodKey(method) === "wallet" ? "qr" : driverMethodKey(method) === "card" ? "card" : "wallet";
+}
+
+function driverLedgerRow(entry) {
+  const key = driverMethodKey(entry.method);
+  return `<tr>
+    <td><span class="driver-ledger-method"><span class="driver-ledger-icon driver-ledger-icon-${key}">${icon(driverMethodIcon(entry.method))}</span><span>${escapeHtml(entry.method)}</span></span></td>
+    <td class="driver-ledger-time">${escapeHtml(formatCompactTime(new Date(entry.createdAt)))}</td>
+    <td class="driver-ledger-amount">${money(entry.amount)}</td>
+  </tr>`;
+}
+
+function driverLedgerBody(entries) {
+  return [...entries].reverse().slice(0, 8).map(driverLedgerRow).join("")
+    || `<tr><td class="empty-row" colspan="3"><div class="driver-ledger-empty">${icon("document")}<span>Sin movimientos aún</span></div></td></tr>`;
 }
 
 function driverPaymentsSignatureOf(shift) {
@@ -325,27 +336,30 @@ function paintDriverPayments() {
   if (!shift) return;
   const entries = shift.entries;
   const sumBy = (label) => entries.filter((entry) => entry.method === label).reduce((total, entry) => total + entry.amount, 0);
-  const countBy = (label) => entries.filter((entry) => entry.method === label).length;
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   const cash = sumBy("Efectivo");
-
-  const live = document.querySelector("#driver-live-payments");
-  if (live) live.innerHTML = renderDriverLivePayments(entries);
+  const wallet = sumBy("QR / saldo");
+  const card = sumBy("Tarjeta");
+  const total = cash + wallet + card;
 
   const setText = (selector, text) => {
     const node = document.querySelector(selector);
     if (node) node.textContent = text;
   };
   setText("#driver-total-cash", money(cash));
-  setText("#driver-count-cash", `${countBy("Efectivo")} registros`);
-  setText("#driver-total-wallet", money(sumBy("QR / saldo")));
-  setText("#driver-count-wallet", `${countBy("QR / saldo")} registros`);
-  setText("#driver-total-card", money(sumBy("Tarjeta")));
-  setText("#driver-count-card", `${countBy("Tarjeta")} registros`);
-  setText("#driver-total-all", money(cash + sumBy("QR / saldo") + sumBy("Tarjeta")));
-  setText("#driver-count-all", `${plural(entries.length, "pago registrado", "pagos registrados")}`);
-  setText("#driver-boardings-count", `${plural(entries.length, "abordaje", "abordajes")} en esta jornada`);
-  setText("#driver-ledger-count", `${plural(entries.length, "pago", "pagos")} en este turno`);
+  setText("#driver-total-wallet", money(wallet));
+  setText("#driver-total-card", money(card));
+  setText("#driver-total-all", money(total));
+  setText("#driver-boardings-count", plural(entries.length, "abordaje", "abordajes"));
+  setText("#driver-ledger-count", `${plural(entries.length, "pago", "pagos")} · ${money(total)}`);
+
+  const setShare = (selector, value) => {
+    const node = document.querySelector(selector);
+    if (node) node.style.flexGrow = String(total > 0 ? value : 0);
+  };
+  setShare("#driver-share-cash", cash);
+  setShare("#driver-share-wallet", wallet);
+  setShare("#driver-share-card", card);
 
   const cashLabel = document.querySelector("#driver-cash-expected");
   if (cashLabel) cashLabel.textContent = money(cash);
@@ -355,20 +369,13 @@ function paintDriverPayments() {
   }
 
   const ledgerBody = document.querySelector("#driver-ledger-body");
-  if (ledgerBody) {
-    ledgerBody.innerHTML = [...entries].reverse().slice(0, 8).map((entry) => `<tr>
-    <td><span class="driver-ledger-code">${escapeHtml(entry.reference)}</span></td>
-    <td>${escapeHtml(formatTime(new Date(entry.createdAt)))}</td>
-    <td><span class="payment-tag">${escapeHtml(entry.method)}</span></td>
-    <td>${money(entry.amount)}</td>
-  </tr>`).join("") || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`;
-  }
+  if (ledgerBody) ledgerBody.innerHTML = driverLedgerBody(entries);
 }
 
 async function syncDriverPayments() {
   // Consulta al servidor los pagos del turno (efectivo, tarjeta y QR de pasajeros) y repinta si hay cambios.
   if (driverPaymentsSyncing || currentProfile !== "conductor" || !driverState.activeShift) return;
-  if (!document.querySelector("#driver-live-payments")) return;
+  if (!document.querySelector("#driver-ledger-body")) return;
   driverPaymentsSyncing = true;
   try {
     const shift = mapShiftFromApi(await apiRequest("/driver/shift"));
@@ -532,6 +539,10 @@ function formatTime(date = new Date()) {
   return new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: APP_TIME_ZONE }).format(date);
 }
 
+function formatCompactTime(date = new Date()) {
+  return new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: APP_TIME_ZONE }).format(date);
+}
+
 function currentDateLong(date = new Date()) {
   return new Intl.DateTimeFormat("es-CO", { weekday: "long", day: "numeric", month: "long", timeZone: APP_TIME_ZONE }).format(date);
 }
@@ -591,22 +602,43 @@ function renderDashboard() {
     "",
     `<span class="heading-date">${currentDateLong()}</span>`,
   )}
-  <section class="welcome-banner">
-    <div class="welcome-copy">
-      <div class="eyebrow">${icon("qr")} PAGO DEL PASAJE</div>
-      <h2>Paga aquí.</h2>
-      <p>El valor se descuenta de tu saldo.</p>
-      <button class="button button-mint" data-action="pay-qr">Escanear QR del bus ${icon("arrow")}</button>
+  <section class="hero-bento-grid" aria-label="Resumen de tu cuenta">
+    <article class="wallet-hero">
+      <div class="wallet-hero-top">
+        <div class="eyebrow">PAGO DEL PASAJE</div>
+        <span class="wallet-status"><span class="wallet-status-dot" aria-hidden="true"></span>Billetera activa</span>
+      </div>
+      <div class="wallet-hero-body">
+        <div class="stat-label">SALDO DISPONIBLE</div>
+        <div class="stat-value wallet-balance">${money(state.balance)}</div>
+        <div class="stat-note">${state.balance > 0 ? "Disponible para viajar" : "Recarga para viajar"}</div>
+      </div>
+      <div class="wallet-hero-actions">
+        <button class="button button-mint wallet-cta" data-action="pay-qr"><span>Escanear QR del bus</span>${icon("arrow")}</button>
+        <button class="button button-ghost" data-action="quick-top-up">${icon("plus")}<span>Recargar</span></button>
+      </div>
+    </article>
+    <div class="wallet-metrics">
+      <article class="metric-card metric-card-fare">
+        <div class="metric-copy">
+          <span class="metric-title"><span class="metric-icon">${icon("route")}</span><span class="stat-label">TARIFA VIGENTE</span></span>
+          <span class="metric-detail">${currentDayType === "weekend" ? "Domingos y festivos" : "Lunes a sábado"} · por viaje</span>
+        </div>
+        <div class="stat-value metric-fare-value">${money(fare)}</div>
+      </article>
+      <div class="metric-pair">
+        <article class="metric-card">
+          <span class="metric-title"><span class="metric-icon">${icon("bus")}</span><span class="stat-label">VIAJES REGISTRADOS</span></span>
+          <div class="stat-value metric-value">${tripCount}</div>
+          <div class="stat-note metric-detail">${lastTripNote}</div>
+        </article>
+        <article class="metric-card">
+          <span class="metric-title"><span class="metric-icon">${icon("clock")}</span><span class="stat-label">ÚLTIMO MÉTODO</span></span>
+          <div class="stat-value metric-value metric-value-method">${escapeHtml(lastMethod)}</div>
+          <div class="stat-note metric-detail">${lastMethodNote}</div>
+        </article>
+      </div>
     </div>
-    <div class="welcome-illustration" aria-hidden="true">
-      ${icon("bus")}
-    </div>
-  </section>
-  <section class="stats-grid" aria-label="Estadísticas de tu cuenta">
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">SALDO DISPONIBLE</span><span class="stat-icon">${icon("wallet")}</span></div><div class="stat-value">${money(state.balance)}</div><div class="stat-note">${state.balance > 0 ? "Disponible para viajar" : "Recarga para viajar"}</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">TARIFA VIGENTE</span><span class="stat-icon amber">${icon("route")}</span></div><div class="stat-value">${money(fare)}</div><div class="stat-note">${currentDayType === "weekend" ? "Domingos y festivos" : "Lunes a sábado"} · por viaje</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">VIAJES REGISTRADOS</span><span class="stat-icon green">${icon("bus")}</span></div><div class="stat-value">${tripCount}</div><div class="stat-note">${lastTripNote}</div></article>
-    <article class="stat-card"><div class="stat-top"><span class="stat-label">ÚLTIMO MÉTODO</span><span class="stat-icon dark">${icon("clock")}</span></div><div class="stat-value stat-value-method">${escapeHtml(lastMethod)}</div><div class="stat-note">${lastMethodNote}</div></article>
   </section>
   <section class="content-grid">
     <div>${pageTable(getRecentTrips())}</div>
@@ -626,8 +658,7 @@ function renderDriverDashboard() {
   const latestShift = driverState.completedShifts.at(-1);
   const heading = pageHeading(
     `${icon("bus")} OPERACIÓN DE TRANSPORTE`,
-    "Mi turno y pagos",
-    "Muestra el QR, registra pagos y cierra el turno.",
+    "Mi turno",
   );
 
   if (!shift) {
@@ -656,61 +687,96 @@ function renderDriverDashboard() {
   const walletTotal = entries.filter((entry) => entry.method === "QR / saldo").reduce((total, entry) => total + entry.amount, 0);
   const cardTotal = entries.filter((entry) => entry.method === "Tarjeta").reduce((total, entry) => total + entry.amount, 0);
   const total = cashTotal + walletTotal + cardTotal;
-  const rows = [...entries].reverse().slice(0, 8).map((entry) => `<tr>
-    <td><span class="driver-ledger-code">${escapeHtml(entry.reference)}</span></td>
-    <td>${escapeHtml(formatTime(new Date(entry.createdAt)))}</td>
-    <td><span class="payment-tag">${escapeHtml(entry.method)}</span></td>
-    <td>${money(entry.amount)}</td>
-  </tr>`).join("");
+  const fare = getFare();
+  const shareStyle = (value) => ` style="flex-grow:${total > 0 ? value : 0}"`;
+  const rows = driverLedgerBody(entries);
 
   return `${heading}
-    <section class="active-shift-banner">
-      <div class="active-shift-status"><span class="active-shift-pulse"></span> TURNO ACTIVO</div>
-      <h2>Ruta ${escapeHtml(shift.route)} <span>·</span> Vehículo ${escapeHtml(shift.vehicle)}</h2>
-      <p>Inicio registrado ${escapeHtml(formatTime(new Date(shift.startedAt)))} · <span id="driver-boardings-count">${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"} en esta jornada</span></p>
-      <div class="active-shift-reference">Número de turno: ${escapeHtml(shift.reference)}</div>
+    <section class="active-shift-banner" aria-label="Ficha de telemetría del turno">
+      <div class="shift-unit">
+        <span class="shift-route-badge" aria-hidden="true">${escapeHtml(shift.route)}</span>
+        <div class="shift-unit-id">
+          <h2>Ruta <span id="driver-route-name">${escapeHtml(shift.route)}</span></h2>
+          <span class="shift-plate"><span class="sr-only">Vehículo: </span><span id="driver-vehicle-plate">${escapeHtml(shift.vehicle)}</span></span>
+        </div>
+      </div>
+      <div class="shift-telemetry">
+        <div class="shift-telemetry-head">
+          <span class="active-shift-status"><span class="active-shift-pulse" aria-hidden="true"></span>EN RUTA</span>
+          <span class="active-shift-reference"><span class="sr-only">Número de turno: </span><span id="driver-shift-reference">${escapeHtml(shift.reference)}</span></span>
+        </div>
+        <div class="shift-telemetry-data">
+          <span id="driver-shift-started">${escapeHtml(formatTime(new Date(shift.startedAt)))}</span>
+          <span class="shift-divider" aria-hidden="true"></span>
+          <span id="driver-boardings-count">${entries.length} ${entries.length === 1 ? "abordaje" : "abordajes"}</span>
+        </div>
+      </div>
     </section>
     <section class="surface detail-card bus-qr-card">
       <h2>QR para pagar el pasaje</h2>
-      <p>Muestra este código a los pasajeros para que lo escaneen con su celular. Se actualiza solo cada 60 segundos y apenas un pasajero lo usa.</p>
+      <p>Código de uso único · Se renueva automáticamente cada 60 s</p>
       <div id="bus-qr-live">${renderBusQrBlock(shift)}</div>
-      <button class="button button-outline" type="button" data-action="refresh-bus-qr">Crear un nuevo código</button>
-      <div class="driver-live-payments" id="driver-live-payments">${renderDriverLivePayments(entries)}</div>
     </section>
-    <section class="driver-totals" aria-label="Pagos registrados en el turno">
-      <article><span>EFECTIVO</span><strong id="driver-total-cash">${money(cashTotal)}</strong><small id="driver-count-cash">${entries.filter((entry) => entry.method === "Efectivo").length} registros</small></article>
-      <article><span>PAGOS CON QR / SALDO</span><strong id="driver-total-wallet">${money(walletTotal)}</strong><small id="driver-count-wallet">${entries.filter((entry) => entry.method === "QR / saldo").length} registros</small></article>
-      <article><span>TARJETA</span><strong id="driver-total-card">${money(cardTotal)}</strong><small id="driver-count-card">${entries.filter((entry) => entry.method === "Tarjeta").length} registros</small></article>
-      <article class="driver-total-all"><span>TOTAL DE PAGOS</span><strong id="driver-total-all">${money(total)}</strong><small id="driver-count-all">${entries.length} ${entries.length === 1 ? "pago registrado" : "pagos registrados"}</small></article>
+    <section class="driver-totals" aria-label="Recaudo del turno">
+      <div class="driver-totals-top">
+        <div class="driver-total-hero">
+          <span class="driver-total-label">Total recaudado</span>
+          <strong id="driver-total-all">${money(total)}</strong>
+        </div>
+        <div class="driver-share" role="img" aria-label="Distribución del recaudo por medio de pago">
+          <span class="driver-share-seg driver-share-cash" id="driver-share-cash"${shareStyle(cashTotal)}></span>
+          <span class="driver-share-seg driver-share-wallet" id="driver-share-wallet"${shareStyle(walletTotal)}></span>
+          <span class="driver-share-seg driver-share-card" id="driver-share-card"${shareStyle(cardTotal)}></span>
+        </div>
+      </div>
+      <ul class="driver-totals-list">
+        <li><span class="driver-dot driver-dot-cash" aria-hidden="true"></span><span class="driver-totals-name">Efectivo</span><strong id="driver-total-cash">${money(cashTotal)}</strong></li>
+        <li><span class="driver-dot driver-dot-wallet" aria-hidden="true"></span><span class="driver-totals-name">QR / Saldo</span><strong id="driver-total-wallet">${money(walletTotal)}</strong></li>
+        <li><span class="driver-dot driver-dot-card" aria-hidden="true"></span><span class="driver-totals-name">Tarjeta</span><strong id="driver-total-card">${money(cardTotal)}</strong></li>
+      </ul>
     </section>
     <section class="driver-work-grid">
       <article class="driver-capture-card">
-        <div class="eyebrow">${icon("plus")} REGISTRO DE PAGO · TURNO ACTIVO</div>
-        <h2>¿Cómo pagó el pasajero?</h2>
+        <h2>Pago manual</h2>
         <div class="driver-payment-actions">
-          <button type="button" data-action="driver-payment" data-method="cash">${icon("wallet")}<span><strong>Efectivo</strong><small>Recibido en la unidad</small></span>${icon("arrow")}</button>
-          <button type="button" data-action="driver-payment" data-method="card">${icon("card")}<span><strong>Tarjeta</strong><small>Solo queda anotado</small></span>${icon("arrow")}</button>
+          <button type="button" class="driver-pay-tile" data-action="driver-payment" data-method="cash">
+            <span class="driver-pay-icon">${icon("wallet")}</span>
+            <strong>Efectivo</strong>
+            <span class="driver-pay-amount">+ ${money(fare)}</span>
+          </button>
+          <button type="button" class="driver-pay-tile" data-action="driver-payment" data-method="card">
+            <span class="driver-pay-icon">${icon("card")}</span>
+            <strong>Tarjeta</strong>
+            <span class="driver-pay-amount">+ ${money(fare)}</span>
+          </button>
         </div>
       </article>
       <article class="driver-close-card">
-        <div class="eyebrow">${icon("check")} TERMINAR TURNO</div><h2>Revisa el efectivo recibido</h2>
-        <p>Cuenta el efectivo y compáralo con los <strong id="driver-cash-expected">${money(cashTotal)}</strong> registrados.</p>
+        <h2>Cerrar turno</h2>
+        <div class="driver-cash-box">
+          <span>Efectivo esperado</span>
+          <strong id="driver-cash-expected">${money(cashTotal)}</strong>
+        </div>
         <form id="close-driver-shift-form">
-          <label for="driver-cash-counted">¿Cuánto efectivo tienes? (COP)</label>
-          <input class="input" id="driver-cash-counted" name="cashCounted" type="number" inputmode="numeric" min="0" step="1" value="${cashTotal}" required />
-          <button class="button button-outline" type="submit">Terminar turno</button>
+          <label class="driver-cash-label" for="driver-cash-counted">Efectivo en caja (COP)</label>
+          <div class="driver-cash-input">
+            <span class="driver-cash-prefix" aria-hidden="true">$</span>
+            <input class="input" id="driver-cash-counted" name="cashCounted" type="number" inputmode="numeric" min="0" step="1" value="${cashTotal}" required />
+          </div>
+          <button class="button button-outline driver-close-button" type="submit">${icon("check")}<span>Cerrar turno</span></button>
         </form>
-        <small>Al terminar el turno, ya no podrás registrar más pagos. El resumen mostrará si el efectivo coincide.</small>
       </article>
     </section>
     <section class="surface driver-ledger">
-      <div class="surface-header"><div><h2>Pagos registrados</h2><p id="driver-ledger-count">${entries.length} ${entries.length === 1 ? "pago" : "pagos"} en este turno</p></div></div>
+      <div class="surface-header">
+        <h2>Historial del turno</h2>
+        <p id="driver-ledger-count">${entries.length} ${entries.length === 1 ? "pago" : "pagos"} · ${money(total)}</p>
+      </div>
       <div class="table-wrap"><table class="trip-table driver-ledger-table">
-        <thead><tr><th>Número</th><th>Hora</th><th>Medio de pago</th><th>Valor</th></tr></thead>
-        <tbody id="driver-ledger-body">${rows || `<tr><td class="empty-row" colspan="4">Aún no hay pagos registrados. Al anotarlos, aparecerán aquí.</td></tr>`}</tbody>
+        <thead><tr><th>Movimiento</th><th>Hora</th><th>Valor</th></tr></thead>
+        <tbody id="driver-ledger-body">${rows}</tbody>
       </table></div>
-    </section>
-    <article class="driver-integrity-note">${icon("shield")}<div><strong>Registro de pagos</strong><p>Los pagos con QR descuentan saldo del pasajero; efectivo y tarjeta se anotan para el control del turno.</p></div></article>`;
+    </section>`;
 }
 
 function finderCell(row, column, top, left) {

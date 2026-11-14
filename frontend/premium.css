@@ -1,86 +1,687 @@
 /* QrPass — capa de acabado.
    Se carga después de styles.css y solo ajusta apariencia.
-   Reglas: superficies planas, bordes finos, sombras discretas y
-   movimiento sobrio. Nada de degradados, brillos ni desenfoques. */
+   Documento de referencia: DESIGN_SYSTEM.md ("Urban Transit Precision").
+   HTML/CSS puro: no toca IDs, clases ni lógica de app.js. */
 
 :root {
-  --ink: #0a1f1f;
-  --ink-soft: #3d5251;
-  --ink-muted: #5f706e;
-  --canvas: #f4f7f5;
-  --paper: #ffffff;
-  --line: #e2eae4;
-  --forest: #0b1f1f;
-  --forest-2: #14302f;
-  --mint: #b8f26a;
-  --mint-deep: #9fe04a;
-  --teal: #1f6b60;
-  --teal-pale: #e6f2ee;
-  --amber: #b8732a;
-  --amber-pale: #fff1de;
-  --red: #b04a3e;
-  --red-pale: #fdecea;
-  --shadow-xs: 0 1px 2px rgb(12 30 24 / 4%);
-  --shadow-sm: 0 1px 3px rgb(12 30 24 / 6%);
-  --shadow-md: 0 4px 14px rgb(12 30 24 / 7%);
-  --shadow-lg: 0 8px 24px rgb(12 30 24 / 8%);
-  --shadow-glow: none;
+  /* ---------- Tokens canónicos ---------- */
+  --bg-canvas: #f6f7f4;
+  --bg-surface: #ffffff;
+  --bg-surface-subtle: #eef2ee;
+
+  --brand-forest: #0d261b;
+  --brand-forest-hover: #163b2b;
+  --brand-lime: #a3e635;
+  --brand-lime-hover: #8fcc2b;
+
+  --text-primary: #0f1f18;
+  --text-secondary: #52635b;
+  --text-muted: #66756c;
+
+  --border-hairline: 1px solid rgba(13, 38, 27, 0.09);
+  --border-strong: 1px solid rgba(13, 38, 27, 0.14);
+
+  --font-mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+
+  --shadow-elevation-1: 0 2px 6px -1px rgba(13, 38, 27, 0.05), 0 1px 2px rgba(13, 38, 27, 0.03);
+  --shadow-elevation-2: 0 12px 24px -6px rgba(13, 38, 27, 0.09);
+  --shadow-overlay: 0 24px 60px -12px rgba(13, 38, 27, 0.22), 0 2px 8px rgba(13, 38, 27, 0.06);
+
+  /* ---------- Movimiento y radios ---------- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --transition: all 0.22s cubic-bezier(0.22, 1, 0.36, 1);
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 12px;
-  --radius-xl: 14px;
+
+  /* ---------- Alias heredados (styles.css y login.css los consumen) ---------- */
+  --ink: var(--text-primary);
+  --ink-soft: var(--text-secondary);
+  --ink-muted: var(--text-muted);
+  --canvas: var(--bg-canvas);
+  --paper: var(--bg-surface);
+  --line: rgba(13, 38, 27, 0.09);
+  --line-strong: rgba(13, 38, 27, 0.14);
+  --forest: var(--brand-forest);
+  --forest-2: var(--brand-forest-hover);
+  --forest-3: #1b4132;
+  --mint: var(--brand-lime);
+  --mint-deep: var(--brand-lime-hover);
+  --mint-soft: #f2f8f4;
+  --teal: #1f6b5b;
+  --teal-pale: #eaf3ed;
+  --amber: #b8732a;
+  --amber-pale: #fff3e3;
+  --red: #b04a3e;
+  --red-pale: #fdecea;
+  --shadow-card: var(--shadow-elevation-1);
+  --shadow-hover: var(--shadow-elevation-2);
+  --shadow-modal: var(--shadow-overlay);
+
   font-family: "DM Sans", "Inter", system-ui, sans-serif;
 }
 
+/* Retícula cartográfica de 32 px: identidad de sistema de transporte. */
 body {
-  background: var(--canvas);
+  background-color: var(--bg-canvas);
+  background-image:
+    linear-gradient(to right, rgba(13, 38, 27, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(13, 38, 27, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Ningún textarea redimensionable: el layout no se rompe desde el navegador. */
+textarea {
+  resize: none;
+}
+
+/* ---------- Jerarquía tipográfica ---------- */
+h1,
+.page-heading h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.page-heading h1 {
+  font-size: clamp(26px, 3.2vw, 34px);
+}
+
+.page-heading p {
+  max-width: 62ch;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+}
+
+.surface-header h2,
+.detail-card h2,
+.driver-capture-card h2,
+.driver-close-card h2 {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Metadatos técnicos: monoespaciada, mayúsculas, 11px, tracking amplio. */
+.eyebrow,
+.sidebar-caption,
+.modal-kicker,
+.stat-label,
+.trip-table th,
+.topbar-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Barra superior: una sola línea, sin quiebres de texto. */
+.topbar {
+  gap: 20px;
+}
+
+.breadcrumb,
+.breadcrumb > span,
+.breadcrumb strong {
+  white-space: nowrap;
+}
+
+.breadcrumb {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.topbar-right {
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 13px;
+}
+
+.topbar-date,
+.service-status,
+.service-status > span,
+.profile-switcher button {
+  white-space: nowrap;
+}
+
+/* Badges: misma retícula técnica, un punto más pequeños. */
+.service-status,
+.status-pill,
+.payment-tag,
+.service-tag,
+.account-role {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Cifras clave con peso de señalética y ancho fijo. */
+.stat-value,
+.balance-banner h2,
+.amount-option strong,
+.modal-total strong,
+.driver-totals article strong,
+.history-summary strong,
+.driver-live-count,
+.bus-qr-countdown,
+.active-shift-banner h2,
+.driver-shift-copy h2 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Horas, fechas y contadores no bailan al actualizarse. */
+.trip-table td,
+.receipt-list strong,
+.driver-live-payment,
+.active-shift-reference,
+#driver-cash-expected,
+#driver-cash-counted {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* ---------- Superficies ---------- */
 .surface,
 .stat-card,
 .driver-capture-card,
-.driver-close-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
+.driver-close-card,
+.amount-option,
+.custom-amount,
+.history-summary,
+.quick-card {
+  border: var(--border-hairline);
+  box-shadow: var(--shadow-elevation-1);
 }
 
-.surface-header h2 {
+.surface,
+.stat-card,
+.custom-amount,
+.quick-card {
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+}
+
+/* Un solo contenedor para las métricas del turno: menos recuadros, más orden. */
+.driver-totals {
+  gap: 0;
+  overflow: hidden;
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-elevation-1);
+}
+
+.driver-totals article {
+  border: 0;
+  border-left: var(--border-hairline);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.driver-totals article:first-child {
+  border-left: 0;
+}
+
+.driver-totals .driver-total-all {
+  border-left: var(--border-hairline);
+  background: var(--mint-soft);
+}
+
+/* El resumen de movimientos es una franja, no otra tarjeta. */
+.history-summary {
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: var(--border-hairline);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- Banners oscuros: tarjeta física, no bloque plano ---------- */
+.balance-banner,
+.driver-shift-hero,
+.active-shift-banner {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  background-color: var(--brand-forest);
+  background-image: linear-gradient(135deg, #0d261b 0%, #163b2b 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 30px -14px rgba(13, 38, 27, 0.3);
+}
+
+.balance-banner,
+.driver-shift-hero {
+  color: #f2f7f3;
+}
+
+/* Iconos sobre banners: blanco contenido, nunca lima. */
+.balance-banner .icon {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.active-shift-pulse {
+  background: var(--brand-lime);
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.16);
+}
+
+/* ---------- Bento del resumen del pasajero ----------
+   Billetera de tránsito: el saldo vive en la tarjeta bosque y las métricas
+   secundarias se ordenan por jerarquía, no como cuatro tarjetas iguales. */
+.hero-bento-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 21px;
+}
+
+.wallet-hero {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 292px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 22px;
+  overflow: hidden;
+  padding: 26px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-lg);
+  background-color: var(--brand-forest);
+  background-image:
+    radial-gradient(circle at 85% 20%, rgba(163, 230, 53, 0.14), transparent 55%),
+    linear-gradient(135deg, #0d261b 0%, #163b2b 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 28px -18px rgba(13, 38, 27, 0.35);
+  color: #fff;
+}
+
+.wallet-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wallet-hero .eyebrow {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.wallet-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.wallet-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--brand-lime);
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.14);
+}
+
+.wallet-hero-body {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  justify-items: start;
+}
+
+.wallet-hero .stat-label {
+  color: rgba(255, 255, 255, 0.56);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.wallet-hero .wallet-balance {
+  margin: 8px 0 0;
+  color: #fff;
+  font-family: inherit;
+  font-size: clamp(2.25rem, 3.5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.wallet-hero .stat-note {
+  margin-top: 9px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.wallet-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.wallet-cta {
+  min-height: 46px;
+  padding: 0 18px;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+}
+
+.wallet-cta .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.button-ghost {
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.button-ghost:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.wallet-hero .button:focus-visible {
+  outline-color: var(--brand-lime);
+}
+
+.wallet-metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+}
+
+.metric-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px;
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-elevation-1);
+}
+
+.metric-card-fare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+.metric-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.metric-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.metric-title .stat-label,
+.metric-card .stat-label {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.metric-icon {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.metric-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.metric-detail {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.metric-card-fare .metric-fare-value {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.metric-pair {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.metric-value {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.metric-value-method {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.metric-card .stat-note {
+  margin-top: 0;
+  color: var(--text-secondary);
+}
+
+/* Entre 901 y 1024 px el sidebar aún resta ancho: la columna de métricas
+   queda estrecha. Se aprieta el padding y el título icono+label hace wrap
+   para que ninguna palabra se recorte. */
+@media (min-width: 901px) and (max-width: 1024px) {
+  .metric-card,
+  .metric-card-fare {
+    padding: 16px;
+  }
+
+  .metric-title {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .metric-title .stat-label,
+  .metric-card .stat-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero-bento-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-hero {
+    min-height: 0;
+  }
+
+  .wallet-metrics {
+    grid-template-rows: auto auto;
+  }
+
+  .metric-pair {
+    min-height: 150px;
+  }
+}
+
+@media (max-width: 520px) {
+  .wallet-hero {
+    gap: 20px;
+    padding: 22px;
+  }
+
+  .wallet-hero-top {
+    align-items: flex-start;
+  }
+
+  .wallet-status {
+    white-space: normal;
+  }
+
+  .metric-card,
+  .metric-card-fare {
+    padding: 16px;
+  }
+
+  .metric-title .stat-label,
+  .metric-card .stat-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* ---------- Botones y tactilidad ---------- */
+.button,
+.quick-action,
+.amount-option,
+.nav-link,
+.mobile-tab,
+.icon-button,
+.text-link,
+.driver-payment-actions button,
+.method-choice .method-tile,
+.account-option,
+.profile-switcher button {
+  transition: var(--transition);
+}
+
+.button {
+  border-radius: var(--radius-sm);
   font-weight: 700;
   letter-spacing: 0;
 }
 
-/* ---------- Botones ---------- */
-.button {
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  letter-spacing: 0;
-  transition: background-color .15s ease, border-color .15s ease;
-}
-
 .button-mint {
-  background: var(--mint);
-  color: var(--forest);
-  box-shadow: none;
+  background: var(--brand-lime);
+  color: var(--brand-forest);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
 .button-mint:hover {
-  background: var(--mint-deep);
+  background: var(--brand-lime-hover);
+  color: var(--brand-forest);
 }
 
 .button-outline {
-  border: 1px solid var(--line);
+  border: var(--border-strong);
   border-radius: var(--radius-sm);
+  background: var(--bg-surface);
 }
 
 .button-outline:hover {
-  border-color: var(--teal);
-  background: #f6faf7;
+  border-color: var(--brand-forest);
+  background: var(--mint-soft);
 }
 
-/* ---------- Foco y números ---------- */
-/* Foco visible nítido en todos los controles interactivos. */
+/* Elevación corta y respuesta táctil, sin levantar la pieza del layout. */
+.button:hover,
+.quick-action:hover,
+.amount-option:hover,
+.driver-payment-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.button:active,
+.quick-action:active,
+.amount-option:active,
+.mobile-tab:active,
+.icon-button:active,
+.driver-payment-actions button:active {
+  transform: scale(0.98);
+  filter: none;
+}
+
+.nav-link:hover {
+  transform: translateX(2px);
+}
+
+.nav-link.is-active {
+  background: var(--forest-3);
+  color: #fff;
+  box-shadow: inset 2px 0 0 var(--brand-lime);
+}
+
+.nav-link.is-active .icon {
+  color: #fff;
+}
+
+.quick-action {
+  border-color: var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.quick-action:hover {
+  border-color: rgba(13, 38, 27, 0.18);
+  background: var(--bg-surface);
+}
+
+/* ---------- Foco y entradas ---------- */
 .button:focus-visible,
 .quick-action:focus-visible,
 .amount-option:focus-visible,
@@ -89,85 +690,1138 @@ body {
 .icon-button:focus-visible,
 .text-link:focus-visible,
 .footer-info-link:focus-visible,
-.profile-switcher button:focus-visible {
-  outline: 3px solid rgb(39 121 109 / 30%);
+.profile-switcher button:focus-visible,
+.driver-payment-actions button:focus-visible,
+.method-radio:focus-visible + .method-tile {
+  outline: 2px solid var(--brand-forest);
   outline-offset: 2px;
 }
 
-/* Cifras tabulares para montos y contadores. */
-.stat-value,
-.amount-option strong,
-.modal-total strong,
-.driver-totals article strong,
-.receipt-list strong,
-.history-summary strong {
+.input,
+.select,
+.login-form .input,
+input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"])),
+textarea {
+  border: var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  transition: border-color 0.22s var(--ease), box-shadow 0.22s var(--ease), background-color 0.22s var(--ease);
+}
+
+.input::placeholder,
+.login-form .input::placeholder {
+  color: #96a29a;
+}
+
+.input:focus,
+.select:focus,
+.login-form .input:focus,
+input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="file"])):focus,
+textarea:focus {
+  border-color: var(--brand-forest);
+  outline: none;
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.3);
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.login-form .input:focus-visible {
+  outline: 2px solid var(--brand-forest);
+  outline-offset: 1px;
+}
+
+/* Tarjetas de selección: estado claro sin depender solo del color. */
+.amount-option {
+  min-height: 92px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.amount-option:hover,
+.amount-option:focus,
+.amount-option:focus-visible,
+.amount-option:active,
+.amount-option.is-active {
+  border-color: var(--brand-forest);
+  background: var(--mint-soft);
+}
+
+.method-tile {
+  border: var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  transition: var(--transition);
+}
+
+.method-choice:hover .method-tile {
+  border-color: rgba(13, 38, 27, 0.22);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.method-choice:focus-within .method-tile {
+  border-color: var(--brand-forest);
+  background: var(--mint-soft);
+}
+
+.method-radio:checked + .method-tile {
+  border-color: var(--brand-forest);
+  background: var(--mint-soft);
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.2);
+}
+
+/* ---------- QR: visor de cobro ---------- */
+.bus-qr-frame {
+  position: relative;
+  display: grid;
+  width: fit-content;
+  max-width: 100%;
+  place-items: center;
+  margin: 16px auto;
+  padding: 20px;
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface);
+  background-image:
+    linear-gradient(var(--brand-forest), var(--brand-forest)),
+    linear-gradient(var(--brand-forest), var(--brand-forest)),
+    linear-gradient(var(--brand-lime-hover), var(--brand-lime-hover)),
+    linear-gradient(var(--brand-lime-hover), var(--brand-lime-hover));
+  background-repeat: no-repeat;
+  background-position: right 10px top 10px, right 10px top 10px, left 10px bottom 10px, left 10px bottom 10px;
+  background-size: 22px 2px, 2px 22px, 22px 2px, 2px 22px;
+  box-shadow: inset 0 1px 0 #fff, var(--shadow-elevation-1);
+}
+
+.bus-qr-frame::before,
+.bus-qr-frame::after {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  content: "";
+}
+
+.bus-qr-frame::before {
+  top: 10px;
+  left: 10px;
+  border-top: 2px solid var(--brand-forest);
+  border-left: 2px solid var(--brand-forest);
+  border-top-left-radius: 6px;
+}
+
+.bus-qr-frame::after {
+  right: 10px;
+  bottom: 10px;
+  border-right: 2px solid var(--brand-forest);
+  border-bottom: 2px solid var(--brand-forest);
+  border-bottom-right-radius: 6px;
+}
+
+.bus-qr-frame .qr-real-image {
+  display: block;
+  width: min(100%, 232px);
+  height: auto;
+  margin: 0;
+}
+
+.bus-qr-countdown {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+/* El token es un bloque de código, no un textarea de formulario. */
+.qr-token-row {
+  margin-top: 14px;
+  gap: 8px;
+}
+
+.qr-token-row > label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.qr-token-full {
+  height: 54px;
+  min-height: 54px;
+  max-height: 54px;
+  padding: 8px 11px;
+  border: 1px dashed rgba(13, 38, 27, 0.22);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-subtle);
+  color: #33453b;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  resize: none;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.qr-token-full::-webkit-scrollbar {
+  display: none;
+}
+
+.qr-token-row .button-small {
+  min-height: 40px;
+}
+
+/* ---------- Conductor: ficha de telemetría de unidad ---------- */
+.active-shift-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 15px 18px;
+  color: #fff;
+  background-color: #0d261b;
+  background-image:
+    radial-gradient(circle at 10% 0%, rgba(163, 230, 53, 0.16), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 26px),
+    linear-gradient(135deg, #0d261b 0%, #12301f 100%);
+}
+
+.shift-unit {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Letrero luminoso de bus: el número de ruta como placa lima. */
+.shift-route-badge {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #a3e635;
+  color: #0d261b;
+  font-family: "Manrope", sans-serif;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 22px -6px rgba(163, 230, 53, 0.55);
+}
+
+.shift-unit-id {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  justify-items: start;
+}
+
+.active-shift-banner .shift-unit-id h2 {
+  margin: 0;
+  color: #fff;
+  font-family: "Manrope", sans-serif;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.active-shift-banner .shift-unit-id h2 span {
+  color: inherit;
+}
+
+/* Matrícula vehicular: mono, caja translúcida y borde fino. */
+.shift-plate {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e6efe8;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shift-telemetry {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+}
+
+.shift-telemetry-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.active-shift-banner .active-shift-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #cdeaa4;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.active-shift-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a3e635;
+  box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.5);
+  animation: shift-pulse 2.2s ease-out infinite;
+}
+
+@keyframes shift-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.5); }
+  70% { box-shadow: 0 0 0 7px rgba(163, 230, 53, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(163, 230, 53, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active-shift-pulse {
+    animation: none;
+  }
+}
+
+.active-shift-banner .active-shift-reference {
+  margin: 0;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.shift-telemetry-data {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(226, 238, 230, 0.72);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+
+.shift-divider {
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Una sola línea para el subtítulo del QR en escritorio. */
+@media (min-width: 761px) {
+  .bus-qr-card > p {
+    white-space: nowrap;
+  }
+}
+
+/* Token manual: barra horizontal compacta, token truncado y acciones en línea. */
+.qr-token-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(13, 38, 27, 0.1);
+  border-radius: 10px;
+  background: #f4f7f5;
+}
+
+.qr-token-row .qr-token-full {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #52635b;
+  font-family: var(--font-mono);
+  font-size: 0.8rem !important;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: none;
+}
+
+.qr-token-row .qr-token-full:focus,
+.qr-token-row .qr-token-full:focus-visible {
+  border: 0;
+  outline: 2px solid var(--brand-forest);
+  outline-offset: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.qr-token-row .button-small.qr-token-action {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 30px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* Recaudo: total protagonista, barra de proporción y tres categorías. */
+.driver-totals {
+  display: block;
+  padding: 18px 20px 16px;
+  margin-bottom: 16px;
+}
+
+.driver-totals-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.driver-total-hero {
+  display: grid;
+  gap: 3px;
+}
+
+.driver-total-label {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.driver-total-hero strong {
+  color: var(--text-primary);
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(28px, 3.4vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
-/* Entrada de pantalla: 180 ms, un solo desplazamiento de 4 px.
-   Sin bucles, sin parallax y sin animar fondos completos. */
-@keyframes view-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.driver-share {
+  display: flex;
+  flex: 1 1 220px;
+  max-width: 440px;
+  min-width: 160px;
+  height: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5ece7;
 }
 
-.page-content > * {
-  animation: view-enter .18s ease-out both;
+.driver-share-seg {
+  flex: 0 1 0;
+  min-width: 0;
+  height: 100%;
 }
 
-/* Respuesta al toque: cambio de luminosidad, sin levantar la pieza. */
-.button:active,
-.quick-action:active,
-.amount-option:active,
-.nav-link:active,
-.mobile-tab:active,
-.icon-button:active {
-  transform: none;
-  filter: brightness(.97);
+.driver-share-cash {
+  background: #0d261b;
 }
 
-/* ---------- Cabecera ---------- */
-.topbar {
-  height: 68px;
-  padding: 0 40px;
-  border-bottom: 1px solid var(--line);
-  background: var(--paper);
+.driver-share-wallet {
+  background: #a3e635;
 }
 
-.breadcrumb strong {
+.driver-share-card {
+  background: #4d7c66;
+}
+
+.driver-totals-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 24px;
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(13, 38, 27, 0.08);
+  list-style: none;
+}
+
+.driver-totals-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.driver-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.driver-dot-cash {
+  background: #0d261b;
+}
+
+.driver-dot-wallet {
+  background: #a3e635;
+}
+
+.driver-dot-card {
+  background: #4d7c66;
+}
+
+.driver-totals-name {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.driver-totals-list strong {
+  margin-left: auto;
+  color: var(--text-primary);
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  white-space: nowrap;
+}
+
+/* Tareas del turno: dos tarjetas de igual altura. */
+.driver-work-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 16px;
+}
+
+.driver-capture-card,
+.driver-close-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+}
+
+.driver-capture-card h2,
+.driver-close-card h2 {
+  font-size: 17px;
+}
+
+/* Pago manual: mosaicos táctiles tipo terminal POS. */
+.driver-payment-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.driver-payment-actions .driver-pay-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 20px 12px;
+  border: 1px solid rgba(13, 38, 27, 0.1);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.driver-payment-actions .driver-pay-tile:hover {
+  border-color: rgba(13, 38, 27, 0.22);
+  background: #fbfcfb;
+}
+
+.driver-pay-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #eef4f0;
+  color: var(--brand-forest);
+}
+
+/* La base estira los spans del botón: aquí fijamos tamaño y centrado. */
+.driver-payment-actions .driver-pay-tile .driver-pay-icon,
+.driver-payment-actions .driver-pay-tile .driver-pay-amount {
+  flex: 0 0 auto;
+}
+
+.driver-pay-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.driver-payment-actions .driver-pay-tile strong {
+  color: var(--text-primary);
+  font-family: "Manrope", sans-serif;
+  font-size: 13.5px;
   font-weight: 700;
 }
 
-.service-status {
-  padding: 4px 9px;
-  border: 1px solid var(--line);
+.driver-pay-amount {
+  flex: 0 0 auto;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: var(--paper);
+  background: rgba(163, 230, 53, 0.2);
+  color: #3f6212;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
 }
 
-/* ---------- Entradas ---------- */
-.input {
-  border-radius: var(--radius-sm);
-  transition: border-color .15s ease, box-shadow .15s ease;
+/* Cierre: ficha de arqueo con caja destacada y prefijo monetario. */
+.driver-cash-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f4f7f5;
 }
 
-.input:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgb(31 107 96 / 12%);
+.driver-cash-box > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.driver-cash-box strong {
+  color: var(--text-primary);
+  font-family: "Manrope", sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.driver-close-card form {
+  gap: 8px;
+}
+
+.driver-cash-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.driver-cash-input {
+  position: relative;
+}
+
+.driver-cash-prefix {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.driver-cash-input .input {
+  padding-left: 28px;
+}
+
+.driver-close-card .driver-close-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  background: var(--bg-surface);
+  color: #991b1b;
+}
+
+.driver-close-card .driver-close-button .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.driver-close-card .driver-close-button:hover {
+  border-color: rgba(185, 28, 28, 0.4);
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+/* Historial: filas con icono de medio de pago, hora compacta y monto. */
+.driver-ledger .surface-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.driver-ledger-table th:last-child,
+.driver-ledger-table td:last-child {
+  text-align: right;
+}
+
+.driver-ledger-table td {
+  padding-block: 9px;
+  vertical-align: middle;
+}
+
+.driver-ledger-method {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.driver-ledger-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #eef4f0;
+  color: var(--brand-forest);
+}
+
+.driver-ledger-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.driver-ledger-icon-wallet {
+  background: rgba(163, 230, 53, 0.2);
+  color: #3f6212;
+}
+
+.driver-ledger-icon-card {
+  background: #e7f0eb;
+  color: #35604d;
+}
+
+.driver-ledger-time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.driver-ledger-amount {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.driver-ledger-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 0;
+  color: var(--text-muted);
+}
+
+.driver-ledger-empty .icon {
+  width: 36px;
+  height: 36px;
+  opacity: 0.35;
+}
+
+.driver-ledger-empty span {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* El punto del perfil usa el mismo lima del estado conectado. */
+.profile-status {
+  background: #a3e635;
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.16);
+}
+
+/* Evita que "Instalar app" y el estado empujen la fecha fuera de la topbar
+   cuando el sidebar aún resta ancho (901-1000 px). */
+@media (max-width: 1000px) {
+  .topbar-right .install-button,
+  .topbar-right .service-status {
+    display: none;
+  }
+}
+
+/* En pantallas estrechas las dos tarjetas de tarea se apilan. */
+@media (max-width: 760px) {
+  .driver-work-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .active-shift-banner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .shift-route-badge {
+    width: 44px;
+    height: 44px;
+    font-size: 1.25rem;
+  }
+
+  .shift-telemetry {
+    width: 100%;
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .shift-telemetry-head {
+    justify-content: space-between;
+  }
+
+  .active-shift-banner .active-shift-reference {
+    padding: 3px 8px;
+    font-size: 10.5px;
+  }
+
+  .driver-capture-card,
+  .driver-close-card {
+    padding: 16px;
+  }
+
+  .driver-totals {
+    padding: 16px;
+  }
+
+  .driver-totals-top {
+    gap: 14px;
+  }
+
+  .driver-share {
+    flex-basis: 100%;
+    max-width: none;
+    margin: 2px 0 0;
+  }
+
+  .driver-total-hero strong {
+    font-size: 30px;
+  }
+
+  .driver-totals-list {
+    gap: 8px 10px;
+  }
+
+  .driver-totals-list li {
+    gap: 6px;
+  }
+
+  .driver-totals-name {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+
+  .driver-totals-list strong {
+    font-size: 13px;
+  }
+
+  .driver-payment-actions .driver-pay-tile {
+    padding: 16px 10px;
+  }
+
+  .driver-ledger .surface-header {
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 380px) {
+  .driver-totals-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .driver-totals-list li {
+    padding: 7px 0;
+  }
+
+  .driver-totals-list li + li {
+    border-top: 1px solid rgba(13, 38, 27, 0.06);
+  }
+}
+
+@media (max-width: 450px) {
+  /* Sobreponerse al apilado de styles.css: la barra sigue siendo una fila. */
+  .qr-token-row {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .qr-token-row .qr-token-action {
+    width: auto;
+  }
+}
+
+/* Marco del QR clásico (modales y vistas de detalle). */
+.qr-frame {
+  position: relative;
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevation-1);
+}
+
+.qr-frame::before,
+.qr-frame::after {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  content: "";
+  pointer-events: none;
+}
+
+.qr-frame::before {
+  top: 7px;
+  left: 7px;
+  border-top: 2px solid var(--brand-forest);
+  border-left: 2px solid var(--brand-forest);
+  border-top-left-radius: 4px;
+}
+
+.qr-frame::after {
+  right: 7px;
+  bottom: 7px;
+  border-right: 2px solid var(--brand-forest);
+  border-bottom: 2px solid var(--brand-forest);
+  border-bottom-right-radius: 4px;
+}
+
+/* ---------- Escáner del pasajero ---------- */
+.qr-generation-card form {
+  display: grid;
+  gap: 12px;
+}
+
+/* Área sugerida: se oculta cuando la cámara real ya está visible. */
+.qr-generation-card form::before {
+  display: block;
+  min-height: 190px;
+  border: 1px dashed rgba(13, 38, 27, 0.2);
+  border-radius: var(--radius-lg);
+  background-color: var(--mint-soft);
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(13, 38, 27, 0.05) 0%, rgba(13, 38, 27, 0) 46%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='%230D261B' stroke-opacity='.3' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9V6.5A2.5 2.5 0 0 1 6.5 4H9M15 4h2.5A2.5 2.5 0 0 1 20 6.5V9M20 15v2.5a2.5 2.5 0 0 1-2.5 2.5H15M9 20H6.5A2.5 2.5 0 0 1 4 17.5V15'/%3E%3Crect x='8.6' y='8.6' width='2.6' height='2.6' rx='.4' fill='%230D261B' fill-opacity='.3' stroke='none'/%3E%3Crect x='14.4' y='14.4' width='2.6' height='2.6' rx='.4' fill='%230D261B' fill-opacity='.3' stroke='none'/%3E%3Cpath d='M14.6 8.8v2.2M8.8 14.6h2.2'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: auto, 58px 58px;
+  content: "";
+  order: 0;
+}
+
+.qr-generation-card form:has(.qr-camera-preview:not([hidden]))::before {
+  display: none;
+}
+
+.qr-generation-card .qr-camera-preview {
+  order: 1;
+  margin: 0;
+  border: var(--border-hairline);
+  border-radius: var(--radius-lg);
+}
+
+.qr-generation-card .modal-actions {
+  order: 2;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+  margin-top: 0;
+}
+
+/* La cámara es la acción principal de esta pantalla. */
+.qr-generation-card [data-action="scan-passenger-camera"] {
+  display: inline-flex;
+  width: 100%;
+  min-height: 62px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--brand-lime);
+  color: var(--brand-forest);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  transition: var(--transition);
+}
+
+.qr-generation-card [data-action="scan-passenger-camera"]::before {
+  display: block;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1.8px solid currentColor;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 56%, currentColor 2.2px, transparent 2.6px),
+    linear-gradient(currentColor, currentColor) 50% 27% / 7px 1.8px no-repeat;
+  content: "";
+}
+
+.qr-generation-card [data-action="scan-passenger-camera"]:hover {
+  background: var(--brand-lime-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.qr-generation-card [data-action="scan-passenger-camera"]:active {
+  transform: scale(0.98);
+}
+
+.qr-generation-card [type="submit"] {
+  width: 100%;
+  min-height: 50px;
+}
+
+/* El ingreso manual queda debajo, como opción secundaria. */
+.qr-generation-card form > .form-field {
+  order: 3;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: var(--border-hairline);
+}
+
+.qr-generation-card form > .form-field::before {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  content: "o ingresa el código manualmente";
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.qr-generation-card form > .form-field label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- Tablas y señalética ---------- */
+.trip-table th {
+  border-bottom: var(--border-hairline);
+  background: rgba(13, 38, 27, 0.018);
+  color: var(--text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.trip-table td {
+  border-top: var(--border-hairline);
+  color: #46564c;
+}
+
+.trip-table tbody tr {
+  transition: background-color 0.22s var(--ease);
+}
+
+.trip-table tbody tr:hover {
+  background: rgba(13, 38, 27, 0.018);
+}
+
+/* Indicador de ruta como placa de señalética de transporte. */
+.route-token {
+  width: auto;
+  min-width: 32px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1.5px solid var(--brand-forest);
+  border-radius: 6px;
+  background: var(--bg-canvas);
+  color: var(--brand-forest);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Badges con borde del mismo tono: nítidos, no flotantes. */
+.service-status,
+.status-pill,
+.payment-tag,
+.service-tag,
+.account-role {
+  border: 1px solid;
+}
+
+.service-status {
+  border-color: rgba(13, 38, 27, 0.1);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.status-pill {
+  border-color: rgba(86, 131, 96, 0.28);
+  background: rgba(234, 244, 235, 0.72);
+}
+
+.payment-tag {
+  border-color: rgba(96, 129, 109, 0.24);
+  background: var(--bg-surface-subtle);
+}
+
+.service-tag {
+  border-color: rgba(154, 116, 60, 0.26);
 }
 
 /* ---------- Diálogos ---------- */
 @keyframes modal-enter {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(.995);
+    transform: translateY(6px) scale(0.995);
   }
 
   to {
@@ -177,15 +1831,40 @@ body {
 }
 
 .modal {
-  border: 1px solid var(--line);
+  border: var(--border-hairline);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-overlay);
   padding: 0;
   overflow: hidden;
 }
 
 .modal[open] {
-  animation: modal-enter .16s ease-out both;
+  animation: modal-enter 0.16s ease-out both;
+}
+
+/* ---------- Toasts ---------- */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ---------- Scrollbar ---------- */
@@ -199,21 +1878,114 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(12 30 24 / 16%);
-  border-radius: 999px;
   border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(13, 38, 27, 0.16);
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(12 30 24 / 28%);
+  background: rgba(13, 38, 27, 0.28);
   background-clip: content-box;
+}
+
+/* ---------- Movimiento de entrada ---------- */
+@keyframes view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-content > * {
+  animation: view-enter 0.18s ease-out both;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  /* La barra flotante mide ~72 px: 100 px de holgura en el main. */
+  .main-area {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    padding: 0 20px;
+  }
+
+  .page-content {
+    padding: 24px 20px 28px;
+  }
+
+  .site-footer {
+    padding: 10px 20px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-tabbar {
+    border-color: rgba(13, 38, 27, 0.1);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 10px 30px -8px rgba(13, 38, 27, 0.18);
+    backdrop-filter: blur(12px) saturate(1.08);
+    -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  }
+
+  .toast-region {
+    top: calc(16px + env(safe-area-inset-top));
+    right: 16px;
+    bottom: auto;
+    left: 16px;
+    justify-items: center;
+  }
+
+  .toast {
+    width: 100%;
+    max-width: 420px;
+    animation-name: toast-in-top;
+  }
+
+  .driver-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .driver-totals article {
+    border-left: 1px solid rgba(13, 38, 27, 0.08);
+  }
+
+  .driver-totals article:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .driver-totals article:nth-child(n + 3) {
+    border-top: 1px solid rgba(13, 38, 27, 0.08);
+  }
+
+  .history-summary {
+    flex-wrap: wrap;
+  }
+
+  .qr-generation-card form::before {
+    min-height: 168px;
+  }
 }
 
 /* ---------- Contraste alto ---------- */
 @media (prefers-contrast: high) {
   :root {
+    --bg-canvas: #fff;
+    --bg-surface: #fff;
+    --text-primary: #000;
+    --text-secondary: #1a1a1a;
+    --brand-forest: #000;
+    --brand-lime: #00d000;
+    --border-hairline: 1px solid #000;
+    --border-strong: 2px solid #000;
     --ink: #000;
+    --ink-soft: #1a1a1a;
+    --ink-muted: #333;
     --canvas: #fff;
     --paper: #fff;
     --line: #000;
@@ -221,25 +1993,49 @@ body {
     --mint: #00d000;
     --teal: #005050;
   }
-  body { background: #fff; }
-  .button { border: 2px solid #000; }
+
+  body {
+    background: #fff;
+  }
+
+  .button {
+    border: 2px solid #000;
+  }
+
+  .surface,
+  .stat-card,
+  .driver-totals,
+  .history-summary {
+    border: 2px solid #000;
+  }
 }
 
 /* Texto secundario legible */
-.eyebrow, .stat-label, .stat-note, .breadcrumb, .topbar-date, .page-heading p {
-  color: var(--ink-soft);
+.eyebrow,
+.stat-label,
+.stat-note,
+.breadcrumb,
+.topbar-date,
+.page-heading p {
+  color: var(--text-secondary);
 }
 
 /* ---------- Movimiento reducido ---------- */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
 
-/* ---------- Móvil ---------- */
-@media (max-width: 768px) {
-  .topbar { padding: 0 20px; }
-  .page-content { padding: 24px 20px 20px; }
+  .button:hover,
+  .quick-action:hover,
+  .amount-option:hover,
+  .driver-payment-actions button:hover,
+  .method-choice:hover .method-tile,
+  .qr-generation-card [data-action="scan-passenger-camera"]:hover,
+  .nav-link:hover {
+    transform: none;
+  }
 }
