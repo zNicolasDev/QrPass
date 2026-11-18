@@ -14,7 +14,7 @@ Desarrollar una plataforma de recaudo digital basada en códigos QR firmados que
 
 **Dentro del alcance:**
 
-- Registro y autenticación de pasajeros, conductores y administradores con roles.
+- Registro y autenticación de pasajeros y conductores con roles.
 - Billetera virtual, recargas idempotentes y consulta de saldo.
 - Pago de pasaje mediante escaneo del QR del bus (firma HMAC, vigencia y asociación al turno).
 - Pago manual en efectivo o tarjeta dentro de la billetera interna.
@@ -22,8 +22,9 @@ Desarrollar una plataforma de recaudo digital basada en códigos QR firmados que
 - Tarifa dinámica por ruta, día hábil, fin de semana y festivo colombiano.
 - Historial de viajes y movimientos.
 - Gestión de turnos del conductor: inicio, registro de pagos, generación de QR y cierre con conciliación.
-- Panel de administración con métricas generales protegido por rol `ADMIN`.
 - Documentación de ingeniería de software, arquitectura, UML y trazabilidad.
+
+Las métricas globales y su panel administrativo quedan como mejora futura; el conductor consulta los totales de sus propios turnos.
 
 **Fuera del alcance (pendiente para producción):**
 
@@ -35,7 +36,7 @@ Desarrollar una plataforma de recaudo digital basada en códigos QR firmados que
 
 ## 2.4 Público objetivo
 
-El sistema se orienta a tres actores: pasajeros (usuarios finales del servicio), conductores (operadores del bus) y personal técnico/administrativo encargado de la operación y el soporte. La documentación y las cuentas de acceso permiten que jurados, docentes y nuevos desarrolladores comprendan y validen la plataforma sin conocimiento previo del dominio.
+El sistema se orienta a tres actores: pasajeros (usuarios finales del servicio), conductores (operadores del bus) y personal técnico/operativo encargado del soporte. La documentación y las cuentas de acceso permiten que jurados, docentes y nuevos desarrolladores comprendan y validen la plataforma sin conocimiento previo del dominio.
 
 ## Referencias
 

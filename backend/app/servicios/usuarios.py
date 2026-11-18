@@ -13,7 +13,6 @@ from app.servicios.comun import ErrorDominio, ahora_servicio
 
 ROLES_PASAJERO = ("PASSENGER",)
 ROLES_CONDUCTOR = ("PASSENGER", "DRIVER")
-ROLES_ADMINISTRADOR = ("PASSENGER", "ADMIN")
 
 
 def _obtener_rol(session: Session, codigo: str) -> Rol:
@@ -71,13 +70,6 @@ def crear_conductor(
         raise ErrorDominio(409, "Ya existe un conductor con esa licencia.")
     user = _crear_usuario(session, names, email, password, ROLES_CONDUCTOR)
     session.add(Conductor(usuario_id=user.id, numero_licencia=licencia))
-    session.commit()
-    session.refresh(user)
-    return user
-
-
-def crear_administrador(session: Session, names: str, email: str, password: str) -> Usuario:
-    user = _crear_usuario(session, names, email, password, ROLES_ADMINISTRADOR)
     session.commit()
     session.refresh(user)
     return user

@@ -19,7 +19,6 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | POST | `/account/payments` | Pago en efectivo o tarjeta |
 | POST | `/account/top-ups` | Recarga |
 | POST | `/account/transfers` | Traspaso |
-| GET | `/admin/metrics` | Métricas globales (ADMIN) |
 | GET | `/driver/assignment` | Asignación (DRIVER) |
 | GET | `/driver/shift` | Turno activo |
 | GET | `/driver/shifts/history` | Historial de cierres |

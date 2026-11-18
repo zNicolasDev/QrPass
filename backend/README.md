@@ -21,15 +21,14 @@ Copia `.env.example` como referencia para configurar `QR_PASS_DATABASE_URL`, `QR
 
 ## Cuentas y aprovisionamiento
 
-Los pasajeros se registran desde `POST /auth/register` o desde la interfaz. Las cuentas de conductor y administración se crean con la gestión de QrPass:
+Los pasajeros se registran desde `POST /auth/register` o desde la interfaz. Las cuentas de conductor se crean por CLI:
 
 ```powershell
 python -m app.management create-driver --nombre "Conductor QrPass" --correo conductor@qrpass.com --contrasena "Clave-Segura-2026" --licencia LIC-001 --ruta 24 --placa ABC123
-python -m app.management create-admin --nombre "Administrador QrPass" --correo admin@qrpass.com --contrasena "Clave-Segura-2026"
 python -m app.management status
 ```
 
-`create-driver` asigna los roles `PASSENGER` y `DRIVER`; si se indica `--ruta` y `--placa`, también registra el turno asignado. `create-admin` asigna los roles `PASSENGER` y `ADMIN` para que la cuenta pueda usar la interfaz y consultar las métricas globales. Las contraseñas se solicitan de forma interactiva si se omite `--contrasena` y deben tener al menos 12 caracteres. La API valida los roles y protege las operaciones de conductor y administración. Los tokens vencen en una hora. En desarrollo, si falta `QR_PASS_AUTH_SECRET`, se genera un secreto aleatorio y las sesiones dejan de servir al reiniciar. Producción requiere `QR_PASS_ENV=production` y un secreto de al menos 32 bytes.
+`create-driver` asigna los roles `PASSENGER` y `DRIVER`; si se indica `--ruta` y `--placa`, también registra el turno asignado. `assign-route` asigna una ruta y vehículo a un conductor existente. Las contraseñas se solicitan de forma interactiva si se omite `--contrasena` y deben tener al menos 12 caracteres. La API valida los roles y protege las operaciones de conductor. Las estadísticas globales y su interfaz quedan como mejora futura; por ahora cada conductor consulta el recaudo de sus propios turnos. Los tokens vencen en una hora. En desarrollo, si falta `QR_PASS_AUTH_SECRET`, se genera un secreto aleatorio y las sesiones dejan de servir al reiniciar. Producción requiere `QR_PASS_ENV=production` y un secreto de al menos 32 bytes.
 
 ## Modelos y DTOs
 
@@ -62,7 +61,6 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | POST | `/account/payments` | Pago en efectivo o tarjeta; el saldo requiere escanear QR del bus |
 | POST | `/account/top-ups` | Recarga idempotente de la billetera QrPass |
 | POST | `/account/transfers` | Traspaso único a otra ruta dentro de 20 minutos |
-| GET | `/admin/metrics` | Métricas globales de recaudo; requiere rol `ADMIN` |
 | GET | `/driver/assignment` | Asignación operativa; requiere rol `DRIVER` |
 | GET | `/driver/shift` | Totales del turno activo; requiere rol `DRIVER` |
 | GET | `/driver/shifts/history` | Últimos 20 cierres del conductor |
@@ -74,7 +72,7 @@ Todos los endpoints usan el prefijo `/api/v1`.
 ## Carpetas y archivos
 
 - `app/seguridad/auth.py`: autenticación y permisos por rol.
-- `app/controllers/`: controladores HTTP organizados por sistema, autenticación, pasajero, conductor y administración.
+- `app/controllers/`: controladores HTTP organizados por sistema, autenticación, pasajero y conductor.
 - `app/dtos/`: DTOs; clases y campos internos en español, con alias que conservan las claves actuales de JSON para solicitudes y respuestas.
 - `app/servicios/`: reglas de pagos, tarifas, QR, traspasos, turnos, usuarios y catálogo.
 - `app/models/`: modelos; clases, atributos y relaciones SQLAlchemy en español. Los nombres físicos de tablas y columnas siguen iguales mediante los nombres explícitos de SQLAlchemy.

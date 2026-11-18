@@ -40,7 +40,7 @@ La tabla de los tres módulos principales (autenticación, pasajero/pagos y cond
 
 ## Flujos y límites
 
-El servidor asigna y verifica roles; solo una cuenta con `DRIVER` puede usar las funciones de conductor y solo una cuenta con `ADMIN` puede consultar las métricas globales. El pasajero consulta saldo e historial, paga con su billetera, escanea el QR firmado que muestra el bus y solicita un transbordo si abordó la ruta equivocada. El conductor puede iniciar el turno asignado, mostrar el QR temporal de abordaje, registrar recaudos y consultar los cierres persistidos.
+El servidor asigna y verifica roles; solo una cuenta con `DRIVER` puede usar las funciones de conductor. El pasajero consulta saldo e historial, paga con su billetera, escanea el QR firmado que muestra el bus y solicita un transbordo si abordó la ruta equivocada. El conductor puede iniciar el turno asignado, mostrar el QR temporal de abordaje, registrar recaudos y consultar los cierres persistidos. Las estadísticas globales quedan como mejora futura; el conductor consulta los totales de sus propios turnos.
 
 Las operaciones se liquidan con la billetera QrPass; no se mueve dinero real ni se conecta una pasarela bancaria. La PWA cachea la interfaz, pero **no permite autorizar viajes, cobrar o sincronizar movimientos sin conexión**. Los QR actuales dependen de la API para verificar la firma.
 

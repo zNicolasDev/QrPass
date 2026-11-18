@@ -35,7 +35,7 @@ Todos los endpoints de la tabla usan el prefijo `/api/v1` y las operaciones aute
 
 ## Datos de apoyo compartidos
 
-La interfaz carga `GET /routes` y `GET /fares/current` para mostrar rutas y calcular una referencia de tarifa. La API calcula y confirma el importe definitivo al registrar el pago. Los endpoints de conductor requieren el rol `DRIVER`; `GET /admin/metrics` requiere el rol `ADMIN`; los endpoints de cuenta e historial requieren una sesión autenticada.
+La interfaz carga `GET /routes` y `GET /fares/current` para mostrar rutas y calcular una referencia de tarifa. La API calcula y confirma el importe definitivo al registrar el pago. Los endpoints de conductor requieren el rol `DRIVER`; los endpoints de cuenta e historial requieren una sesión autenticada. Las métricas globales quedan como mejora futura.
 
 ## Ubicación de la implementación
 

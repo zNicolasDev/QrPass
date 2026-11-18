@@ -36,7 +36,6 @@ Nada se resuelve solo en el frontend: el backend valida las reglas de negocio y 
 | Historial de pagos | Mis viajes | `refreshPassengerData()` | `GET /api/v1/payments/history` | `listar_historial_pagos` | `payments`, `trips` | Movimientos unificados |
 | Detalle de movimiento | Modal detalle | `openMovementDetails()` | (sin llamada; usa estado cargado) | — | — | — |
 | Aviso de privacidad / plataforma | Modales | `openPrivacyInfo()` / `openPlatformInfo()` | (informativo) | — | — | — |
-| Métricas globales (admin) | Modal plataforma | `openGlobalMetrics()` | `GET /api/v1/admin/metrics` | `consultar_metricas` | (agregados) | Totales de recaudo |
 
 ## Conductor — turno y recaudo
 
@@ -62,6 +61,6 @@ Nada se resuelve solo en el frontend: el backend valida las reglas de negocio y 
 1. **Ninguna acción muta estado en el frontend sin llamar a la API** (saldo, viajes, turnos, pagos, QR, traspasos).
 2. **El backend re-valida** reglas de negocio (saldo, tarifa, idempotencia, propiedad del turno, tiempo de traspaso, etc.) aunque el frontend también las verifique para UX.
 3. **La DB es la única fuente de verdad**; el frontend solo refleja lo que el backend confirma.
-4. **Seguridad por capas**: token firmado → `obtener_usuario_autenticado` → `requerir_rol` → servicio → DB. Cada endpoint protegido exige rol (`PASSENGER`, `DRIVER`, `ADMIN`).
-5. **Sin datos quemados**: rutas/tarifas se importan del catálogo; conductores y administradores se crean por CLI/administración; montos de recarga son sugerencias de UI validadas por el backend.
+4. **Seguridad por capas**: token firmado → `obtener_usuario_autenticado` → `requerir_rol` → servicio → DB. Cada endpoint protegido exige rol (`PASSENGER` o `DRIVER`).
+5. **Sin datos quemados**: rutas/tarifas se importan del catálogo; conductores se crean por CLI; montos de recarga son sugerencias de UI validadas por el backend.
 6. **Separación por capas**: controller (HTTP) → service (reglas) → ORM (DB). Los controladores no acceden a la base de datos directamente.

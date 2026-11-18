@@ -137,35 +137,3 @@ def test_dto_validates_requests_and_serializes_model_output() -> None:
                 "consentimiento_privacidad": False,
             }
         )
-
-
-def test_metricas_gerenciales_dto_and_service() -> None:
-    from app.dtos import MetricasGerencialesRespuesta
-    from app.servicios.administracion import obtener_metricas_gerenciales
-    from app.servicios.catalogo import importar_catalogo
-    from app.servicios.usuarios import crear_administrador, crear_conductor, registrar_pasajero
-    from app.core.database import BaseDatos
-
-    db = BaseDatos('sqlite://')
-    db.initialize()
-    with db.session_factory() as session:
-        importar_catalogo(session)
-        registrar_pasajero(session, 'Pasajero Prueba', 'pasajero@qrpass.com', 'Clave-Pasajero-2026')
-        crear_conductor(
-            session,
-            'Conductor Prueba',
-            'conductor@qrpass.com',
-            'Clave-Conductor-2026',
-            'LIC-PRUEBA-001',
-        )
-        crear_administrador(session, 'Administrador Prueba', 'admin@qrpass.com', 'Clave-Admin-2026')
-
-        metricas = obtener_metricas_gerenciales(session)
-        assert 'total_collected' in metricas
-        assert metricas['total_routes'] == 32
-        assert metricas['total_users'] == 3
-
-        dto = MetricasGerencialesRespuesta.model_validate(metricas)
-        assert dto.total_rutas == 32
-        assert dto.total_usuarios == 3
-    db.close()

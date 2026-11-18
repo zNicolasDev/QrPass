@@ -3,7 +3,7 @@
 ```
 backend/app/
   core/          # main.py, database.py
-  controllers/   # sistema, autenticacion, pasajero, conductor, administracion
+  controllers/   # sistema, autenticacion, pasajero, conductor
   dtos/          # contratos Pydantic
   models/        # entidades SQLAlchemy
   seguridad/     # auth, passwords

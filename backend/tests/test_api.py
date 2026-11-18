@@ -12,19 +12,17 @@ from sqlalchemy.orm import Session
 
 import app.servicios as services
 from app.core.main import crear_aplicacion
-from app.models import Ruta
+from app.models import Rol, Ruta
 from app.servicios.catalogo import importar_catalogo
 from app.servicios.turnos import asignar_turno_conductor
-from app.servicios.usuarios import crear_administrador, crear_conductor, registrar_pasajero
+from app.servicios.usuarios import crear_conductor, registrar_pasajero
 
 
 PASSENGER_EMAIL = "pasajero@qrpass.com"
 DRIVER_EMAIL = "conductor@qrpass.com"
-ADMIN_EMAIL = "admin@qrpass.com"
 PASSWORDS = {
     PASSENGER_EMAIL: "Clave-Pasajero-2026",
     DRIVER_EMAIL: "Clave-Conductor-2026",
-    ADMIN_EMAIL: "Clave-Admin-2026",
 }
 
 
@@ -53,14 +51,6 @@ def _provisionar_datos_de_prueba(test_client: TestClient) -> None:
         route = session.scalar(select(Ruta).where(Ruta.nombre == "24"))
         assert route is not None
         asignar_turno_conductor(session, driver, route.id, "TUV-204")
-
-        crear_administrador(
-            session,
-            "Administrador QrPass",
-            ADMIN_EMAIL,
-            PASSWORDS[ADMIN_EMAIL],
-        )
-
 
 def auth_headers(client: TestClient, username: str = PASSENGER_EMAIL) -> dict[str, str]:
     response = client.post(
@@ -174,22 +164,16 @@ def test_driver_login_has_both_roles_and_can_read_assignment(client: TestClient)
     assert assignment.json()["shift_status"] == "assigned"
 
 
-def test_admin_can_read_metrics_and_other_roles_cannot(client: TestClient) -> None:
-    endpoint_iniciar_sesion = client.post(
-        "/api/v1/auth/login",
-        json={"username": ADMIN_EMAIL, "password": PASSWORDS[ADMIN_EMAIL]},
-    )
+def test_admin_metrics_endpoint_is_not_available(client: TestClient) -> None:
+    assert client.get("/api/v1/admin/metrics").status_code == 404
 
-    assert endpoint_iniciar_sesion.status_code == 200
-    assert endpoint_iniciar_sesion.json()["user"]["roles"] == ["ADMIN", "PASSENGER"]
-    admin_headers = {"Authorization": f"Bearer {endpoint_iniciar_sesion.json()['access_token']}"}
-    metrics = client.get("/api/v1/admin/metrics", headers=admin_headers)
 
-    assert metrics.status_code == 200
-    assert metrics.json()["total_routes"] == 32
-    assert metrics.json()["total_users"] == 3
-    assert client.get("/api/v1/admin/metrics", headers=auth_headers(client)).status_code == 403
-    assert client.get("/api/v1/admin/metrics").status_code == 401
+def test_system_initializes_only_passenger_and_driver_roles(client: TestClient) -> None:
+    database = client.app.state.database
+    with database.session_factory() as session:
+        roles = set(session.scalars(select(Rol.codigo)))
+
+    assert roles == {"PASSENGER", "DRIVER"}
 
 
 def test_authentication_rejects_bad_credentials_missing_and_tampered_tokens(client: TestClient) -> None:

@@ -1,6 +1,6 @@
 # Contrato de integración por requerimiento funcional: módulos de QrPass
 
-Este documento afianza el contrato de integración del proyecto QrPass, una plataforma de recaudo electrónico para el transporte público de Ibagué. El contrato se organiza por requerimiento funcional y por subrequerimiento, de modo que cada fila conecta una acción de la interfaz con un método, un endpoint, una solicitud, una respuesta y un conjunto de errores. La primera parte explica qué es, para qué sirve, qué debe contener y cómo se elabora; la segunda parte presenta las tablas de los módulos 1 a 4 de la especificación de requisitos y un módulo complementario de administración.
+Este documento afianza el contrato de integración del proyecto QrPass, una plataforma de recaudo electrónico para el transporte público de Ibagué. El contrato se organiza por requerimiento funcional y por subrequerimiento, de modo que cada fila conecta una acción de la interfaz con un método, un endpoint, una solicitud, una respuesta y un conjunto de errores. La primera parte explica qué es, para qué sirve, qué debe contener y cómo se elabora; la segunda parte presenta las tablas de los cuatro módulos de la especificación de requisitos.
 
 ## 1. ¿Qué es un contrato de integración por requerimiento funcional?
 
@@ -63,7 +63,7 @@ Además, los códigos de estado HTTP forman parte del contrato: no son un detall
 - Ruta base: `http://127.0.0.1:8000/api/v1` en el entorno local. En producción debe usarse HTTPS.
 - Formato: JSON UTF-8. Las claves públicas están en inglés; la interfaz y los mensajes están en español.
 - Autenticación: `Authorization: Bearer <access_token>`. El token dura 60 minutos.
-- Roles: `PASSENGER` para pasajeros, `DRIVER` para conductores y `ADMIN` para administración. Los endpoints de conductor exigen el rol `DRIVER` y las métricas globales exigen el rol `ADMIN`.
+- Roles: `PASSENGER` para pasajeros y `DRIVER` para conductores. Los endpoints de conductor exigen el rol `DRIVER`.
 - Dinero: enteros en pesos colombianos (COP), sin decimales.
 - Fechas: ISO 8601 (`AAAA-MM-DDTHH:MM:SS`).
 - Idempotencia: `idempotency_key` viaja en el cuerpo, entre 8 y 80 caracteres. La misma clave no debe producir un segundo movimiento.
@@ -72,18 +72,18 @@ Además, los códigos de estado HTTP forman parte del contrato: no son un detall
 
 ## 7. Alcance y módulos cubiertos
 
-Las tablas 1 a 4 cubren los cuatro módulos de la especificación de requisitos. La tabla 5 añade el módulo complementario de administración y auditoría, presente en la implementación.
+Las tablas 1 a 4 cubren los cuatro módulos de la especificación de requisitos.
 
 - Módulo 1. Gestión de usuarios y autenticación: RF-01 y RF-02.
 - Módulo 2. Procesamiento de pagos y consola a bordo: RF-03 a RF-06.
 - Módulo 3. Servicios especiales y billetera virtual: RF-07 y RF-08.
 - Módulo 4. Reportes, historial e información financiera: RF-09 a RF-11.
-- Módulo 5. Administración y auditoría (complementario): métricas globales de recaudo.
+
+Las métricas globales de recaudo y una vista administrativa quedan como mejora futura; no forman parte del contrato implementado.
 
 ## 8. Contrato de integración por módulo
 
-Las tablas 1 a 5 presentan el contrato de los cuatro módulos de la especificación de requisitos y del módulo complementario de administración. Cada fila corresponde a un subrequerimiento y relaciona la pantalla, el método, el endpoint, la solicitud, la respuesta principal y los errores.
-
+Las tablas 1 a 4 presentan el contrato de los cuatro módulos de la especificación de requisitos. Cada fila corresponde a un subrequerimiento y relaciona la pantalla, el método, el endpoint, la solicitud, la respuesta principal y los errores.
 ### Tabla 1. Módulo 1. Gestión de usuarios y autenticación
 
 | Sub-RF | Pantalla y acción | Método | Endpoint | Solicitud (JSON) | Respuesta principal | Errores |
@@ -95,7 +95,7 @@ Las tablas 1 a 5 presentan el contrato de los cuatro módulos de la especificaci
 | RF-02.2 | `conductor.html` — Mi turno (asignación) | GET | /driver/assignment | Sin cuerpo. Requiere rol `DRIVER`. | 200 {"driver_name":"...","license_number":"...","route_id":3,"route_name":"...","vehicle_plate":"...","shift_status":"..."} | 403 sin rol DRIVER; 404 sin asignación |
 | RF-02.3 | `conductor.html` — Iniciar turno | POST | /driver/shift/start?route_id=3 | Parámetro de consulta `route_id` entero mayor que cero. Sin cuerpo. | 200 {"shift_id":7,"route_id":3,"route_name":"...","vehicle_plate":"...","status":"active","starts_at":"...","cash_total":0,"qr_total":0,"card_total":0,"payment_count":0,"entries":[]} | 403 ruta no asignada; 409 sin asignación; 422 route_id inválido |
 
-Nota. El registro crea únicamente cuentas PASSENGER; las cuentas de conductor y administración se aprovisionan con `python -m app.management create-driver` y `create-admin`. El token se envía como Bearer en todas las operaciones autenticadas.
+Nota. El registro crea únicamente cuentas PASSENGER; las cuentas de conductor se aprovisionan con `python -m app.management create-driver`. El token se envía como Bearer en todas las operaciones autenticadas.
 
 ### Tabla 2. Módulo 2. Procesamiento de pagos y consola a bordo
 
@@ -146,15 +146,9 @@ Nota. La recarga se abona a la billetera QrPass y es idempotente; no existe pasa
 
 Nota. El comprobante y el historial pertenecen a la cuenta del pasajero. El cierre calcula la diferencia entre el efectivo contado y el efectivo registrado.
 
-### Tabla 5. Módulo 5. Administración y auditoría (complementario)
+Las métricas globales y su vista administrativa se consideran una mejora futura; no hay endpoint ni rol de administrador en la versión actual. El conductor sí puede consultar el recaudo de sus propios turnos.
 
-| Sub-RF | Pantalla y acción | Método | Endpoint | Solicitud (JSON) | Respuesta principal | Errores |
-|---|---|---|---|---|---|---|
-| RF-12.1 | `index.html` — Métricas globales | GET | /admin/metrics | Sin cuerpo. Requiere rol `ADMIN`. | 200 {"total_collected":...,"cash_collected":...,"qr_collected":...,"card_collected":...,"total_trips":...,"total_transfers":...,"active_shifts":...,"total_users":...,"total_routes":...} | 401 sesión requerida; 403 sin rol ADMIN |
-
-Nota. Este módulo complementa el alcance del sistema con la consulta de métricas globales. El acceso queda restringido al rol `ADMIN`; no existe un endpoint para restablecer datos.
-
-### Tabla 6. Catálogo de errores y acciones del cliente
+### Tabla 5. Catálogo de errores y acciones del cliente
 
 | Código | Significado | Uso en QrPass | Acción del cliente |
 |---|---|---|---|
@@ -170,7 +164,7 @@ Nota. Este módulo complementa el alcance del sistema con la consulta de métric
 | 500 | Internal Server Error | Fallo no controlado del servidor. | Reintentar o contactar soporte. |
 | 503 | Service Unavailable | Base de datos no disponible o roles no inicializados. | Reintentar más tarde. |
 
-### Tabla 7. Cobertura de subrequerimientos por módulo
+### Tabla 6. Cobertura de subrequerimientos por módulo
 
 | Módulo | RF | Sub-RF | Endpoints | Estado |
 |---|---|---|---|---|
@@ -178,17 +172,16 @@ Nota. Este módulo complementa el alcance del sistema con la consulta de métric
 | 2. Pagos y consola a bordo | 4 | 12 | 7 | Implementado; tarjeta registrada en el turno. |
 | 3. Servicios especiales y billetera | 2 | 7 | 5 | Implementado; recarga con la billetera QrPass. |
 | 4. Reportes, historial y finanzas | 3 | 9 | 6 | Implementado. |
-| 5. Administración y auditoría | 1 | 1 | 1 | Implementado; protegido con rol ADMIN. |
-| Total | 12 | 36 | 25 | Cobertura de los cuatro módulos y un módulo complementario. |
+| Total | 11 | 35 | 24 | Cobertura de los cuatro módulos especificados. |
 
 ## 9. Observaciones y brechas detectadas
 
 1. Numeración. El documento de requisitos usa RF-01 a RF-11; la documentación interna usa RF-01 a RF-14. Este contrato adopta la numeración del documento de requisitos y añade subrequerimientos (por ejemplo, RF-03.1). Se recomienda unificar la numeración en todos los artefactos.
 2. Generación del QR. El requisito RF-04 atribuye la generación al pasajero; la implementación genera el QR en la consola del bus y el pasajero lo escanea. El contrato documenta el flujo implementado y deja constancia de la diferencia para que se apruebe o se corrija.
-3. Administración. `GET /admin/metrics` exige el rol `ADMIN` y no existe un endpoint para restablecer datos.
+3. Métricas globales. La consulta consolidada de recaudo y su interfaz administrativa quedan como mejora futura; la versión actual limita los agregados al turno del conductor autenticado.
 4. Pago con saldo. `POST /account/payments` rechaza `method=wallet` con 422; el pago con saldo solo se realiza escaneando el QR del bus. La regla debe permanecer explícita para evitar dos caminos para el mismo débito.
 5. Idempotencia. La clave viaja en el cuerpo y no en el encabezado `Idempotency-Key`. Se documenta así porque es lo que implementa la API; cambiarla exigiría una versión nueva del contrato.
-6. Registro de conductores. `POST /auth/register` crea únicamente cuentas `PASSENGER`. Las cuentas de conductor y administración se aprovisionan con `python -m app.management`; el contrato no debe prometer un auto-registro de conductores.
+6. Registro de conductores. `POST /auth/register` crea únicamente cuentas `PASSENGER`. Las cuentas de conductor se aprovisionan con `python -m app.management create-driver`; el contrato no debe prometer un auto-registro de conductores.
 7. Tarifas. `GET /fares/current` devuelve una lista porque una ruta puede tener tarifas por destino y por tipo de día. La interfaz debe seleccionar la tarifa aplicable y el servidor debe confirmar el importe al cobrar.
 
 Nota sobre el uso de IA. Para la revisión de redacción y consistencia se utilizó asistencia de inteligencia artificial. Las fuentes se verificaron y las decisiones técnicas fueron validadas por el equipo. No se cita una conversación específica porque la herramienta empleada no genera una URL pública compartible.

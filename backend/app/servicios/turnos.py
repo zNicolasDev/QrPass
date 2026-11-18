@@ -29,8 +29,8 @@ def _asegurar_asignacion_ruta(session: Session, driver: Usuario, route_id: int) 
     """Garantiza una asignación para la ruta indicada.
 
     Si ya existe una asignación para esa ruta, la devuelve. Si no, la recrea
-    a partir del último turno cerrado de esa misma ruta, para que el conductor
-    pueda volver a iniciar sin depender de un administrador.
+    a partir del último turno cerrado de esa misma ruta para que el conductor
+    pueda volver a iniciar sin una intervención manual.
     """
     shift = session.scalar(
         select(Turno)
@@ -329,7 +329,7 @@ def cerrar_turno_conductor(session: Session, driver: Usuario, cash_counted: int)
     # El conductor conserva su ruta y vehículo para poder iniciar un nuevo turno.
     _asegurar_asignacion_conductor(session, driver)
     # Prepara la siguiente asignación para que el conductor pueda iniciar
-    # un nuevo turno sin depender de la CLI ni de un administrador.
+    # un nuevo turno sin depender de una intervención manual.
     try:
         asignar_turno_conductor(session, driver, shift.ruta_id, shift.vehiculo.placa)
     except Exception:

@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 SYSTEM_ROLES = (
     ("PASSENGER", "Pasajero"),
     ("DRIVER", "Conductor"),
-    ("ADMIN", "Administrador"),
 )
 
 

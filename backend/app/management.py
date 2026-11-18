@@ -10,7 +10,7 @@ from app.core.database import BaseDatos
 from app.models import Conductor, Pago, Ruta, Tarifa, Turno, Usuario, Viaje
 from app.servicios.catalogo import importar_catalogo
 from app.servicios.turnos import asignar_turno_conductor
-from app.servicios.usuarios import crear_administrador, crear_conductor
+from app.servicios.usuarios import crear_conductor
 
 
 def _leer_contrasena(value: str | None) -> str:
@@ -113,22 +113,6 @@ def comando_asignar_ruta(args: argparse.Namespace) -> None:
     print(f"Ruta {args.ruta} asignada al conductor {args.correo} con el vehículo {args.placa.upper()}.")
 
 
-def comando_crear_administrador(args: argparse.Namespace) -> None:
-    password = _leer_contrasena(args.contrasena)
-    database = _abrir_base()
-    try:
-        with database.session_factory() as session:
-            crear_administrador(
-                session,
-                names=args.nombre,
-                email=args.correo,
-                password=password,
-            )
-    finally:
-        database.close()
-    print(f"Administrador creado: {args.correo}")
-
-
 def comando_estado(_: argparse.Namespace) -> None:
     database = _abrir_base()
     try:
@@ -191,15 +175,6 @@ def construir_parser() -> argparse.ArgumentParser:
     asignar.add_argument("--placa", required=True, help="Placa del vehículo.")
     asignar.add_argument("--empresa", default="QrPass", help="Empresa de transporte del vehículo.")
     asignar.set_defaults(func=comando_asignar_ruta)
-
-    admin = subparsers.add_parser(
-        "create-admin",
-        help="Crea una cuenta con roles PASSENGER y ADMIN.",
-    )
-    admin.add_argument("--nombre", required=True, help="Nombre completo de la persona administradora.")
-    admin.add_argument("--correo", required=True, help="Correo que se usará como usuario.")
-    admin.add_argument("--contrasena", help="Contraseña de al menos 12 caracteres.")
-    admin.set_defaults(func=comando_crear_administrador)
 
     estado = subparsers.add_parser("status", help="Muestra un resumen de los datos guardados.")
     estado.set_defaults(func=comando_estado)

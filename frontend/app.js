@@ -673,7 +673,7 @@ function renderDriverDashboard() {
     return `${heading}
       <section class="driver-shift-hero">
         <div class="driver-shift-copy"><div class="eyebrow">${icon("clock")} ASIGNACIÓN OPERATIVA</div>
-          <h2>No hay un turno activo</h2><p>${driverAssignment ? "Revisa la ruta y el vehículo asignados. Al iniciar el turno podrás mostrar el QR y registrar los pagos recibidos." : "No tienes una ruta asignada por ahora. Puedes consultar los turnos anteriores o pedir una asignación al administrador."}</p>
+          <h2>No hay un turno activo</h2><p>${driverAssignment ? "Revisa la ruta y el vehículo asignados. Al iniciar el turno podrás mostrar el QR y registrar los pagos recibidos." : "No tienes una ruta asignada por ahora. Puedes consultar los turnos anteriores o solicitar una asignación al equipo de operación."}</p>
         </div>
         <div class="assigned-shift"><span>RUTA ASIGNADA</span><strong>Ruta ${escapeHtml(driverAssignment?.route_name ?? "—")} <i>·</i> Vehículo ${escapeHtml(driverAssignment?.vehicle_plate ?? "—")}</strong><small>Conductor ${escapeHtml(driverAssignment?.driver_name ?? authenticatedUser.names)}</small></div>
         ${driverAssignments.length > 1 ? `<div class="form-field section-gap"><label for="driver-route-select">Ruta a iniciar</label><select class="select" id="driver-route-select">${driverAssignments.map((item) => `<option value="${item.route_id}"${item.route_id === selectedDriverRouteId ? " selected" : ""}>Ruta ${escapeHtml(item.route_name)} · ${escapeHtml(item.vehicle_plate)}</option>`).join("")}</select></div>` : ""}
@@ -1146,7 +1146,7 @@ async function closeDriverShift(cashCounted) {
     driverPaymentsSignature = "";
     activeBusQr = null;
     // Conserva la asignación para que el conductor pueda iniciar un nuevo turno
-    // sin recargar la página ni depender de un administrador.
+    // sin recargar la página ni depender de una intervención manual.
     try {
       await refreshDriverAssignments();
     } catch (error) {
@@ -1221,7 +1221,6 @@ function updateInstallButton() {
 
 // Diálogos, avisos y acciones que acompañan el recorrido.
 function openPlatformInfo() {
-  const canViewMetrics = authenticatedUser?.roles.includes("ADMIN") ?? false;
   modal.classList.add("platform-info-open");
   modalContent.innerHTML = `<article class="platform-info-container">
     <header class="platform-info-header">
@@ -1237,41 +1236,12 @@ function openPlatformInfo() {
       <ul><li>Para pagar con QR se necesita conexión a internet.</li><li>Las rutas, tarifas y reglas se administran desde el catálogo de la plataforma.</li></ul>
       <h3>Acerca de tus datos</h3>
       <p>No ingreses datos bancarios ni compartas tu contraseña.</p>
-      ${canViewMetrics ? `<button class="button button-outline" type="button" data-action="view-global-metrics"><svg class="icon"><use href="#icon-grid"></use></svg> Ver resumen general</button>` : ""}
     </section>
     <footer class="platform-info-footer"><span>Ventana informativa. Cerrarla no realiza ninguna transacción.</span><button class="button" type="button" data-action="close-modal">Entendido</button></footer>
   </article>`;
   modal.showModal();
 }
 
-
-async function openGlobalMetrics() {
-  modal.classList.remove("platform-info-open");
-  try {
-    const metrics = await apiRequest("/admin/metrics");
-    modalContent.innerHTML = `<div class="modal-body">
-      <div class="modal-kicker">CONSOLIDADO · GERENCIA DE TRANSPORTE</div>
-      <h2 id="modal-title">Métricas Globales de Recaudo</h2>
-      <div class="receipt-list">
-        <div class="receipt-row"><span>Total recaudado</span><strong>${money(metrics.total_collected)}</strong></div>
-        <div class="receipt-row"><span>Recaudo en efectivo</span><span>${money(metrics.cash_collected)}</span></div>
-        <div class="receipt-row"><span>Recaudo código QR</span><span>${money(metrics.qr_collected)}</span></div>
-        <div class="receipt-row"><span>Recaudo con tarjeta</span><span>${money(metrics.card_collected)}</span></div>
-        <div class="receipt-row"><span>Total de viajes</span><span>${metrics.total_trips}</span></div>
-        <div class="receipt-row"><span>Transbordos ($0 COP)</span><span>${metrics.total_transfers} transbordos</span></div>
-        <div class="receipt-row"><span>Turnos activos de bus</span><span>${metrics.active_shifts} en servicio</span></div>
-        <div class="receipt-row"><span>Rutas habilitadas</span><span>${metrics.total_routes} rutas</span></div>
-        <div class="receipt-row"><span>Usuarios en el sistema</span><span>${metrics.total_users} usuarios</span></div>
-      </div>
-      <div class="modal-actions" style="margin-top: 1.5rem;">
-        <button class="button" type="button" data-action="close-modal">Cerrar</button>
-      </div>
-    </div>`;
-    modal.showModal();
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
 
 function openPrivacyInfo() {
   modal.classList.remove("platform-info-open");
@@ -1285,7 +1255,7 @@ function openPrivacyInfo() {
       <div class="detail-row"><span>Para qué se usan</span><strong>Acceso a la cuenta y operación de los viajes</strong></div>
       <div class="detail-row"><span>Almacenamiento</span><strong>Base de datos de QrPass</strong></div>
     </div>
-    <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer tus derechos sobre los datos, contacta al administrador de la plataforma.</p>
+    <p>La contraseña se guarda como un hash seguro. No escribas datos bancarios ni uses una contraseña que tengas en otros servicios. Para ejercer tus derechos sobre los datos, contacta al equipo de QrPass.</p>
     <div class="modal-actions"><button class="button" type="button" data-action="close-modal">Cerrar aviso</button></div>
   </div>`;
   modal.showModal();
@@ -1563,7 +1533,6 @@ document.addEventListener("click", async (event) => {
   if (action === "transfer") openTransfer();
   if (action === "platform-info") openPlatformInfo();
   if (action === "privacy-info") openPrivacyInfo();
-  if (action === "view-global-metrics") openGlobalMetrics();
   if (action === "logout") logout();
   if (action === "start-driver-shift") startDriverShift();
   if (action === "refresh-bus-qr") {
