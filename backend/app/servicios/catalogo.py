@@ -2,20 +2,21 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Ruta, Tarifa
+from app.servicios.configuracion import catalogo_rutas_tarifas, sembrar_configuracion
 
 
-RUTA_CATALOGO = Path(__file__).resolve().parents[1] / "datos_maestros" / "rutas_tarifas.json"
-
-
-def cargar_catalogo(path: Path = RUTA_CATALOGO) -> dict[str, object]:
-    # Lee el catálogo maestro versionado junto a la aplicación.
+def cargar_catalogo_desde_archivo(session: Session, path: Path) -> None:
+    # Carga inicial opcional: un archivo externo entregado por quien despliega.
     with path.open(encoding="utf-8") as archivo:
-        return json.load(archivo)
+        catalogo: dict[str, Any] = json.load(archivo)
+    sembrar_configuracion(session, catalogo)
+    session.commit()
 
 
 def _asegurar_ruta(session: Session, nombre: str) -> tuple[Ruta, bool]:
@@ -59,9 +60,11 @@ def _asegurar_tarifa(
     return tarifa, False
 
 
-def importar_catalogo(session: Session, path: Path = RUTA_CATALOGO) -> dict[str, int]:
+def importar_catalogo(session: Session) -> dict[str, int]:
     # Carga idempotente: puede ejecutarse varias veces sin duplicar rutas ni tarifas.
-    data = cargar_catalogo(path)
+    data = catalogo_rutas_tarifas(session)
+    if data is None:
+        raise ValueError("El catálogo no está cargado en la base de datos.")
     rutas = data.get("rutas", [])
     tarifas_ordinarias = data.get("tarifas_ordinarias", {})
     tarifas_por_destino = data.get("tarifas_por_destino", {})

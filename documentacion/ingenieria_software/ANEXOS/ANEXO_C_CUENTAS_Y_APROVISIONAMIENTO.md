@@ -5,10 +5,13 @@ QrPass no crea cuentas automáticamente al iniciar la base de datos. Los pasajer
 ## Comandos
 
 ```powershell
-# Esquema y roles del sistema
+# Esquema de la base
 python -m app.management init
 
-# Rutas y tarifas del catálogo maestro
+# Catálogo inicial desde un archivo externo (roles, perfiles, rutas y tarifas)
+python -m app.management load-catalog --archivo .\catalogo.json
+
+# Aplicar el catálogo guardado a las tablas de rutas y tarifas
 python -m app.management import-catalog
 
 # Conductor con roles PASSENGER y DRIVER

@@ -9,10 +9,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.models import Conductor, Rol, RolUsuario, Usuario
 from app.seguridad.passwords import crear_hash_contrasena, verificar_contrasena
 from app.servicios.comun import ErrorDominio, ahora_servicio
-
-
-ROLES_PASAJERO = ("PASSENGER",)
-ROLES_CONDUCTOR = ("PASSENGER", "DRIVER")
+from app.servicios.configuracion import roles_del_perfil
 
 
 def _obtener_rol(session: Session, codigo: str) -> Rol:
@@ -52,7 +49,7 @@ def _crear_usuario(
 
 
 def registrar_pasajero(session: Session, names: str, email: str, password: str) -> Usuario:
-    user = _crear_usuario(session, names, email, password, ROLES_PASAJERO)
+    user = _crear_usuario(session, names, email, password, roles_del_perfil(session, "passenger"))
     session.commit()
     session.refresh(user)
     return user
@@ -68,7 +65,7 @@ def crear_conductor(
     licencia = license_number.strip()
     if session.scalar(select(Conductor.usuario_id).where(Conductor.numero_licencia == licencia)) is not None:
         raise ErrorDominio(409, "Ya existe un conductor con esa licencia.")
-    user = _crear_usuario(session, names, email, password, ROLES_CONDUCTOR)
+    user = _crear_usuario(session, names, email, password, roles_del_perfil(session, "driver"))
     session.add(Conductor(usuario_id=user.id, numero_licencia=licencia))
     session.commit()
     session.refresh(user)

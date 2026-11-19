@@ -15,11 +15,28 @@ if not exist "%CLOUDFLARED%" (
 )
 
 if not exist "%PYTHON%" (
-  echo No se encontro el entorno Python del backend: "%PYTHON%"
+  for /f "delims=" %%P in ('where python 2^>nul') do set "PYTHON_FALLBACK=%%P"
+)
+if not exist "%PYTHON%" (
+  if defined PYTHON_FALLBACK set "PYTHON=%PYTHON_FALLBACK%"
+)
+if not exist "%PYTHON%" (
+  echo No se encontro Python para el backend: "%PYTHON%"
   echo Consulta backend\README.md para instalar los requisitos.
   pause
   exit /b 1
 )
+
+echo Cargando rutas y tarifas en qrpass.db...
+pushd "%BACKEND_DIR%"
+"%PYTHON%" -m app.management import-catalog
+if errorlevel 1 (
+  popd
+  echo No se pudo cargar el catalogo inicial en qrpass.db.
+  pause
+  exit /b 1
+)
+popd
 
 set "QR_PASS_SERVE_FRONTEND=1"
 set "QR_PASS_CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000"

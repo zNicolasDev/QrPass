@@ -4,6 +4,7 @@
 # Reexporta modelos desde app.models y los importa para registrar sus tablas
 # antes de que Base.metadata.create_all construya el esquema.
 from app.models.base import Base
+from app.models.configuracion import Configuracion
 from app.models.dispositivo_abordo import DispositivoAbordo
 from app.models.tarjeta import Tarjeta
 from app.models.conductor import Conductor
@@ -23,6 +24,7 @@ from app.models.vehiculo import Vehiculo
 
 __all__ = [
     "Base",
+    "Configuracion",
     'DispositivoAbordo',
     'Tarjeta',
     'Conductor',

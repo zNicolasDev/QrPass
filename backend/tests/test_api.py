@@ -14,8 +14,29 @@ import app.servicios as services
 from app.core.main import crear_aplicacion
 from app.models import Rol, Ruta
 from app.servicios.catalogo import importar_catalogo
+from app.servicios.configuracion import asegurar_roles, sembrar_configuracion
 from app.servicios.turnos import asignar_turno_conductor
 from app.servicios.usuarios import crear_conductor, registrar_pasajero
+
+
+CATALOGO_PRUEBA = {
+    "roles": [
+        {"code": "PASSENGER", "name": "Pasajero"},
+        {"code": "DRIVER", "name": "Conductor"},
+    ],
+    "perfiles_roles": {
+        "passenger": ["PASSENGER"],
+        "driver": ["PASSENGER", "DRIVER"],
+    },
+    "rutas": [
+        "1", "2", "4/7", "6", "8/39", "9", "11", "14", "15", "17",
+        "18", "19", "20", "21", "22", "23", "24", "28", "29", "31",
+        "33", "35", "37", "40", "43", "48", "50", "53", "82", "90",
+        "ALIMENTADOR CHUCHUNI", "SAN BERNARDO-SALADO",
+    ],
+    "tarifas_ordinarias": {"weekday": 3300, "weekend": 3400},
+    "tarifas_por_destino": {},
+}
 
 
 PASSENGER_EMAIL = "pasajero@qrpass.com"
@@ -31,6 +52,8 @@ def _provisionar_datos_de_prueba(test_client: TestClient) -> None:
     # ya no carga datos de ejemplo al iniciar.
     database = test_client.app.state.database
     with database.session_factory() as session:
+        sembrar_configuracion(session, CATALOGO_PRUEBA)
+        asegurar_roles(session)
         importar_catalogo(session)
         passenger = registrar_pasajero(
             session,

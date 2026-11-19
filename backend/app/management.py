@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import getpass
 import sys
+from pathlib import Path
 
 from sqlalchemy import func, select
 
 from app.core.database import BaseDatos
 from app.models import Conductor, Pago, Ruta, Tarifa, Turno, Usuario, Viaje
-from app.servicios.catalogo import importar_catalogo
+from app.servicios.catalogo import cargar_catalogo_desde_archivo, importar_catalogo
 from app.servicios.turnos import asignar_turno_conductor
 from app.servicios.usuarios import crear_conductor
 
@@ -53,6 +54,17 @@ def comando_importar_catalogo(_: argparse.Namespace) -> None:
         f"{resumen['tarifas_creadas']} tarifas nuevas, "
         f"{resumen['tarifas_actualizadas']} tarifas actualizadas."
     )
+
+
+def comando_cargar_catalogo(args: argparse.Namespace) -> None:
+    database = _abrir_base()
+    try:
+        with database.session_factory() as session:
+            cargar_catalogo_desde_archivo(session, Path(args.archivo))
+            importar_catalogo(session)
+    finally:
+        database.close()
+    print(f"Catálogo cargado en qrpass.db desde {args.archivo}.")
 
 
 def comando_crear_conductor(args: argparse.Namespace) -> None:
@@ -152,6 +164,13 @@ def construir_parser() -> argparse.ArgumentParser:
         help="Importa las rutas y tarifas del catálogo maestro.",
     )
     catalogo.set_defaults(func=comando_importar_catalogo)
+
+    cargar = subparsers.add_parser(
+        "load-catalog",
+        help="Guarda en la base un catálogo entregado como archivo externo.",
+    )
+    cargar.add_argument("--archivo", required=True, help="Ruta al JSON con roles, rutas y tarifas.")
+    cargar.set_defaults(func=comando_cargar_catalogo)
 
     conductor = subparsers.add_parser(
         "create-driver",

@@ -22,6 +22,7 @@ def test_models_register_domain_tables_relationships_and_invariants() -> None:
     configure_mappers()
 
     assert set(Base.metadata.tables) == {
+        "app_config",
         "users",
         "roles",
         "user_roles",

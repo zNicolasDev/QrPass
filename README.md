@@ -22,7 +22,7 @@ python -m app.management import-catalog
 python -m uvicorn app.core.main:app --reload
 ```
 
-`init` crea el esquema y los roles del sistema. `import-catalog` carga las rutas y tarifas desde `app/datos_maestros/rutas_tarifas.json`. La API queda disponible en `http://127.0.0.1:8000`; su documentación interactiva está en `http://127.0.0.1:8000/docs`.
+`init` crea el esquema. Los catálogos (roles, perfiles de roles, rutas y tarifas) viven en `qrpass.db`: se cargan una sola vez con `python -m app.management load-catalog --archivo <catalogo.json>` y `import-catalog` los aplica de forma idempotente. `iniciar.bat` ejecuta `import-catalog` antes de levantar la API. El repositorio no incluye archivos con datos semilla; ningún dato maestro está escrito como literal en Python. La API queda disponible en `http://127.0.0.1:8000`; su documentación interactiva está en `http://127.0.0.1:8000/docs`.
 
 ### Crear cuentas de conductor
 

@@ -15,7 +15,7 @@ python -m app.management import-catalog
 python -m uvicorn app.core.main:app --reload
 ```
 
-`init` crea el esquema de `qrpass.db` (SQLite local) y los roles del sistema. `import-catalog` carga rutas y tarifas desde `app/datos_maestros/rutas_tarifas.json` de forma idempotente. No se crean cuentas automáticamente. Documentación interactiva: `http://127.0.0.1:8000/docs`.
+`init` crea el esquema de `qrpass.db` (SQLite local). Los catálogos (roles, perfiles de roles, rutas y tarifas) se guardan en la tabla `app_config` con `python -m app.management load-catalog --archivo <catalogo.json>`; `import-catalog` los aplica de forma idempotente y `iniciar.bat` lo ejecuta automáticamente. El repositorio no incluye archivos con datos semilla ni hay literales de datos maestros en Python. No se crean cuentas automáticamente. Documentación interactiva: `http://127.0.0.1:8000/docs`.
 
 Copia `.env.example` como referencia para configurar `QR_PASS_DATABASE_URL`, `QR_PASS_CORS_ORIGINS` y `QR_PASS_AUTH_SECRET` en el proceso. La aplicación no carga automáticamente un archivo `.env`.
 
@@ -82,12 +82,12 @@ viaje propio. Ambos tienen cobertura en `tests/test_api.py` para detectar regres
 - `app/dtos/`: DTOs; clases y campos internos en español, con alias que conservan las claves actuales de JSON para solicitudes y respuestas.
 - `app/servicios/`: reglas de pagos, tarifas, QR, traspasos, turnos, usuarios y catálogo.
 - `app/models/`: modelos; clases, atributos y relaciones SQLAlchemy en español. Los nombres físicos de tablas y columnas siguen iguales mediante los nombres explícitos de SQLAlchemy.
-- `app/core/database.py`: conexión, sesiones, roles del sistema y compatibilidad SQLite.
+- `app/core/database.py`: conexión, sesiones, preparación del esquema y compatibilidad SQLite.
 - `app/seguridad/passwords.py`: hash y verificación de contraseñas.
 - `app/seguridad/encoding.py`: codificación base64url compartida por tokens y hashes.
 - `app/core/main.py`: creación de la aplicación FastAPI.
 - `app/management.py`: comandos de inicialización, catálogo y aprovisionamiento de cuentas.
-- `app/datos_maestros/rutas_tarifas.json`: catálogo maestro de rutas y tarifas.
+- `app/servicios/configuracion.py`: lectura y siembra de catálogos en `app_config`.
 - `tests/test_api.py`: pruebas con base de datos aislada.
 - `../documentacion/arquitectura.md`: diagramas y flujos.
 - `../documentacion/trazabilidad.md`: estado de requisitos y pendientes.

@@ -12,19 +12,14 @@ from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models import Base, Rol
+from app.models import Base
+from app.servicios.configuracion import asegurar_roles
 
 
 DEFAULT_DATABASE_PATH = Path(__file__).resolve().parents[2] / "qrpass.db"
 DEFAULT_DATABASE_URL = f"sqlite:///{DEFAULT_DATABASE_PATH.as_posix()}"
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_ROLES = (
-    ("PASSENGER", "Pasajero"),
-    ("DRIVER", "Conductor"),
-)
-
 
 class BaseDatos:
     def __init__(self, database_url: str | None = None) -> None:
@@ -59,8 +54,7 @@ class BaseDatos:
         self._upgrade_sqlite_fare_destinations()
 
         with self.session_factory() as session:
-            for code, name in SYSTEM_ROLES:
-                self._ensure_role(session, code, name)
+            asegurar_roles(session)
             session.commit()
 
     def _upgrade_sqlite_user_columns(self) -> None:
@@ -153,15 +147,6 @@ class BaseDatos:
                 cursor.execute("PRAGMA foreign_keys=ON")
         finally:
             connection.close()
-
-    @staticmethod
-    def _ensure_role(session: Session, code: str, name: str) -> Rol:
-        role = session.query(Rol).filter_by(codigo=code).first()
-        if role is None:
-            role = Rol(codigo=code, nombre=name)
-            session.add(role)
-            session.flush()
-        return role
 
     def close(self) -> None:
         self.engine.dispose()
