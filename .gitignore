@@ -15,3 +15,7 @@ qrpass.db-wal
 
 # Archivos temporales que Word crea mientras un documento está abierto (~$...).
 ~$*
+
+# Configuración local del entorno de trabajo: se mantiene en la máquina, no se versiona.
+.agents/
+.opencode/
