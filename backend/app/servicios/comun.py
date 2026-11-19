@@ -2,7 +2,7 @@ from __future__ import annotations
 # Utilidades comunes y excepciones de dominio compartidas por todos los servicios.
 
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import TypedDict, Any
 from zoneinfo import ZoneInfo
 

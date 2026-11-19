@@ -164,7 +164,9 @@ def test_driver_login_has_both_roles_and_can_read_assignment(client: TestClient)
     assert assignment.json()["shift_status"] == "assigned"
 
 
-def test_admin_metrics_endpoint_is_not_available(client: TestClient) -> None:
+def test_global_metrics_endpoint_stays_retired(client: TestClient) -> None:
+    # Regresión: la antigua ruta de métricas globales se retiró del producto.
+    # Se conserva la comprobación para que nadie la reintroduzca por accidente.
     assert client.get("/api/v1/admin/metrics").status_code == 404
 
 

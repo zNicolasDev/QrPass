@@ -53,7 +53,7 @@ class BaseDatos:
     def initialize(self) -> None:
         # Solo prepara el esquema y los catálogos del sistema. Los datos de
         # operación (rutas, tarifas, cuentas y turnos) se cargan de forma
-        # explícita desde el comando de administración.
+        # explícita desde el comando de gestión `import-catalog`.
         Base.metadata.create_all(bind=self.engine)
         self._upgrade_sqlite_user_columns()
         self._upgrade_sqlite_fare_destinations()

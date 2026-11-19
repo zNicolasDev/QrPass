@@ -1,6 +1,6 @@
 # Contrato de integración del frontend
 
-> **Documento complementario.** La versión organizada por requerimiento funcional y por subrequerimiento, con la numeración de `documentacion/requisitos.pdf` (RF-01 a RF-11) y el detalle de solicitud, respuesta y errores, está en [`CONTRATO_INTEGRACION_POR_REQUERIMIENTO_FUNCIONAL.md`](CONTRATO_INTEGRACION_POR_REQUERIMIENTO_FUNCIONAL.md). Este archivo conserva la numeración interna anterior; ante una diferencia de numeración, prevalece el documento por requerimiento funcional.
+> **Documento complementario.** La versión organizada por requerimiento funcional y subrequerimiento (RF-01 a RF-11), con el detalle de solicitud, respuesta y errores, está en [`CONTRATO_INTEGRACION_POR_REQUERIMIENTO_FUNCIONAL.md`](CONTRATO_INTEGRACION_POR_REQUERIMIENTO_FUNCIONAL.md). Este archivo conserva la numeración interna anterior; ante una diferencia de numeración, prevalece el documento por requerimiento funcional.
 
 Cada fila relaciona requisitos funcionales (RF), pantalla, solicitud HTTP y respuesta que consume la interfaz. Los módulos agrupan varios RF; sus subrequisitos conservan los identificadores del documento de requisitos.
 

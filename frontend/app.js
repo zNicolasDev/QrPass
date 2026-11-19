@@ -779,30 +779,6 @@ function renderDriverDashboard() {
     </section>`;
 }
 
-function finderCell(row, column, top, left) {
-  const y = row - top;
-  const x = column - left;
-  if (x < 0 || x > 6 || y < 0 || y > 6) return null;
-  return x === 0 || x === 6 || y === 0 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4);
-}
-
-function qrCells(seed) {
-  let hash = 0;
-  for (const character of seed) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  let cells = "";
-  for (let row = 0; row < 21; row += 1) {
-    for (let column = 0; column < 21; column += 1) {
-      const finder = finderCell(row, column, 0, 0)
-        ?? finderCell(row, column, 0, 14)
-        ?? finderCell(row, column, 14, 0);
-      hash = (hash * 1664525 + 1013904223) >>> 0;
-      const dark = finder ?? ((hash >>> 29) & 1) === 1;
-      cells += `<span class="qr-cell${dark ? " is-dark" : ""}"></span>`;
-    }
-  }
-  return cells;
-}
-
 function renderQr() {
   return `${pageHeading(`${icon("qr")} TU VIAJE`, "Escanear QR del bus", "Apunta la cámara al código del bus o escríbelo a mano.")}
     <article class="surface detail-card qr-generation-card">
@@ -1233,7 +1209,7 @@ function openPlatformInfo() {
       <h3>Qué puedes hacer</h3>
       <ul><li>Como pasajero: escanear el QR del bus, pagar con tu saldo, consultar tus viajes y solicitar un cambio de ruta cuando esté permitido.</li><li>Como conductor: iniciar la ruta asignada, mostrar el QR, anotar pagos y terminar el turno contando el efectivo.</li></ul>
       <h3>Alcance del servicio</h3>
-      <ul><li>Para pagar con QR se necesita conexión a internet.</li><li>Las rutas, tarifas y reglas se administran desde el catálogo de la plataforma.</li></ul>
+      <ul><li>Para pagar con QR se necesita conexión a internet.</li><li>Las rutas, tarifas y reglas se gestionan desde el catálogo de la plataforma.</li></ul>
       <h3>Acerca de tus datos</h3>
       <p>No ingreses datos bancarios ni compartas tu contraseña.</p>
     </section>

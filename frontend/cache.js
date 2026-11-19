@@ -1,4 +1,4 @@
-const CACHE_NAME = "qrpass-shell-v53";
+const CACHE_NAME = "qrpass-shell-v54";
 const APP_FILES = [
   "./index.html",
   "./index.css",
@@ -53,6 +53,11 @@ self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(request.url);
   if (requestUrl.origin !== self.location.origin) return;
 
+  // Con iniciar.bat la API se sirve en el mismo origen que la interfaz.
+  // Sus respuestas nunca se guardan: un saldo o un historial obsoleto podría
+  // hacer que el pasajero pague con datos que ya no son válidos.
+  if (requestUrl.pathname.startsWith("/api/")) return;
+
   if (request.mode === "navigate") {
     // Primero intentamos mostrar la versión nueva; si no hay conexión,
     // ofrecemos la última pantalla descargada en vez de una página vacía.
@@ -73,9 +78,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    // En el desarrollo actual la API vive en otro origen y no pasa por aquí.
-    // Si interfaz y API comparten origen más adelante, excluye sus respuestas
-    // antes de guardar recursos para no conservar datos de una persona.
+    // Solo entran aquí los recursos estáticos de la carcasa de la app.
     caches.match(request)
       .then((cachedResponse) => cachedResponse || fetch(request).then((response) => {
         if (!response.ok) return response;

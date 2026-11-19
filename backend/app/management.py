@@ -140,7 +140,7 @@ def comando_estado(_: argparse.Namespace) -> None:
 def construir_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.management",
-        description="Administración de la base de datos y las cuentas de QrPass.",
+        description="Gestión de la base de datos y las cuentas de QrPass.",
     )
     subparsers = parser.add_subparsers(dest="comando", required=True)
 

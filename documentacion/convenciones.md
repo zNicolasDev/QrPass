@@ -31,4 +31,4 @@ Esto garantiza coherencia metodológica y facilita la evaluación progresiva del
 ---
 
 ## 3. Organización de la Documentación
-* Toda la documentación de requisitos (`requisitos.pdf`), arquitectura, matrices de trazabilidad y diagramas UML reside centralizada en la carpeta raíz [`documentacion/`](./).
+* Toda la documentación vigente (requisitos, arquitectura, trazabilidad, contratos y diagramas UML) reside centralizada en la carpeta raíz [`documentacion/`](./).

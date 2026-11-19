@@ -1,0 +1,17 @@
+# Artefactos generados por Python y por las pruebas.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Entorno virtual y configuración local con secretos.
+.venv/
+.env
+
+# Base SQLite creada en desarrollo; nunca se versiona porque contiene datos locales.
+qrpass.db
+qrpass.db-shm
+qrpass.db-wal
+
+# Archivos temporales que Word crea mientras un documento está abierto (~$...).
+~$*

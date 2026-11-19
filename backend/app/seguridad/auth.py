@@ -1,7 +1,15 @@
-from __future__ import annotations
-# Este módulo crea y comprueba sesiónes firmadas y aplica los permisos por rol.
+"""Sesiones firmadas y autorización por rol.
 
-import base64
+El token es un formato propio: un payload JSON con el identificador de cuenta y
+su vencimiento, más una firma HMAC-SHA256 calculada con ``app.state.auth_secret``.
+No es un JWT ni depende de librerías de terceros. La clave se fija al arrancar la
+aplicación; en desarrollo, si no se configura, es aleatoria y las sesiones dejan
+de servir al reiniciar. Los roles se consultan siempre en la base, nunca se
+confían al contenido del token.
+"""
+
+from __future__ import annotations
+
 import hashlib
 import hmac
 import json
@@ -15,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import obtener_sesion
 from app.models import Usuario
+from app.seguridad.encoding import decode_base64url, encode_base64url
 from app.servicios.usuarios import obtener_usuario_activo, usuario_tiene_rol
 
 
@@ -27,23 +36,31 @@ CredentialsDependency = Annotated[
 ]
 
 
-# Firma el identificador de cuenta y su vencimiento para crear un token.
 def crear_token_acceso(user_id: int, secret: bytes) -> str:
+    """Firma el identificador de cuenta y su vencimiento para crear un token.
+
+    El payload se serializa sin espacios para que la firma sea estable y el token
+    resulte corto; la comparación se hace en tiempo constante al verificarlo.
+    """
     payload = json.dumps(
         {"sub": user_id, "exp": int(time.time()) + DURACION_TOKEN_SEGUNDOS},
         separators=(",", ":"),
     ).encode("utf-8")
-    encoded_payload = _encode(payload)
+    encoded_payload = encode_base64url(payload)
     signature = hmac.new(secret, encoded_payload.encode("ascii"), hashlib.sha256).digest()
-    return f"{encoded_payload}.{_encode(signature)}"
+    return f"{encoded_payload}.{encode_base64url(signature)}"
 
 
-# Verifica el token y busca la cuenta activa que lo presenta.
 def obtener_usuario_autenticado(
     request: Request,
     session: SessionDependency,
     credentials: CredentialsDependency,
 ) -> Usuario:
+    """Verifica la firma, el vencimiento y que la cuenta siga activa.
+
+    Cualquier fallo se traduce al mismo 401 para no revelar si el token estaba
+    mal formado, vencido o si la cuenta fue desactivada.
+    """
     unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Autenticación requerida o sesión vencida.",
@@ -60,9 +77,9 @@ def obtener_usuario_autenticado(
             payload_part.encode("ascii"),
             hashlib.sha256,
         ).digest()
-        if not hmac.compare_digest(_decode(signature_part), expected_signature):
+        if not hmac.compare_digest(decode_base64url(signature_part), expected_signature):
             raise unauthorized
-        payload = json.loads(_decode(payload_part))
+        payload = json.loads(decode_base64url(payload_part))
         user_id = payload["sub"]
         expires_at = payload["exp"]
         if not isinstance(user_id, int) or expires_at <= time.time():
@@ -79,8 +96,13 @@ def obtener_usuario_autenticado(
 UsuarioAutenticado = Annotated[Usuario, Depends(obtener_usuario_autenticado)]
 
 
-# Crea una dependencia que bloquea la operación si falta el rol requerido.
 def requerir_rol(role_code: str) -> Callable[..., Usuario]:
+    """Crea una dependencia que bloquea la operación si falta el rol requerido.
+
+    Se usa como fábrica en los controladores para mantener la comprobación de
+    permisos fuera de las reglas de negocio.
+    """
+
     def dependency(user: UsuarioAutenticado) -> Usuario:
         if not usuario_tiene_rol(user, role_code):
             raise HTTPException(
@@ -90,11 +112,3 @@ def requerir_rol(role_code: str) -> Callable[..., Usuario]:
         return user
 
     return dependency
-
-
-def _encode(value: bytes) -> str:
-    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
-
-
-def _decode(value: str) -> bytes:
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))

@@ -48,6 +48,7 @@ Todos los endpoints usan el prefijo `/api/v1`.
 |---|---|---|
 | GET | `/health` | Estado del servicio |
 | GET | `/ready` | Disponibilidad del servicio con verificación `SELECT 1` sobre la base |
+| GET | `/time` | Hora del servidor; sincroniza las cuentas regresivas del frontend |
 | GET | `/routes` | Catálogo de rutas |
 | GET | `/fares/current` | Tarifa vigente |
 | POST | `/auth/register` | Registro de pasajero y consentimiento |
@@ -61,13 +62,18 @@ Todos los endpoints usan el prefijo `/api/v1`.
 | POST | `/account/payments` | Pago en efectivo o tarjeta; el saldo requiere escanear QR del bus |
 | POST | `/account/top-ups` | Recarga idempotente de la billetera QrPass |
 | POST | `/account/transfers` | Traspaso único a otra ruta dentro de 20 minutos |
-| GET | `/driver/assignment` | Asignación operativa; requiere rol `DRIVER` |
+| GET | `/driver/assignment` | Asignación operativa vigente; requiere rol `DRIVER` |
+| GET | `/driver/assignments` | Todas las asignaciones abiertas del conductor; la usa el selector de turnos |
 | GET | `/driver/shift` | Totales del turno activo; requiere rol `DRIVER` |
 | GET | `/driver/shifts/history` | Últimos 20 cierres del conductor |
 | POST | `/driver/shift/start?route_id={id}` | Inicio de turno asignado |
 | POST | `/driver/shift/payments` | Registro de efectivo o tarjeta en el turno |
 | POST | `/driver/shift/qr` | Genera el QR temporal del turno activo para mostrarlo en el bus |
 | POST | `/driver/shift/close` | Cierre de turno y conciliación |
+
+`/driver/assignment` y `/trips/{trip_id}` no los llama la interfaz, pero forman parte del
+contrato público: el primero devuelve la asignación vigente y el segundo el detalle de un
+viaje propio. Ambos tienen cobertura en `tests/test_api.py` para detectar regresiones.
 
 ## Carpetas y archivos
 
@@ -78,6 +84,7 @@ Todos los endpoints usan el prefijo `/api/v1`.
 - `app/models/`: modelos; clases, atributos y relaciones SQLAlchemy en español. Los nombres físicos de tablas y columnas siguen iguales mediante los nombres explícitos de SQLAlchemy.
 - `app/core/database.py`: conexión, sesiones, roles del sistema y compatibilidad SQLite.
 - `app/seguridad/passwords.py`: hash y verificación de contraseñas.
+- `app/seguridad/encoding.py`: codificación base64url compartida por tokens y hashes.
 - `app/core/main.py`: creación de la aplicación FastAPI.
 - `app/management.py`: comandos de inicialización, catálogo y aprovisionamiento de cuentas.
 - `app/datos_maestros/rutas_tarifas.json`: catálogo maestro de rutas y tarifas.

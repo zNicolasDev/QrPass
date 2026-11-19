@@ -81,7 +81,7 @@ La implementación actual cubre gran parte del núcleo funcional del sistema y s
 - `Transfer` para el flujo de transbordo.
 - `BoardingDevice` y `OfflineSync` para el diseño del modo offline.
 
-El backend modela los roles `PASSENGER` y `DRIVER`. Los conductores se aprovisionan con la CLI de gestión. Las métricas globales y su acceso administrativo quedan como mejora futura; el conductor consulta los agregados de sus propios turnos. La sincronización offline completa permanece como extensión: la base ya tiene las tablas de soporte y el flujo conceptual, pero la puesta en producción del lote masivo requiere una capa adicional de sincronización y validación de consistencia.
+El backend modela los roles `PASSENGER` y `DRIVER`. Los conductores se aprovisionan con la CLI de gestión. Las métricas globales y su panel quedan como mejora futura; el conductor consulta los agregados de sus propios turnos. La sincronización offline completa permanece como extensión: la base ya tiene las tablas de soporte y el flujo conceptual, pero la puesta en producción del lote masivo requiere una capa adicional de sincronización y validación de consistencia.
 
 ### Matriz funcional resumida recomendada
 

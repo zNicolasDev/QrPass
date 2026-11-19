@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.dtos import CrearPagoSolicitud, MedioPago, CrearRecargaSolicitud
-from app.models import Usuario, Pago, Viaje, Ruta, Tarifa
+from app.models import Usuario, Pago, Viaje
 from app.servicios.comun import ErrorDominio, ahora_servicio
 from app.servicios.rutas_tarifas import _obtener_ruta_activa, _validar_destino_ruta, _obtener_tarifa_ruta
 

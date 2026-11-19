@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.dtos import CrearTransbordoSolicitud
-from app.models import Usuario, Viaje, Pago, Transbordo, Ruta, Tarifa
+from app.models import Usuario, Viaje, Pago, Transbordo
 from app.servicios.comun import ErrorDominio, ahora_servicio
 from app.servicios.rutas_tarifas import _obtener_ruta_activa, _obtener_tarifa_ruta
 

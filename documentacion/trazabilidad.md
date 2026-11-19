@@ -33,7 +33,7 @@ Estado del sistema respecto del documento de requisitos cargado. “Implementado
 
 | ID | Requisito resumido | Estado | Pendiente / evidencia necesaria |
 |---|---|---|---|
-| RD-01 | Tarifa municipal | Parcial | La lógica de día ordinario/festivo está implementada; los importes provienen del catálogo maestro y no son tarifas autorizadas. Confirmar acto administrativo, excepciones y calendario con la autoridad. |
+| RD-01 | Tarifa municipal | Parcial | La lógica de día ordinario/festivo está implementada; los importes provienen del catálogo maestro y no son tarifas autorizadas. Confirmar la autorización oficial, excepciones y calendario con la autoridad. |
 | RD-02 | Ley 1581/2012 y Decreto 1377/2013 | Parcial | El registro solicita consentimiento y ofrece un aviso con datos recogidos, uso y almacenamiento local. No es una politica aprobada; faltan responsable identificado, finalidades/retencion definitivas, canales de derechos, controles organizacionales, evaluacion juridica y procedimiento de incidentes. |
 | RD-03 | Traspaso ≤20 minutos y ruta diferente | Implementado | Límite temporal, ruta distinta y uso único se validan del lado servidor. Confirmar con operador la definición exacta del inicio del cómputo y excepciones del servicio. |
 | RD-04 | Regulación sectorial aplicable | Pendiente de validación | No se declara cumplimiento legal. Requiere revisión por responsables jurídicos y operador de transporte frente a la regulación aplicable al sistema, recaudo, tiquetes y operación. |

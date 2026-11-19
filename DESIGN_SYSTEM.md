@@ -305,19 +305,16 @@ Sin sombra: el badge se apoya en el borde, no flota.
 
 ### 4.8 Visor QR
 
-**Nunca se muestra un QR suelto sobre blanco.** Hay dos marcos:
-
-- **`.bus-qr-frame`** (visor de cobro del conductor): padding `20px`, hairline,
-  `--radius-lg`, fondo blanco, `inset 0 1px 0 #fff` + elevación 1, imagen de hasta
-  `232px`. Cuatro esquinas técnicas de 22×2px: superior izquierda, superior derecha e
-  inferior derecha en `--brand-forest`; **inferior izquierda en
-  `--brand-lime-hover`** como marca de escaneo.
-- **`.qr-frame`** (modales y vistas de detalle): hairline, `--radius-lg`, elevación 1
-  y dos esquinas bosque de 16×2px (superior izquierda e inferior derecha).
+**Nunca se muestra un QR suelto sobre blanco.** El QR real se genera en el backend y
+se presenta dentro de **`.bus-qr-frame`** (visor de cobro del conductor): padding
+`20px`, hairline, `--radius-lg`, fondo blanco, `inset 0 1px 0 #fff` + elevación 1,
+imagen de hasta `232px`. Cuatro esquinas técnicas de 22×2px: superior izquierda,
+superior derecha e inferior derecha en `--brand-forest`; **inferior izquierda en
+`--brand-lime-hover`** como marca de escaneo.
 
 El contador (`.bus-qr-countdown`) va en `--text-secondary`, `12.5px`, tabular.
 
-### 4.9 Token JWT
+### 4.9 Token de sesión firmado
 
 El token manual del conductor es una **barra horizontal compacta**, no un textarea:
 

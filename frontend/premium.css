@@ -1605,39 +1605,6 @@ textarea:focus {
   }
 }
 
-/* Marco del QR clásico (modales y vistas de detalle). */
-.qr-frame {
-  position: relative;
-  border: var(--border-hairline);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-elevation-1);
-}
-
-.qr-frame::before,
-.qr-frame::after {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  content: "";
-  pointer-events: none;
-}
-
-.qr-frame::before {
-  top: 7px;
-  left: 7px;
-  border-top: 2px solid var(--brand-forest);
-  border-left: 2px solid var(--brand-forest);
-  border-top-left-radius: 4px;
-}
-
-.qr-frame::after {
-  right: 7px;
-  bottom: 7px;
-  border-right: 2px solid var(--brand-forest);
-  border-bottom: 2px solid var(--brand-forest);
-  border-bottom-right-radius: 4px;
-}
-
 /* ---------- Escáner del pasajero ---------- */
 .qr-generation-card form {
   display: grid;

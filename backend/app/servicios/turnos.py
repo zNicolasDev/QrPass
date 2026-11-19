@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.dtos import MedioPago
-from app.models import Usuario, Turno, Pago, Viaje, Ruta, Tarifa, Conductor, EmpresaTransporte, Vehiculo
-from app.servicios.comun import ErrorDominio, ahora_servicio, ResumenTurnoConductor, ResumenMovimientoTurno
+from app.models import Usuario, Turno, Pago, Viaje, Conductor, EmpresaTransporte, Vehiculo
+from app.servicios.comun import ErrorDominio, ahora_servicio, ResumenTurnoConductor
 from app.servicios.rutas_tarifas import _obtener_tarifa_ruta, _obtener_ruta_activa
 
 

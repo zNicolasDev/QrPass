@@ -7,13 +7,20 @@ Esta carpeta centraliza toda la documentación técnica, especificación de requ
 ## Índice Documental
 
 ### 1. Requerimientos del Sistema
-* [`requisitos.pdf`](./requisitos.pdf): Documento formal de especificación de requerimientos (29 páginas). Define los requerimientos funcionales (RF-01 a RF-11), no funcionales (RNF-01 a RNF-06), de dominio (RD-01 a RD-04), matriz de partes interesadas (*stakeholders*), historias de usuario en formato Gherkin e inventario de casos de uso (CU-01 a CU-06).
-* [`trazabilidad.md`](./trazabilidad.md): Matriz de trazabilidad técnica que compara detalladamente los requisitos de la especificación frente a su estado de implementación real en el sistema (funcionalidades completas, parciales y requerimientos para producción).
+* [`ingenieria_software/04_REQUISITOS_DEL_SISTEMA.md`](./ingenieria_software/04_REQUISITOS_DEL_SISTEMA.md): Lista vigente de requerimientos funcionales, no funcionales y de dominio.
+* [`ingenieria_software/CONTRATO_INTEGRACION_POR_REQUERIMIENTO_FUNCIONAL.md`](./ingenieria_software/CONTRATO_INTEGRACION_POR_REQUERIMIENTO_FUNCIONAL.md): Contrato canónico por RF, con solicitud, respuesta y errores de cada endpoint.
+* [`trazabilidad.md`](./trazabilidad.md): Matriz que compara cada requisito con su estado real de implementación (completo, parcial o pendiente de servicios externos).
 
 ### 2. Arquitectura y Diseño
-* [`arquitectura.md`](./arquitectura.md): Especificación de la arquitectura del sistema, diagramas de componentes en Mermaid, contratos de API REST, justificación técnica del patrón MVC adaptado y alineación entre requisitos y código.
-* [`ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md`](./ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md): Contrato de integración de los tres módulos principales del frontend, con RF, pantallas, endpoints, JSON de entrada y respuestas.
-* [`ingenieria_software/INFORME_COMPLETO.docx`](./ingenieria_software/INFORME_COMPLETO.docx): Informe de Ingeniería de Software en Word, con formato APA 7, diagramas UML y listas de contenido, tablas y figuras.
+* [`arquitectura.md`](./arquitectura.md): Arquitectura del sistema, diagramas de componentes en Mermaid, contratos REST, justificación del patrón MVC adaptado y alineación entre requisitos y código.
+* [`ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md`](./ingenieria_software/CONTRATO_INTEGRACION_FRONTEND.md): Contrato de integración de los tres módulos del frontend; conserva la numeración interna anterior y complementa al contrato por requerimiento.
+* [`ingenieria_software/INFORME_COMPLETO.md`](./ingenieria_software/INFORME_COMPLETO.md): Informe de Ingeniería de Software en formato Markdown, con diagramas, tablas y evidencias. Es la fuente editable del informe.
+
+### Entregables binarios canónicos
+* [`Documento_Tecnico_QrPass.pdf`](./Documento_Tecnico_QrPass.pdf): documento técnico de Programación Web; su fuente editable es `Documento_Tecnico_QrPass.docx`.
+* [`Presentacion_QrPass_ProgramacionWeb.pptx`](./Presentacion_QrPass_ProgramacionWeb.pptx): presentación de la asignatura.
+
+Los ZIP de entrega, las copias duplicadas y los archivos temporales de Office no se versionan: se regeneran desde estas fuentes cuando se necesiten.
 
 ### 3. Modelado UML y Entregables Didácticos
 * [`uml_mvc_y_entregables.md`](./uml_mvc_y_entregables.md): Diagramas de secuencia y actividad en Mermaid con explicaciones paso a paso de los procesos críticos (pago con QR, pago manual y transbordos a $0 COP).

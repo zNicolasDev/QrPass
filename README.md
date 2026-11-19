@@ -6,7 +6,7 @@ Plataforma web y API para gestionar viajes y el recaudo del transporte público 
 
 - [`frontend/`](./frontend/): Interfaz adaptable y PWA para pasajeros y conductores.
 - [`backend/`](./backend/): API FastAPI, autenticación por roles, reglas de negocio, base local y pruebas.
-- [`documentacion/`](./documentacion/): Especificación de requisitos (`requisitos.pdf`), arquitectura, matriz de trazabilidad y diagramas UML.
+- [`documentacion/`](./documentacion/): Requisitos vigentes, arquitectura, matriz de trazabilidad, contratos de integración y diagramas UML.
 
 ## Iniciar la API
 

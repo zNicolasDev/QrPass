@@ -10,7 +10,7 @@ Nada se resuelve solo en el frontend: el backend valida las reglas de negocio y 
 
 | Acción | Pantalla | Función JS | Endpoint | Servicio backend | Tablas DB | Respuesta |
 |---|---|---|---|---|---|---|
-| Iniciar sesión | `login.html` | `loginForm.submit` | `POST /api/v1/auth/login` | `autenticar_usuario` | `users`, `user_roles`, `roles` | Token JWT + roles |
+| Iniciar sesión | `login.html` | `loginForm.submit` | `POST /api/v1/auth/login` | `autenticar_usuario` | `users`, `user_roles`, `roles` | Token de sesión firmado con HMAC-SHA256 + roles |
 | Crear cuenta | `login.html` | `registrationForm.submit` | `POST /api/v1/auth/register` | `registrar_usuario` | `users`, `user_roles` | Confirmación + auto-login |
 | Validar sesión al cargar | `pasajero.html` / `conductor.html` | `bootstrapAuthentication()` | `GET /api/v1/auth/me` | `obtener_usuario_activo` | `users`, `user_roles` | Usuario + roles (401 → logout) |
 | Cerrar sesión | cualquier | `logout()` | (sin llamada; limpia token local) | — | — | Redirige a `login.html` |

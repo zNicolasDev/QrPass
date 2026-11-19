@@ -79,7 +79,7 @@ Las tablas 1 a 4 cubren los cuatro módulos de la especificación de requisitos.
 - Módulo 3. Servicios especiales y billetera virtual: RF-07 y RF-08.
 - Módulo 4. Reportes, historial e información financiera: RF-09 a RF-11.
 
-Las métricas globales de recaudo y una vista administrativa quedan como mejora futura; no forman parte del contrato implementado.
+Las métricas globales de recaudo y su vista consolidada quedan como mejora futura; no forman parte del contrato implementado.
 
 ## 8. Contrato de integración por módulo
 
@@ -146,7 +146,7 @@ Nota. La recarga se abona a la billetera QrPass y es idempotente; no existe pasa
 
 Nota. El comprobante y el historial pertenecen a la cuenta del pasajero. El cierre calcula la diferencia entre el efectivo contado y el efectivo registrado.
 
-Las métricas globales y su vista administrativa se consideran una mejora futura; no hay endpoint ni rol de administrador en la versión actual. El conductor sí puede consultar el recaudo de sus propios turnos.
+Las métricas globales y su vista de gestión se consideran una mejora futura; no hay endpoint ni rol adicional en la versión actual. El conductor sí puede consultar el recaudo de sus propios turnos.
 
 ### Tabla 5. Catálogo de errores y acciones del cliente
 
@@ -178,7 +178,7 @@ Las métricas globales y su vista administrativa se consideran una mejora futura
 
 1. Numeración. El documento de requisitos usa RF-01 a RF-11; la documentación interna usa RF-01 a RF-14. Este contrato adopta la numeración del documento de requisitos y añade subrequerimientos (por ejemplo, RF-03.1). Se recomienda unificar la numeración en todos los artefactos.
 2. Generación del QR. El requisito RF-04 atribuye la generación al pasajero; la implementación genera el QR en la consola del bus y el pasajero lo escanea. El contrato documenta el flujo implementado y deja constancia de la diferencia para que se apruebe o se corrija.
-3. Métricas globales. La consulta consolidada de recaudo y su interfaz administrativa quedan como mejora futura; la versión actual limita los agregados al turno del conductor autenticado.
+3. Métricas globales. La consulta consolidada de recaudo y su interfaz quedan como mejora futura; la versión actual limita los agregados al turno del conductor autenticado.
 4. Pago con saldo. `POST /account/payments` rechaza `method=wallet` con 422; el pago con saldo solo se realiza escaneando el QR del bus. La regla debe permanecer explícita para evitar dos caminos para el mismo débito.
 5. Idempotencia. La clave viaja en el cuerpo y no en el encabezado `Idempotency-Key`. Se documenta así porque es lo que implementa la API; cambiarla exigiría una versión nueva del contrato.
 6. Registro de conductores. `POST /auth/register` crea únicamente cuentas `PASSENGER`. Las cuentas de conductor se aprovisionan con `python -m app.management create-driver`; el contrato no debe prometer un auto-registro de conductores.

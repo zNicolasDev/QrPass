@@ -13,7 +13,7 @@ from qrcode.image.svg import SvgPathImage
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models import Usuario, Pago, Viaje, CodigoQr, Turno, Ruta, Tarifa
+from app.models import Usuario, Pago, Viaje, CodigoQr, Turno
 from app.servicios.comun import ErrorDominio, ahora_servicio
 from app.servicios.rutas_tarifas import _obtener_ruta_activa, _obtener_tarifa_ruta, _validar_destino_ruta
 

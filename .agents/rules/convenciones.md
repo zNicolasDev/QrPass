@@ -15,4 +15,4 @@ Al realizar análisis, auditorías técnicas, revisiones de código o resúmenes
 - Las pruebas de integración con cliente HTTP (`test_api.py`) o peticiones activas de red requieren permisos de red locales en entornos restringidos.
 
 ## 3. Organización de la Documentación
-- Toda la documentación técnica, especificación de requisitos (`requisitos.pdf`), matrices de trazabilidad, arquitectura y entregables UML reside centralizada en la carpeta raíz `documentacion/`.
+- Toda la documentación técnica, requisitos vigentes, matrices de trazabilidad, arquitectura y entregables UML reside centralizada en la carpeta raíz `documentacion/`.

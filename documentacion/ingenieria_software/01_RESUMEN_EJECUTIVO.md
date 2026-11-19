@@ -24,7 +24,7 @@ Desarrollar una plataforma de recaudo digital basada en códigos QR firmados que
 - Gestión de turnos del conductor: inicio, registro de pagos, generación de QR y cierre con conciliación.
 - Documentación de ingeniería de software, arquitectura, UML y trazabilidad.
 
-Las métricas globales y su panel administrativo quedan como mejora futura; el conductor consulta los totales de sus propios turnos.
+Las métricas globales y su panel quedan como mejora futura; el conductor consulta los totales de sus propios turnos.
 
 **Fuera del alcance (pendiente para producción):**
 

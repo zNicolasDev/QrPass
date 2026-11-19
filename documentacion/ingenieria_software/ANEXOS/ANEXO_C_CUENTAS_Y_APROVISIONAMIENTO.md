@@ -25,4 +25,4 @@ python -m app.management status
 | `PASSENGER` | Registro, billetera, pagos, historial y traspasos. |
 | `DRIVER` | Turno asignado, QR del bus, registro de recaudos y cierre. También conserva el espacio pasajero. |
 
-Las métricas globales y el panel administrativo quedan como mejora futura. El conductor consulta el resumen y el historial de sus propios turnos. Las contraseñas deben tener al menos 12 caracteres. Si se omite `--contrasena`, el comando la solicita de forma interactiva. El correo se usa como nombre de usuario.
+Las métricas globales y su panel quedan como mejora futura. El conductor consulta el resumen y el historial de sus propios turnos. Las contraseñas deben tener al menos 12 caracteres. Si se omite `--contrasena`, el comando la solicita de forma interactiva. El correo se usa como nombre de usuario.

@@ -4,7 +4,7 @@
 
 - **Nombre del proyecto:** QrPass — Sistema de pago y recaudo digital con código QR para el transporte público de Ibagué.
 - **Integrantes del equipo:** Equipo de desarrollo QrPass (Ingeniería de Sistemas).
-- **Curso y docente:** Ingeniería de Software — [Nombre del docente].
+- **Curso:** Ingeniería de Software — UNIMINUTO.
 - **Fecha:** Noviembre de 2026.
 - **Repositorio:** `C:\Users\nicol\Downloads\GitHub\QrPass` (rama `main`).
 
