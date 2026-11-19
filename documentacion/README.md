@@ -38,6 +38,10 @@ Para sustentación académica y verificación de la lógica de los diagramas, se
 | Actividad 1: Pago con QR | [`actividad_pago_qr.py`](./actividad_pago_qr.py) | `python documentacion/actividad_pago_qr.py` |
 | Actividad 2: Transbordo | [`actividad_transbordo.py`](./actividad_transbordo.py) | `python documentacion/actividad_transbordo.py` |
 
+### 5. Demostración y sustentación
+* [`DEMO_CAMBIO_TARIFA.md`](./DEMO_CAMBIO_TARIFA.md): cambia una tarifa en `qrpass.db` y muestra que la API y la interfaz la leen sin tocar el código. Incluye el script [`demo_cambio_tarifa.py`](./demo_cambio_tarifa.py) para aplicar y revertir el cambio.
+* [`GUIA_DEFENSA_PUNTA_A_PUNTA.md`](./GUIA_DEFENSA_PUNTA_A_PUNTA.md): explicación sencilla del proyecto de principio a fin (frontend, backend, base de datos e ingeniería de software), con alcance, limitaciones y preguntas preparadas para la defensa.
+
 ---
 
 ## Guía Rápida del Patrón MVC para Sustentaciones

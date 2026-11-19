@@ -687,7 +687,8 @@ function renderDriverDashboard() {
   const walletTotal = entries.filter((entry) => entry.method === "QR / saldo").reduce((total, entry) => total + entry.amount, 0);
   const cardTotal = entries.filter((entry) => entry.method === "Tarjeta").reduce((total, entry) => total + entry.amount, 0);
   const total = cashTotal + walletTotal + cardTotal;
-  const fare = getFare();
+  // El cobro manual usa la tarifa de la ruta del turno, no la tarifa base.
+  const fare = getFareFor(shift.routeId);
   const shareStyle = (value) => ` style="flex-grow:${total > 0 ? value : 0}"`;
   const rows = driverLedgerBody(entries);
 
